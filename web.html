@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+	<meta charset="UTF-8">
+	<title>WMBus Auswertung</title>
+	<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+	<style>
+		body { font-family: Arial, sans-serif; margin: 20px; }
+		table { width: 100%; }
+		th, td { text-align: center; }
+		h1 { text-align: center; }
+	</style>
+</head>
+<body>
+	<h1>WMBus Daten</h1>
+	<div id="status" style="color: red; text-align: center; margin-bottom: 20px;"></div>
+	<table id="wmbusTable" class="display">
+		<thead>
+			<tr>
+				<th>ID</th>
+				<th>Zeitpunkt</th>
+				<th>RSSI</th>
+				<th>Altes Datum</th>
+				<th>Alter Zählerstand</th>
+				<th>Aktuelles Datum</th>
+				<th>Aktueller Zählerstand</th>
+				<th>Raumtemperatur (°C)</th>
+				<th>Heizkörpertemp. (°C)</th>
+				<th>WMBus</th>
+			</tr>
+		</thead>
+		<tbody></tbody>
+	</table>
+
+	<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+	<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+	<script>
+		// Little-Endian 2-Byte Integer
+		function int2_le(bytes) {
+			return bytes[0] + (bytes[1] << 8);
+		}
+
+		// Decode WMBus telegram from Techem heat cost allocator
+		function techemDecode(tgHex) {
+			let tg = [];
+			for(let i = 0; i < tgHex.length; i += 2) {
+				tg.push(parseInt(tgHex.substr(i,2),16));
+			}
+
+			// Previous & Current Date
+			let prevDate = int2_le(tg.slice(12,14));
+			let currDate = int2_le(tg.slice(16,18));
+
+			let d_prev = (prevDate >> 0) & 0x1F;
+			let m_prev = (prevDate >> 5) & 0x0F;
+			let y_prev = 2000 + ((prevDate >> 9) & 0x3F);
+			let prevDateStr = `${y_prev}-${String(m_prev).padStart(2,'0')}-${String(d_prev).padStart(2,'0')}`;
+
+			let d_curr = (currDate >> 4) & 0x1F; if(d_curr<=0) d_curr=1;
+			let m_curr = (currDate >> 9) & 0x0F; if(m_curr<=0) m_curr=12;
+			let y_curr = y_prev;
+			if(m_curr < m_prev || (m_curr == m_prev && d_curr <= d_prev)) y_curr += 1;
+			let currDateStr = `${y_curr}-${String(m_curr).padStart(2,'0')}-${String(d_curr).padStart(2,'0')}`;
+
+			// Temperatures
+			let tempRoom = int2_le(tg.slice(20,22))/100.0;
+			let tempRad  = int2_le(tg.slice(22,24))/100.0;
+
+			return {
+				prevDate: prevDateStr,
+				currDate: currDateStr,
+				prevHCA: int2_le(tg.slice(14,16)),
+				currHCA: int2_le(tg.slice(18,20)),
+				tempRoom: tempRoom.toFixed(2),
+				tempRad: tempRad.toFixed(2)
+			};
+		}
+
+
+		async function loadData() {
+			try {
+				let response = await fetch("/data");
+				let data = await response.json();
+
+				let tbody = $("#wmbusTable tbody");
+				for(let id in data) {
+					let row = data[id];
+					let decoded = techemDecode(row.wmbus);
+
+					tbody.append(`
+						<tr>
+							<td>${id}</td>
+							<td>${row.timestamp}</td>
+							<td>${row.rssi}</td>
+							<td>${decoded.prevDate}</td>
+							<td>${decoded.prevHCA}</td>
+							<td>${decoded.currDate}</td>
+							<td>${decoded.currHCA}</td>
+							<td>${decoded.tempRoom}</td>
+							<td>${decoded.tempRad}</td>
+							<td style="text-align: left;">${row.wmbus}</td>
+						</tr>
+					`);
+				}
+
+				$('#wmbusTable').DataTable({
+					pageLength: 25
+				});
+
+				document.getElementById('status').textContent = "";
+
+			} catch(err) {
+				console.error(err);
+				document.getElementById('status').textContent = "Fehler beim Laden der Daten. Prüfe die Verbindung oder CORS-Einstellungen.";
+			}
+		}
+
+		loadData();
+	</script>
+</body>
+</html>
