@@ -1,0 +1,75 @@
+
+# selbst-ableser
+
+**selbst-ableser** ist ein plattformübergreifendes Python-Projekt zum lokalen Auslesen von Funkzählern (wM-Bus / OMS).
+
+Das Projekt richtet sich an Eigentümer & Mieter, die ihre Verbrauchsdaten **selbst**, **lokal** und **datenschutzfreundlich** erfassen möchten – ohne Cloud-Zwang oder externe Dienste.
+
+---
+
+## Funktionen
+
+* 📡 Auslesen von Funkzählern nach **wM-Bus** / **OMS**
+* 🐍 Implementiert in **Python**
+* 🪟 Läuft unter **Windows** und **Linux**
+* 🔒 Lokale Verarbeitung der Daten (keine automatische Cloud-Anbindung)
+* 🧩 Modular erweiterbar (weitere Zählertypen, Ausgaben, Schnittstellen)
+
+---
+
+## Unterstützte Zähler
+
+* wM-Bus-kompatible Funkzähler
+* C1 und T1 Modus
+
+---
+
+## Voraussetzungen
+
+* Python **3.x**
+* Unterstützter wM-Bus Funkadapter: [iU891A-XL](https://shop.imst.de/wireless-solutions/usb-radio-products/89/bundle-iu891a-xl-wireless-m-bus-usb-adapter-868-mhz-w.-antenna)
+* Betriebssystem:
+  * Windows
+  * Linux
+
+---
+
+## Installation
+
+Eine Installation ist nicht erforderlich. 
+
+---
+
+## Verwendung
+
+```bash
+python wmbus.py
+```
+
+Das Programm liest die empfangenen Funktelegramme aus. Sie können anschließend im Browser dekodiert und lokal weiterverarbeitet bzw. angezeigt werden.
+
+---
+
+## Datenschutz & Philosophie
+
+**selbst-ableser** verfolgt einen klaren Ansatz:
+
+* 📉 Datensparsamkeit
+* 🏠 Lokale Verarbeitung
+* 🔐 Volle Kontrolle über die eigenen Messdaten
+
+Ideal für private Anwender, Vermieter oder Bastler, die ihre Zählerdaten selbst auslesen möchten.
+
+---
+
+## Projektstatus
+
+🚧 **In Entwicklung**
+
+Funktionen und Schnittstellen können sich noch ändern.
+
+---
+
+## Name
+
+**selbst-ableser** – weil deine Daten dir gehören.

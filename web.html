@@ -2,8 +2,13 @@
 <html lang="de">
 <head>
 	<meta charset="UTF-8">
-	<title>WMBus Auswertung</title>
+	<title>wM-Bus Auswertung</title>
+	<link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+	<text x="50%" y="30%" font-size="36" font-family="Arial" fill="blue" text-anchor="middle" dominant-baseline="middle">wM</text>
+	<text x="50%" y="85%" font-size="36" font-family="Arial" fill="blue" text-anchor="middle" dominant-baseline="middle">Bus</text>
+	</svg>'>
 	<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 	<style>
 		body { font-family: Arial, sans-serif; margin: 20px; }
 		table { width: 100%; }
@@ -12,8 +17,9 @@
 	</style>
 </head>
 <body>
-	<h1>WMBus Daten</h1>
+	<h1>wM-Bus Daten</h1>
 	<div id="status" style="color: red; text-align: center; margin-bottom: 20px;"></div>
+	<button id="exportBtn" style="margin-bottom: 10px;">Export to Excel</button>
 	<table id="wmbusTable" class="display">
 		<thead>
 			<tr>
@@ -116,6 +122,13 @@
 		}
 
 		loadData();
+
+		// Export to Excel
+		document.getElementById('exportBtn').addEventListener('click', function() {
+			let table = document.getElementById('wmbusTable');
+			let wb = XLSX.utils.table_to_book(table, {sheet: "wM-Bus Daten"});
+			XLSX.writeFile(wb, 'wmbus_daten.xlsx');
+		});
 	</script>
 </body>
 </html>
