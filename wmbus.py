@@ -1,4 +1,5 @@
 import serial
+import configparser
 import datetime
 import time
 import threading
@@ -7,11 +8,13 @@ import socket
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-PORT = "COM5" #"/dev/serial/by-id/usb-IMST_iU891A_IMS3015-if00"
+
 BAUDRATE = 115200
 TIMEOUT  = 0.2
-HTTP_PORT = 8080  # Webserver-Port
 
+config = configparser.ConfigParser(inline_comment_prefixes='#')
+config.read('cfg.ini')
+cfg = config['Configuration']
 
 # Thread-safe RAM storage
 frameList = {}
@@ -68,8 +71,8 @@ def get_local_ip():
 
 
 def start_http():
-	server = HTTPServer(("0.0.0.0", HTTP_PORT), Handler)
-	print(f"HTTP-Server aktiv: http://{get_local_ip()}:{HTTP_PORT}/data")
+	server = HTTPServer(("0.0.0.0", int(cfg['HttpPort'])), Handler)
+	print(f"HTTP-Server aktiv: http://{get_local_ip()}:{int(cfg['HttpPort'])}")
 	server.serve_forever()
 
 
@@ -176,8 +179,8 @@ def main():
 	threading.Thread(target=start_http, daemon=True).start()
 
 	try:
-		ser = serial.Serial(PORT, BAUDRATE, timeout=TIMEOUT)
-		print(f"Verbinde mit {PORT}...")
+		ser = serial.Serial(cfg['Port'], BAUDRATE, timeout=TIMEOUT)
+		print(f"Verbinde mit iU891A-XL an {cfg['Port']}...")
 		
 		# Wakeup
 		ser.write(b'\xC0' * 30)
