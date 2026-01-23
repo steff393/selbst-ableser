@@ -24,6 +24,7 @@ data_lock = threading.Lock()
 # HTTP-Server Handler
 class Handler(BaseHTTPRequestHandler):
 	def do_GET(self):
+		# get web page
 		if self.path == "/" or self.path == "/web.html":
 			try:
 				base_path = os.path.dirname(os.path.abspath(__file__))
@@ -38,7 +39,23 @@ class Handler(BaseHTTPRequestHandler):
 			except FileNotFoundError:
 				self.send_error(404, "web.html nicht gefunden")
 			return
+		
+		if self.path == "/uvi.html":
+			try:
+				base_path = os.path.dirname(os.path.abspath(__file__))
+				file_path = os.path.join(base_path, "uvi.html")
 
+				with open(file_path, "rb") as f:
+					content = f.read()
+				self.send_response(200)
+				self.send_header("Content-Type", "text/html")
+				self.end_headers()
+				self.wfile.write(content)
+			except FileNotFoundError:
+				self.send_error(404, "uvi.html nicht gefunden")
+			return
+
+		# get current data
 		if self.path == "/data":
 			self.send_response(200)
 			self.send_header("Content-Type", "application/json")
@@ -53,6 +70,46 @@ class Handler(BaseHTTPRequestHandler):
 					for k, v in frameList.items()
 				}
 			self.wfile.write(json.dumps(payload).encode())
+			return
+
+		# get snapshot by date
+		if self.path.startswith("/data/"):
+			date = self.path.split("/")[-1]
+			filename = os.path.join(cfg['SnapshotDir'], f"{date}.json")
+
+			if os.path.isfile(filename):
+				self.send_response(200)
+				self.send_header("Content-Type", "application/json")
+				self.end_headers()
+				with open(filename, "rb") as f:
+					self.wfile.write(f.read())
+			else:
+				self.send_error(404, "Snapshot nicht gefunden")
+			return
+
+		# get list of available snapshots
+		if self.path == "/data/list":
+			self.send_response(200)
+			self.send_header("Content-Type", "application/json")
+			self.end_headers()
+			files = []
+			if os.path.isdir(cfg['SnapshotDir']):
+				for f in sorted(os.listdir(cfg['SnapshotDir'])):
+					if f.endswith(".json"):
+						files.append(f[:-5])
+			self.wfile.write(json.dumps(files).encode())
+			return
+		
+		# create snapshot now
+		if self.path == "/snapshot":
+			make_snapshot(force=True)
+			self.send_response(200)
+			self.send_header("Content-Type", "application/json")
+			self.end_headers()
+			self.wfile.write(json.dumps({
+				"status": "ok",
+				"snapshot": datetime.datetime.now().strftime("%Y-%m-%d"),
+			}).encode())
 			return
 
 		self.send_error(404, "Seite nicht gefunden")
@@ -74,6 +131,66 @@ def start_http():
 	server = HTTPServer(("0.0.0.0", int(cfg['HttpPort'])), Handler)
 	print(f"HTTP-Server aktiv: http://{get_local_ip()}:{int(cfg['HttpPort'])}")
 	server.serve_forever()
+
+
+def make_snapshot(force=False):
+	global last_snapshot_key
+	with data_lock:
+		if not frameList:
+			return
+
+	os.makedirs(cfg['SnapshotDir'], exist_ok=True)
+
+	key = datetime.datetime.now().strftime("%Y-%m-%d")
+	if key == last_snapshot_key and not force:
+		return False  # snapshot already taken for this period
+	
+	filename = os.path.join(cfg['SnapshotDir'], f"{key}.json")
+
+	with open(filename, "w", encoding="utf-8") as f:
+		payload = {
+			str(k): {
+				"timestamp": v["timestamp"],
+				"rssi": v["rssi"],
+				"wmbus": v["wmbus"].hex()
+			}
+			for k, v in frameList.items()
+		}
+		json.dump(payload, f, indent=2)
+
+	last_snapshot_key = key
+	print(f"[SNAPSHOT] Gespeichert: {filename}")
+
+
+def time_for_snapshot(now):
+	if cfg['SnapshotMode'] == "daily":
+		trigger = (now.hour == 0)
+
+	if cfg['SnapshotMode'] == "monthly":
+		trigger = (now.day == 1 and now.hour == 0)
+
+	if not trigger:  # "none" or not trigger time
+		return False
+
+	return True
+
+
+def snapshot_scheduler():
+	global last_snapshot_key
+
+	while True:
+		now = datetime.datetime.now()
+		if time_for_snapshot(now):
+			make_snapshot()
+		time.sleep(30)  # s
+
+
+def load_last_snapshot_key():
+	if not os.path.isdir(cfg['SnapshotDir']):
+		return None
+
+	files = sorted(f for f in os.listdir(cfg['SnapshotDir']) if f.endswith(".json"))
+	return files[-1][:-5] if files else None
 
 
 def crc16(data: bytes) -> int:
@@ -175,9 +292,13 @@ def listen_frames(ser):                    # generator yielding frames as they a
 
 
 def main():
-	# HTTP-Server starten
+	# Snapshot setup
+	threading.Thread(target=snapshot_scheduler, daemon=True).start()
+	
+	# HTTP-Server setup
 	threading.Thread(target=start_http, daemon=True).start()
-
+	
+	# Serial communication
 	try:
 		ser = serial.Serial(cfg['Port'], BAUDRATE, timeout=TIMEOUT)
 		print(f"Verbinde mit iU891A-XL an {cfg['Port']}...")
@@ -242,6 +363,10 @@ def main():
 		print("Beendet.")
 	except Exception as e:
 		print(f"Fehler: {e}")
+
+
+# Startup
+last_snapshot_key = load_last_snapshot_key()
 
 if __name__ == "__main__":
 	main()

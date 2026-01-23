@@ -36,7 +36,10 @@ Das Projekt richtet sich an Eigentümer & Mieter, die ihre Verbrauchsdaten **sel
 
 ## Installation
 
-Eine Installation ist nicht erforderlich. 
+Das Python-Modul pyserial wird benötigt:
+```bash
+pip install -r requirements.txt
+```
 
 ---
 
