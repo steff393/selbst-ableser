@@ -101,8 +101,15 @@
 
 		async function loadData() {
 			try {
-				let response = await fetch("/data");
+				//let response = await fetch("/data");
 				//let response = await fetch("/data/2023-01-23"); 
+				const token = window.location.pathname.substring(1); // alles nach '/'
+				let response = await fetch(`${token}/data`);
+				if (!response.ok) {
+					document.getElementById('status').textContent = "Token ungültig oder keine Berechtigung.";
+					return;
+				}
+				
 				let data = await response.json();
 
 				let tbody = $("#wmbusTable tbody");

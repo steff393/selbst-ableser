@@ -24,68 +24,57 @@ data_lock = threading.Lock()
 # HTTP-Server Handler
 class Handler(BaseHTTPRequestHandler):
 	def do_GET(self):
-		path = self.path.strip("/")
 		users = load_users()
-		# --- Token-basierter Zugriff ---
-		if path in users:
-			meter_ids = users[path]
-			with data_lock:
-				if meter_ids == "ALL":   # Sonderfall: alle Zähler
-					payload = {
-						str(k): {
-							"timestamp": v["timestamp"],
-							"rssi": v["rssi"],
-							"wmbus": v["wmbus"].hex()
-						}
-						for k, v in frameList.items()
-					}
-				else:
-					payload = {
-						str(k): {
-							"timestamp": v["timestamp"],
-							"rssi": v["rssi"],
-							"wmbus": v["wmbus"].hex()
-						}
-						for k, v in frameList.items() if k in meter_ids
-					}
-			self.send_response(200)
-			self.send_header("Content-Type", "application/json")
-			self.end_headers()
-			self.wfile.write(json.dumps(payload).encode())
+		if users is None:
+			# no user or no users file -> allow all
+			token = None
+			subpath = self.path.strip("/")
+			meter_ids = "ALL"
+		else:
+			# token based user authentication
+			parts = self.path.strip("/").split("/", 1)
+			token = parts[0] if parts else None
+			subpath = parts[1] if len(parts) > 1 else ""
+			if token is None or token not in users:
+				self.send_error(403, "Ungültiger Nutzer")
+				return
+			meter_ids = users[token]
+
+		# /data
+		if subpath=="data":
+			self.serve_data(frameList, meter_ids)
 			return
 
 
-		if path == "" or path == "web.html":
+		if subpath == "" or subpath == "web.html":
 			self.serve_file("web.html", "text/html")
 			return
 
-		if path == "uvi.html":
+		if subpath == "uvi.html":
 			self.serve_file("uvi.html", "text/html")
 			return
 
-		if path == "data":
-			self.serve_data(frameList)
+		if subpath.startswith("data/"):
+			date = subpath.split("/")[-1]
+			snap = self.load_snapshot(date)
+			self.serve_data(snap, meter_ids)
 			return
 
-		if path.startswith("data/"):
-			date = path.split("/")[-1]
-			self.serve_snapshot(date)
-			return
-
-		if path == "data/list":
-			self.serve_snapshot_list()
-			return
-		# create snapshot now
-		if path == "snapshot":
-			make_snapshot(force=True)
-			self.send_response(200)
-			self.send_header("Content-Type", "application/json")
-			self.end_headers()
-			self.wfile.write(json.dumps({
-				"status": "ok",
-				"snapshot": datetime.datetime.now().strftime("%Y-%m-%d"),
-			}).encode())
-			return
+		if meter_ids == "ALL":
+			if subpath == "list":
+				self.serve_snapshot_list()
+				return
+			# create snapshot now
+			if subpath == "snapshot":
+				make_snapshot(force=True)
+				self.send_response(200)
+				self.send_header("Content-Type", "application/json")
+				self.end_headers()
+				self.wfile.write(json.dumps({
+					"status": "ok",
+					"snapshot": datetime.datetime.now().strftime("%Y-%m-%d"),
+				}).encode())
+				return
 
 		self.send_error(404, "Seite nicht gefunden")
 		
@@ -103,32 +92,41 @@ class Handler(BaseHTTPRequestHandler):
 			self.send_error(404, f"{filename} nicht gefunden")
 
 	# get current data
-	def serve_data(self, data_dict):
+	def serve_data(self, data_dict, filter):
 		self.send_response(200)
 		self.send_header("Content-Type", "application/json")
 		self.end_headers()
 		with data_lock:
+			if filter == "ALL":
+				filtered_frames = data_dict.copy()
+			else:
+				filtered_frames = {k: v for k, v in data_dict.items() if int(k) in filter}
+
 			payload = {
 				str(k): {
 					"timestamp": v["timestamp"],
 					"rssi": v["rssi"],
 					"wmbus": v["wmbus"].hex()
 				}
-				for k, v in data_dict.items()
+				for k, v in filtered_frames.items()
 			}
 		self.wfile.write(json.dumps(payload).encode())
 
 	# get snapshot by date
-	def serve_snapshot(self, date):
+	def load_snapshot(self, date):
 		filename = os.path.join(cfg['SnapshotDir'], f"{date}.json")
 		if os.path.isfile(filename):
-			self.send_response(200)
-			self.send_header("Content-Type", "application/json")
-			self.end_headers()
-			with open(filename, "rb") as f:
-				self.wfile.write(f.read())
-		else:
-			self.send_error(404, "Snapshot nicht gefunden")
+			with open(filename, "r", encoding="utf-8") as f:
+				data = json.load(f)
+
+			# convert wmbus from hex string to bytes (to match live data format)
+			for k, v in data.items():
+				wmbus_val = v.get("wmbus")
+				if isinstance(wmbus_val, str):
+					v["wmbus"] = bytes.fromhex(wmbus_val)
+			return data
+		return None
+
 
 	# get list of available snapshots
 	def serve_snapshot_list(self):
@@ -397,7 +395,7 @@ def load_users():
     if os.path.isfile(cfg['Userfile']):
         with open(cfg['Userfile'], "r", encoding="utf-8") as f:
             return json.load(f)
-    return {}
+    return None
 
 
 # Startup
