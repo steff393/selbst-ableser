@@ -20,12 +20,16 @@
 	<h1>wM-Bus Daten</h1>
 	<div id="status" style="color: red; text-align: center; margin-bottom: 20px;"></div>
 	<button id="exportBtn" style="margin-bottom: 10px;">Export to Excel</button>
+	<button id="updateBtn" style="margin-bottom: 10px;">Aktualisieren</button>
+	<button id="snapshotBtn" style="margin-bottom: 10px;">Snapshot</button>
 	<table id="wmbusTable" class="display">
 		<thead>
 			<tr>
 				<th>ID</th>
 				<th>Zeitpunkt</th>
 				<th>RSSI</th>
+				<th>Hersteller</th>
+				<th>Typ</th>
 				<th>Altes Datum</th>
 				<th>Alter Zählerstand</th>
 				<th>Aktuelles Datum</th>
@@ -47,12 +51,7 @@
 		}
 
 		// Decode WMBus telegram from Techem heat cost allocator
-		function techemDecode(tgHex) {
-			let tg = [];
-			for(let i = 0; i < tgHex.length; i += 2) {
-				tg.push(parseInt(tgHex.substr(i,2),16));
-			}
-
+		function TCH_HKV(tg) {
 			// Previous & Current Date
 			let prevDate = int2_le(tg.slice(12,14));
 			let currDate = int2_le(tg.slice(16,18));
@@ -73,6 +72,8 @@
 			let tempRad  = int2_le(tg.slice(22,24))/100.0;
 
 			return {
+				manufacturer: "Techem",
+				device: "HKV",
 				prevDate: prevDateStr,
 				currDate: currDateStr,
 				prevHCA: int2_le(tg.slice(14,16)),
@@ -83,28 +84,65 @@
 		}
 
 
+		// Decode WMBus telegram from Techem heat cost allocator
+		function TCH_WMZ(tg) {
+			return {
+				manufacturer: "Techem",
+				device: "WMZ",
+				prevDate: "N/A",
+				currDate: "N/A",
+				prevHCA: "N/A",
+				currHCA: "N/A",
+				tempRoom: "N/A",
+				tempRad: "N/A"
+			};
+		}
+
+
 		async function loadData() {
 			try {
 				let response = await fetch("/data");
+				//let response = await fetch("/data/2023-01-23"); 
 				let data = await response.json();
 
 				let tbody = $("#wmbusTable tbody");
 				for(let id in data) {
 					let row = data[id];
-					let decoded = techemDecode(row.wmbus);
+					let wmbus = [];
+					for (let i = 0; i < row.wmbus.length; i += 2) { // Convert hex string to array of bytes
+						wmbus.push(parseInt(row.wmbus.substr(i,2),16));
+					}
+					let decoded = {
+						manufacturer: "N/A",
+						device: "N/A",
+						prevDate: "N/A",
+						currDate: "N/A",
+						prevHCA: "N/A",
+						currHCA: "N/A",
+						tempRoom: "N/A",
+						tempRad: "N/A"
+					};
+					if (wmbus.length >= 24 && wmbus[2] === 0x68 && wmbus[3] === 0x50 && wmbus[9] === 0x80) {
+						decoded = TCH_HKV(wmbus); // Techem HKV
+					} 
+					if (wmbus.length >= 24 && wmbus[2] === 0x68 && wmbus[3] === 0x50 && wmbus[9] === 0x04) {
+						decoded = TCH_WMZ(wmbus); // Techem WMZ
+					} 
 
 					tbody.append(`
 						<tr>
 							<td>${id}</td>
 							<td>${row.timestamp}</td>
 							<td>${row.rssi}</td>
+							<td>${decoded.manufacturer}</td>
+							<td>${decoded.device}</td>
 							<td>${decoded.prevDate}</td>
 							<td>${decoded.prevHCA}</td>
 							<td>${decoded.currDate}</td>
 							<td>${decoded.currHCA}</td>
 							<td>${decoded.tempRoom}</td>
-							<td>${decoded.tempRad}</td>
-							<td style="text-align: left;">${row.wmbus}</td>
+							<td>${decoded.tempRad}</a></td>
+							<td style="text-align: left;"><a href="https://wmbusmeters.org/analyze/${row.wmbus}" target="_blank">${row.wmbus}</a></td>
 						</tr>
 					`);
 				}
@@ -128,6 +166,14 @@
 			let table = document.getElementById('wmbusTable');
 			let wb = XLSX.utils.table_to_book(table, {sheet: "wM-Bus Daten"});
 			XLSX.writeFile(wb, 'wmbus_daten.xlsx');
+		});
+
+		document.getElementById('updateBtn').addEventListener('click', function() {
+			location.reload();
+		});
+
+		document.getElementById('snapshotBtn').addEventListener('click', async function() {
+			await fetch('/snapshot');
 		});
 	</script>
 </body>
