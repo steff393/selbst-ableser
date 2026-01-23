@@ -6,7 +6,7 @@ import threading
 import json
 import socket
 import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  
 
 
 BAUDRATE = 115200
@@ -24,84 +24,59 @@ data_lock = threading.Lock()
 # HTTP-Server Handler
 class Handler(BaseHTTPRequestHandler):
 	def do_GET(self):
-		# get web page
-		if self.path == "/" or self.path == "/web.html":
-			try:
-				base_path = os.path.dirname(os.path.abspath(__file__))
-				file_path = os.path.join(base_path, "web.html")
-				
-				with open(file_path, "rb") as f:
-					content = f.read()
-				self.send_response(200)
-				self.send_header("Content-Type", "text/html")
-				self.end_headers()
-				self.wfile.write(content)
-			except FileNotFoundError:
-				self.send_error(404, "web.html nicht gefunden")
-			return
-		
-		if self.path == "/uvi.html":
-			try:
-				base_path = os.path.dirname(os.path.abspath(__file__))
-				file_path = os.path.join(base_path, "uvi.html")
-
-				with open(file_path, "rb") as f:
-					content = f.read()
-				self.send_response(200)
-				self.send_header("Content-Type", "text/html")
-				self.end_headers()
-				self.wfile.write(content)
-			except FileNotFoundError:
-				self.send_error(404, "uvi.html nicht gefunden")
-			return
-
-		# get current data
-		if self.path == "/data":
+		path = self.path.strip("/")
+		users = load_users()
+		# --- Token-basierter Zugriff ---
+		if path in users:
+			meter_ids = users[path]
+			with data_lock:
+				if meter_ids == "ALL":   # Sonderfall: alle Zähler
+					payload = {
+						str(k): {
+							"timestamp": v["timestamp"],
+							"rssi": v["rssi"],
+							"wmbus": v["wmbus"].hex()
+						}
+						for k, v in frameList.items()
+					}
+				else:
+					payload = {
+						str(k): {
+							"timestamp": v["timestamp"],
+							"rssi": v["rssi"],
+							"wmbus": v["wmbus"].hex()
+						}
+						for k, v in frameList.items() if k in meter_ids
+					}
 			self.send_response(200)
 			self.send_header("Content-Type", "application/json")
 			self.end_headers()
-			with data_lock:
-				payload = {
-					str(k): {
-						"timestamp": v["timestamp"],
-						"rssi": v["rssi"],
-						"wmbus": v["wmbus"].hex()
-					}
-					for k, v in frameList.items()
-				}
 			self.wfile.write(json.dumps(payload).encode())
 			return
 
-		# get snapshot by date
-		if self.path.startswith("/data/"):
-			date = self.path.split("/")[-1]
-			filename = os.path.join(cfg['SnapshotDir'], f"{date}.json")
 
-			if os.path.isfile(filename):
-				self.send_response(200)
-				self.send_header("Content-Type", "application/json")
-				self.end_headers()
-				with open(filename, "rb") as f:
-					self.wfile.write(f.read())
-			else:
-				self.send_error(404, "Snapshot nicht gefunden")
+		if path == "" or path == "web.html":
+			self.serve_file("web.html", "text/html")
 			return
 
-		# get list of available snapshots
-		if self.path == "/data/list":
-			self.send_response(200)
-			self.send_header("Content-Type", "application/json")
-			self.end_headers()
-			files = []
-			if os.path.isdir(cfg['SnapshotDir']):
-				for f in sorted(os.listdir(cfg['SnapshotDir'])):
-					if f.endswith(".json"):
-						files.append(f[:-5])
-			self.wfile.write(json.dumps(files).encode())
+		if path == "uvi.html":
+			self.serve_file("uvi.html", "text/html")
 			return
-		
+
+		if path == "data":
+			self.serve_data(frameList)
+			return
+
+		if path.startswith("data/"):
+			date = path.split("/")[-1]
+			self.serve_snapshot(date)
+			return
+
+		if path == "data/list":
+			self.serve_snapshot_list()
+			return
 		# create snapshot now
-		if self.path == "/snapshot":
+		if path == "snapshot":
 			make_snapshot(force=True)
 			self.send_response(200)
 			self.send_header("Content-Type", "application/json")
@@ -113,6 +88,59 @@ class Handler(BaseHTTPRequestHandler):
 			return
 
 		self.send_error(404, "Seite nicht gefunden")
+		
+	# get a static file
+	def serve_file(self, filename, content_type):
+		try:
+			base_path = os.path.dirname(os.path.abspath(__file__))
+			with open(os.path.join(base_path, filename), "rb") as f:
+				content = f.read()
+			self.send_response(200)
+			self.send_header("Content-Type", content_type)
+			self.end_headers()
+			self.wfile.write(content)
+		except FileNotFoundError:
+			self.send_error(404, f"{filename} nicht gefunden")
+
+	# get current data
+	def serve_data(self, data_dict):
+		self.send_response(200)
+		self.send_header("Content-Type", "application/json")
+		self.end_headers()
+		with data_lock:
+			payload = {
+				str(k): {
+					"timestamp": v["timestamp"],
+					"rssi": v["rssi"],
+					"wmbus": v["wmbus"].hex()
+				}
+				for k, v in data_dict.items()
+			}
+		self.wfile.write(json.dumps(payload).encode())
+
+	# get snapshot by date
+	def serve_snapshot(self, date):
+		filename = os.path.join(cfg['SnapshotDir'], f"{date}.json")
+		if os.path.isfile(filename):
+			self.send_response(200)
+			self.send_header("Content-Type", "application/json")
+			self.end_headers()
+			with open(filename, "rb") as f:
+				self.wfile.write(f.read())
+		else:
+			self.send_error(404, "Snapshot nicht gefunden")
+
+	# get list of available snapshots
+	def serve_snapshot_list(self):
+		self.send_response(200)
+		self.send_header("Content-Type", "application/json")
+		self.end_headers()
+		files = []
+		if os.path.isdir(cfg['SnapshotDir']):
+			for f in sorted(os.listdir(cfg['SnapshotDir'])):
+				if f.endswith(".json"):
+					files.append(f[:-5])
+		self.wfile.write(json.dumps(files).encode())
 
 
 def get_local_ip():
@@ -128,7 +156,7 @@ def get_local_ip():
 
 
 def start_http():
-	server = HTTPServer(("0.0.0.0", int(cfg['HttpPort'])), Handler)
+	server = ThreadingHTTPServer(("0.0.0.0", int(cfg['HttpPort'])), Handler)
 	print(f"HTTP-Server aktiv: http://{get_local_ip()}:{int(cfg['HttpPort'])}")
 	server.serve_forever()
 
@@ -363,6 +391,13 @@ def main():
 		print("Beendet.")
 	except Exception as e:
 		print(f"Fehler: {e}")
+
+
+def load_users():
+    if os.path.isfile(cfg['Userfile']):
+        with open(cfg['Userfile'], "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
 
 
 # Startup
