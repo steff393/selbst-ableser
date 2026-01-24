@@ -26,10 +26,10 @@ class Handler(BaseHTTPRequestHandler):
 	def do_GET(self):
 		users = load_users()
 		if users is None:
-			# no user or no users file -> allow all
+			# no user configured or no users file -> allow all
 			token = None
 			subpath = self.path.strip("/")
-			meter_ids = "ALL"
+			filter = None
 		else:
 			# token based user authentication
 			parts = self.path.strip("/").split("/", 1)
@@ -38,11 +38,11 @@ class Handler(BaseHTTPRequestHandler):
 			if token is None or token not in users:
 				self.send_error(403, "Ungültiger Nutzer")
 				return
-			meter_ids = users[token]
+			filter = users.get(token) # null for admin -> will become None in Python
 
 		# /data
 		if subpath=="data":
-			self.serve_data(frameList, meter_ids)
+			self.serve_data(frameList, filter)
 			return
 
 
@@ -57,10 +57,11 @@ class Handler(BaseHTTPRequestHandler):
 		if subpath.startswith("data/"):
 			date = subpath.split("/")[-1]
 			snap = self.load_snapshot(date)
-			self.serve_data(snap, meter_ids)
+			self.serve_data(snap, filter)
 			return
 
-		if meter_ids == "ALL":
+		# only for admins (no filter)
+		if filter is None:
 			if subpath == "list":
 				self.serve_snapshot_list()
 				return
@@ -97,20 +98,22 @@ class Handler(BaseHTTPRequestHandler):
 		self.send_header("Content-Type", "application/json")
 		self.end_headers()
 		with data_lock:
-			if filter == "ALL":
-				filtered_frames = data_dict.copy()
-			else:
-				filtered_frames = {k: v for k, v in data_dict.items() if int(k) in filter}
+			payload = {}
+			for k, v in data_dict.items():
+				meter_nr = str(k)
 
-			payload = {
-				str(k): {
+				if filter is not None:
+					if filter != meter_map.get(meter_nr, {}).get("whg"):
+						continue
+
+				payload[meter_nr] = {
 					"timestamp": v["timestamp"],
 					"rssi": v["rssi"],
-					"wmbus": v["wmbus"].hex()
+					"wmbus": v["wmbus"].hex(),
+					"raum": meter_map.get(meter_nr, {}).get("raum")
 				}
-				for k, v in filtered_frames.items()
-			}
 		self.wfile.write(json.dumps(payload).encode())
+
 
 	# get snapshot by date
 	def load_snapshot(self, date):
@@ -397,8 +400,22 @@ def load_users():
             return json.load(f)
     return None
 
+meter_map = {}
+
+# Build meter lookup: meter_nr -> meta info
+def load_meter_map():
+	with open(cfg['Keyfile'], "r", encoding="utf-8") as f:
+		keyfile = json.load(f)
+
+	for z in keyfile.get("zaehler", []):
+		meter_map[z["nr"]] = {
+			"whg": z["whg"],
+			"raum": z["raum"]
+		}
+
 
 # Startup
+load_meter_map()
 last_snapshot_key = load_last_snapshot_key()
 
 if __name__ == "__main__":

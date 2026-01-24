@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+	<meta charset="UTF-8">
+	<title>Unterjährige Verbrauchsinformation</title>
+	<link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+	<text x="50%" y="50%" font-size="36" font-family="Arial" fill="blue" text-anchor="middle" dominant-baseline="middle">UVI</text>
+	</svg>'>
+	<style>
+		body { font-family: Arial, sans-serif; margin: 20px; }
+		h1 { text-align: center; }
+		table { border-collapse: collapse; width: 60%; margin-top: 20px; }
+		th, td { border: 1px solid #ccc; padding: 8px; text-align: right; }
+		th { background-color: #eee; }
+	</style>
+</head>
+<body>
+
+<h1>Unterjährige Verbrauchsinformation</h1>
+
+<button id="reloadData">Aktualisieren</button>
+
+Zählerstände:
+<table id="verbrauchTable">
+	<thead>
+		<tr>
+			<th>Raum</th>
+			<th>Zähler</th>
+			<th>Aktuell</th>
+			<th>Vormonat</th>
+			<th>Differenz</th>
+		</tr>
+	</thead>
+	<tbody></tbody>
+	<tfoot>
+		<tr>
+			<th colspan="2">Summe</th>
+			<th id="sumCurr">0</th>
+			<th id="sumPrev">0</th>
+			<th id="sumDiff">0</th>
+		</tr>
+		<tr>
+			<th colspan="4">Heizenergie (kWh)</th>
+			<th id="kwhShare">0</th>
+		</tr>
+	</tfoot>
+</table>
+Der ausgewiesene Verbrauch in kWh basiert auf einer rechnerischen Umrechnung von Heizkostenverteiler-Einheiten und dient der Verbrauchsinformation. 
+Maßgeblich für die Abrechnung ist die Jahresabrechnung.
+
+<script>
+// Daten abrufen und Tabelle füllen
+async function loadData() {
+	try {
+		const parts = window.location.pathname.split("/").filter(p => p); // ["A1b2C3d4E5f6G7", "uvi.html"]
+		const token = parts[0]; 
+
+		let todayResp = await fetch(`/${token}/data`);
+		let prevResp  = await fetch(`/${token}/data/2026-01-22`); // Beispiel Vormonat
+		let todayRaw  = await todayResp.json();
+		let prevRaw   = await prevResp.json();
+
+		// Hilfsfunktion: Little-Endian 2-Byte Integer
+		function int2_le(bytes) {
+			return bytes[0] + (bytes[1] << 8);
+		}
+
+		// Techem HKV Telegramm dekodieren
+		function TCH_HKV(tg) {
+			let prevDate = int2_le(tg.slice(12,14));
+			let currDate = int2_le(tg.slice(16,18));
+
+			let d_prev = (prevDate >> 0) & 0x1F;
+			let m_prev = (prevDate >> 5) & 0x0F;
+			let y_prev = 2000 + ((prevDate >> 9) & 0x3F);
+			let prevDateStr = `${y_prev}-${String(m_prev).padStart(2,'0')}-${String(d_prev).padStart(2,'0')}`;
+
+			let d_curr = (currDate >> 4) & 0x1F; if(d_curr<=0) d_curr=1;
+			let m_curr = (currDate >> 9) & 0x0F; if(m_curr<=0) m_curr=12;
+			let y_curr = y_prev;
+			if(m_curr < m_prev || (m_curr == m_prev && d_curr <= d_prev)) y_curr += 1;
+			let currDateStr = `${y_curr}-${String(m_curr).padStart(2,'0')}-${String(d_curr).padStart(2,'0')}`;
+
+			let tempRoom = int2_le(tg.slice(20,22))/100.0;
+			let tempRad  = int2_le(tg.slice(22,24))/100.0;
+
+			return {
+				manufacturer: "Techem",
+				device: "HKV",
+				prevDate: prevDateStr,
+				currDate: currDateStr,
+				prevHCA: int2_le(tg.slice(14,16)),
+				currHCA: int2_le(tg.slice(18,20)),
+				tempRoom: tempRoom.toFixed(2),
+				tempRad: tempRad.toFixed(2)
+			};
+		}
+
+		// Techem WMZ Telegramm dekodieren (Platzhalter)
+		function TCH_WMZ(tg) {
+			return {
+				manufacturer: "Techem",
+				device: "WMZ",
+				prevDate: "N/A",
+				currDate: "N/A",
+				prevHCA: 0,
+				currHCA: 0,
+				tempRoom: "N/A",
+				tempRad: "N/A"
+			};
+		}
+
+		// Dekodieren der Rohdaten
+		function decodeWMBus(row) {
+			let wmbus = [];
+			for (let i = 0; i < row.wmbus.length; i += 2) {
+				wmbus.push(parseInt(row.wmbus.substr(i,2),16));
+			}
+
+			if(wmbus.length >= 24 && wmbus[2] === 0x68 && wmbus[3] === 0x50 && wmbus[9] === 0x80) {
+				return TCH_HKV(wmbus);
+			} 
+			if(wmbus.length >= 24 && wmbus[2] === 0x68 && wmbus[3] === 0x50 && wmbus[9] === 0x04) {
+				return TCH_WMZ(wmbus);
+			} 
+			return {
+				currHCA: 0,
+				prevHCA: 0
+			};
+		}
+
+		let todayData = {};
+		for(let id in todayRaw) todayData[id] = decodeWMBus(todayRaw[id]);
+
+		let prevData = {};
+		for(let id in prevRaw) prevData[id] = decodeWMBus(prevRaw[id]);
+
+		// Tabelle füllen
+		let tbody = document.querySelector("#verbrauchTable tbody");
+		tbody.innerHTML = "";
+
+		let sumCurr = 0, sumPrev = 0;
+
+		for (let id in todayRaw) {
+			let room = todayRaw[id].raum ?? "—";
+
+			let curr = todayData[id]?.currHCA || 0;
+			let prev = prevData[id]?.currHCA || 0;
+			let diff = curr - prev;
+
+			sumCurr += curr;
+			sumPrev += prev;
+
+			tbody.innerHTML += `<tr>
+				<td style="text-align:left">${room}</td>
+				<td>${id}</td>
+				<td>${curr}</td>
+				<td>${prev}</td>
+				<td>${diff}</td>
+			</tr>`;
+		}
+
+		let sumDiff = sumCurr - sumPrev;
+		document.getElementById('sumCurr').textContent = sumCurr;
+		document.getElementById('sumPrev').textContent = sumPrev;
+		document.getElementById('sumDiff').textContent = sumDiff;
+
+		// Wohnungsanteil kWh berechnen
+		let EINHEITEN_PRO_KWH = 1.42; // TODO
+		let share = sumDiff * EINHEITEN_PRO_KWH;
+		document.getElementById('kwhShare').textContent = share.toFixed(2);
+
+	} catch(e) {
+		alert("Fehler beim Laden der Daten: " + e);
+		console.error(e);
+	}
+}
+
+
+document.getElementById('reloadData').addEventListener('click', loadData);
+loadData();
+</script>
+
+</body>
+</html>

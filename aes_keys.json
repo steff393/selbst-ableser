@@ -1,0 +1,22 @@
+{
+	"zaehler": [
+		{
+			"nr": "42763206",
+			"whg": "1",
+			"raum": "BAD",
+			"aes_key": null
+		},
+		{
+			"nr": "42763210",
+			"whg": "1",
+			"raum": "SCH",
+			"aes_key": null
+		},
+		{
+			"nr": "42763223",
+			"whg": "1",
+			"raum": "KIN",
+			"aes_key": null
+		}
+	]
+}
