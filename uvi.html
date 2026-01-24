@@ -9,9 +9,11 @@
 	<style>
 		body { font-family: Arial, sans-serif; margin: 20px; }
 		h1 { text-align: center; }
+		h2 { margin-top: 40px; }
 		table { border-collapse: collapse; width: 60%; margin-top: 20px; }
 		th, td { border: 1px solid #ccc; padding: 8px; text-align: right; }
 		th { background-color: #eee; }
+		td.left { text-align: left; }
 	</style>
 </head>
 <body>
@@ -20,8 +22,8 @@
 
 <button id="reloadData">Aktualisieren</button>
 
-Zählerstände:
-<table id="verbrauchTable">
+<h2>Heizkostenverteiler</h2>
+<table id="tableHKV">
 	<thead>
 		<tr>
 			<th>Raum</th>
@@ -35,18 +37,42 @@ Zählerstände:
 	<tfoot>
 		<tr>
 			<th colspan="2">Summe</th>
-			<th id="sumCurr">0</th>
-			<th id="sumPrev">0</th>
-			<th id="sumDiff">0</th>
+			<th id="hkvSumCurr">0</th>
+			<th id="hkvSumPrev">0</th>
+			<th id="hkvSumDiff">0</th>
 		</tr>
 		<tr>
 			<th colspan="4">Heizenergie (kWh)</th>
-			<th id="kwhShare">0</th>
+			<th id="hkvKwh">0</th>
 		</tr>
 	</tfoot>
 </table>
+<p>
 Der ausgewiesene Verbrauch in kWh basiert auf einer rechnerischen Umrechnung von Heizkostenverteiler-Einheiten und dient der Verbrauchsinformation. 
 Maßgeblich für die Abrechnung ist die Jahresabrechnung.
+</p>
+
+<h2>Warmwasserzähler</h2>
+<table id="tableWWZ">
+	<thead>
+		<tr>
+			<th>Raum</th>
+			<th>Zähler</th>
+			<th>Aktuell (m³)</th>
+			<th>Vormonat (m³)</th>
+			<th>Differenz (m³)</th>
+		</tr>
+	</thead>
+	<tbody></tbody>
+	<tfoot>
+		<tr>
+			<th colspan="2">Summe</th>
+			<th id="wwzSumCurr">0</th>
+			<th id="wwzSumPrev">0</th>
+			<th id="wwzSumDiff">0</th>
+		</tr>
+	</tfoot>
+</table>
 
 <script>
 // Daten abrufen und Tabelle füllen
@@ -61,9 +87,7 @@ async function loadData() {
 		let prevRaw   = await prevResp.json();
 
 		// Hilfsfunktion: Little-Endian 2-Byte Integer
-		function int2_le(bytes) {
-			return bytes[0] + (bytes[1] << 8);
-		}
+		function int2_le(b) { return b[0] + (b[1] << 8); }
 
 		// Techem HKV Telegramm dekodieren
 		function TCH_HKV(tg) {
@@ -123,6 +147,14 @@ async function loadData() {
 			if(wmbus.length >= 24 && wmbus[2] === 0x68 && wmbus[3] === 0x50 && wmbus[9] === 0x04) {
 				return TCH_WMZ(wmbus);
 			} 
+			if(wmbus.length >= 80 && wmbus[0] === 0x57 && wmbus[1] === 0x44 && wmbus[2] === 0x68 && wmbus[3] === 0x50 && wmbus[9] === 0x08) {
+				// just for testing
+				return {
+					device: "WWZ",
+					prevM3: 23,
+					currM3: 42,
+				}
+			} 
 			return {
 				currHCA: 0,
 				prevHCA: 0
@@ -135,24 +167,24 @@ async function loadData() {
 		let prevData = {};
 		for(let id in prevRaw) prevData[id] = decodeWMBus(prevRaw[id]);
 
-		// Tabelle füllen
-		let tbody = document.querySelector("#verbrauchTable tbody");
-		tbody.innerHTML = "";
+		// HKV
+		const hkvBody = document.querySelector("#tableHKV tbody");
+		hkvBody.innerHTML = "";
 
-		let sumCurr = 0, sumPrev = 0;
+		let hkvCurr=0, hkvPrev=0;
 
 		for (let id in todayRaw) {
+			if (todayData[id]?.device !== "HKV") continue;
 			let room = todayRaw[id].raum ?? "—";
-
 			let curr = todayData[id]?.currHCA || 0;
 			let prev = prevData[id]?.currHCA || 0;
 			let diff = curr - prev;
 
-			sumCurr += curr;
-			sumPrev += prev;
+			hkvCurr += curr;
+			hkvPrev += prev;
 
-			tbody.innerHTML += `<tr>
-				<td style="text-align:left">${room}</td>
+			hkvBody.innerHTML += `<tr>
+				<td class="left">${room}</td>
 				<td>${id}</td>
 				<td>${curr}</td>
 				<td>${prev}</td>
@@ -160,16 +192,45 @@ async function loadData() {
 			</tr>`;
 		}
 
-		let sumDiff = sumCurr - sumPrev;
-		document.getElementById('sumCurr').textContent = sumCurr;
-		document.getElementById('sumPrev').textContent = sumPrev;
-		document.getElementById('sumDiff').textContent = sumDiff;
+		let sumDiff = hkvCurr - hkvPrev;
+		document.getElementById('hkvSumCurr').textContent = hkvCurr;
+		document.getElementById('hkvSumPrev').textContent = hkvPrev;
+		document.getElementById('hkvSumDiff').textContent = sumDiff;
 
-		// Wohnungsanteil kWh berechnen
 		let EINHEITEN_PRO_KWH = 1.42; // TODO
 		let share = sumDiff * EINHEITEN_PRO_KWH;
-		document.getElementById('kwhShare').textContent = share.toFixed(2);
+		document.getElementById('hkvKwh').textContent = share.toFixed(2);
 
+		// WWZ
+		const wwzBody = document.querySelector("#tableWWZ tbody");
+		wwzBody.innerHTML = "";
+
+		let wwzCurr=0, wwzPrev=0;
+
+		for (let id in todayRaw) {
+			if (todayData[id]?.device !== "WWZ") continue;
+
+			const room = todayRaw[id].raum ?? "—";
+			const curr = todayData[id].currM3 || 0;
+			const prevVal = prevData[id]?.currM3 || 0;
+			const diff = curr - prevVal;
+
+			wwzCurr += curr;
+			wwzPrev += prevVal;
+
+			wwzBody.innerHTML += `
+			<tr>
+				<td class="left">${room}</td>
+				<td>${id}</td>
+				<td>${curr}</td>
+				<td>${prevVal}</td>
+				<td>${diff}</td>
+			</tr>`;
+		}
+
+		document.getElementById("wwzSumCurr").textContent = wwzCurr;
+		document.getElementById("wwzSumPrev").textContent = wwzPrev;
+		document.getElementById("wwzSumDiff").textContent = wwzCurr - wwzPrev;
 	} catch(e) {
 		alert("Fehler beim Laden der Daten: " + e);
 		console.error(e);
