@@ -180,7 +180,7 @@
 		});
 
 		document.getElementById('snapshotBtn').addEventListener('click', async function() {
-			await fetch('/snapshot');
+			await fetch(`${window.location.pathname.substring(1)}/snapshot`);
 		});
 	</script>
 </body>
