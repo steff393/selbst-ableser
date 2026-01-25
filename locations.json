@@ -1,0 +1,54 @@
+{
+	"zaehlerplaetze": [
+		{
+			"platz": "1",
+			"whg": "1",
+			"raum": "BAD",
+			"zaehler": [
+				{
+					"id": "42763205",
+					"start": "2024-12-12",
+					"stichtag": "YYYY-01-01",
+					"anfangsstand": 9,
+					"endstand": null,
+					"aes_key": null,
+					"kcfaktor": 1
+				},
+				{
+					"id": "42763203",
+					"start": "2014-06-12",
+					"stichtag": "YYYY-01-01",
+					"anfangsstand": 100,
+					"endstand": 1755,
+					"aes_key": null,
+					"kcfaktor": 1
+				}
+			]
+		},
+		{
+			"platz": "2",
+			"whg": "1",
+			"raum": "BAD",
+			"zaehler": [
+				{
+					"id": "42763207",
+					"start": "2023-12-12",
+					"stichtag": "YYYY-01-01",
+					"anfangsstand": 26,
+					"endstand": null,
+					"aes_key": null,
+					"kcfaktor": 1
+				},
+				{
+					"id": "12345607",
+					"start": "2014-06-12",
+					"stichtag": "YYYY-01-01",
+					"anfangsstand": 100,
+					"endstand": 900,
+					"aes_key": null,
+					"kcfaktor": 1
+				}
+			]
+		}
+	]
+}
