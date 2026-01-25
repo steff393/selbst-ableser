@@ -8,3 +8,5 @@ from .logic import (
 	print_results
 )
 from .logger import dbg
+from .serialize import serialize_monthly_results
+

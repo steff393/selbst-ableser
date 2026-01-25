@@ -7,6 +7,9 @@ import json
 import socket
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  
+from meterReader import evaluate_uvi, serialize_monthly_results
+from urllib.parse import urlparse, parse_qs
+
 
 
 BAUDRATE = 115200
@@ -25,6 +28,13 @@ data_lock = threading.Lock()
 class Handler(BaseHTTPRequestHandler):
 	def do_GET(self):
 		users = load_users()
+		parsed = urlparse(self.path)
+		params = parse_qs(parsed.query)
+
+		if self.path == "/favicon.ico":
+			self.serve_file("favicon.ico", "image/svg+xml")
+			return
+
 		if users is None:
 			# no user configured or no users file -> allow all
 			token = None
@@ -41,8 +51,20 @@ class Handler(BaseHTTPRequestHandler):
 			filter = users.get(token) # null for admin -> will become None in Python
 
 		# /data
-		if subpath=="data":
+		if subpath=="data" or subpath=="data/":
 			self.serve_data(frameList, filter)
+			return
+
+		if subpath.startswith("eval"):
+			response = self.handle_uvi_request(
+				params.get("start", ["2024-01-01"])[0],
+				params.get("end",   ["2025-12-31"])[0],
+				params.get("path",  [cfg['SnapshotDir']])[0]
+			)
+			self.send_response(200)
+			self.send_header("Content-Type", "application/json")
+			self.end_headers()
+			self.wfile.write(response.encode())
 			return
 
 
@@ -142,6 +164,18 @@ class Handler(BaseHTTPRequestHandler):
 				if f.endswith(".json"):
 					files.append(f[:-5])
 		self.wfile.write(json.dumps(files).encode())
+
+
+	def handle_uvi_request(self, start, end, path):
+		print(f"[UVI] Anfrage: {start} bis {end}, Pfad: {path}")
+
+		result = evaluate_uvi(
+			json_path      = path,   # folder with daily JSON files YYYY-MM-DD.json
+			locations_path = cfg['Locationfile'],
+			start_date     = start,
+			end_date       = end
+		)
+		return json.dumps(serialize_monthly_results(result))
 
 
 def get_local_ip():
@@ -400,22 +434,29 @@ def load_users():
             return json.load(f)
     return None
 
-meter_map = {}
 
 # Build meter lookup: meter_nr -> meta info
 def load_meter_map():
 	with open(cfg['Keyfile'], "r", encoding="utf-8") as f:
 		keyfile = json.load(f)
 
-	for z in keyfile.get("zaehler", []):
-		meter_map[z["nr"]] = {
-			"whg": z["whg"],
-			"raum": z["raum"]
-		}
+	for loc in keyfile.get("zaehlerplaetze", []):
+		for meter in loc.get("zaehler", []):
+			meter_id = meter["id"]
+
+			meter_map[meter_id] = {
+				"whg": loc["whg"],
+				"raum": loc["raum"],
+				"platz": loc.get("platz")
+			}
+
+	return meter_map
+
 
 
 # Startup
-load_meter_map()
+meter_map = {}
+meter_map = load_meter_map()
 last_snapshot_key = load_last_snapshot_key()
 
 if __name__ == "__main__":

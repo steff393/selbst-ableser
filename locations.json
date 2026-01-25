@@ -32,7 +32,7 @@
 			"zaehler": [
 				{
 					"id": "42763207",
-					"start": "2023-12-12",
+					"start": "2021-08-15",
 					"stichtag": "YYYY-01-01",
 					"anfangsstand": 26,
 					"endstand": null,
@@ -49,6 +49,72 @@
 					"kcfaktor": 1
 				}
 			]
+		},
+		{
+			"platz": "3",
+			"whg": "1",
+			"raum": "BAD",
+			"zaehler": [
+				{
+					"id": "42763206",
+					"start": "2010-01-01",
+					"stichtag": "YYYY-01-01",
+					"anfangsstand": 0,
+					"endstand": null,
+					"aes_key": null,
+					"kcfaktor": 1
+				}
+			]
+		},
+		{
+			"platz": "4",
+			"whg": "1",
+			"raum": "SCH",
+			"zaehler": [
+				{
+					"id": "42763210",
+					"start": "2010-01-01",
+					"stichtag": "YYYY-01-01",
+					"anfangsstand": 0,
+					"endstand": null,
+					"aes_key": null,
+					"kcfaktor": 1
+				}
+			]
+		},
+		{
+			"platz": "5",
+			"whg": "1",
+			"raum": "KIN",
+			"zaehler": [
+				{
+					"id": "42763223",
+					"start": "2010-01-01",
+					"stichtag": "YYYY-01-01",
+					"anfangsstand": 0,
+					"endstand": null,
+					"aes_key": null,
+					"kcfaktor": 1
+				}
+			]
+		},
+		{
+			"_comment": "Test-WWZ Zähler für uvi.html Tests",
+			"platz": "6",
+			"whg": "1",
+			"raum": "BAD",
+			"zaehler": [
+				{
+					"id": "5328702",
+					"start": "2010-01-01",
+					"stichtag": "YYYY-01-01",
+					"anfangsstand": 0,
+					"endstand": null,
+					"aes_key": null,
+					"kcfaktor": 1
+				}
+			]
 		}
+
 	]
 }
