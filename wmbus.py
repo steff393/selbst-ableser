@@ -437,10 +437,10 @@ def load_users():
 
 # Build meter lookup: meter_nr -> meta info
 def load_meter_map():
-	with open(cfg['Keyfile'], "r", encoding="utf-8") as f:
-		keyfile = json.load(f)
+	with open(cfg['Locationfile'], "r", encoding="utf-8") as f:
+		Locationfile = json.load(f)
 
-	for loc in keyfile.get("zaehlerplaetze", []):
+	for loc in Locationfile.get("zaehlerplaetze", []):
 		for meter in loc.get("zaehler", []):
 			meter_id = meter["id"]
 
