@@ -49,6 +49,17 @@
 		function int2_le(bytes) {
 			return bytes[0] + (bytes[1] << 8);
 		}
+		
+		
+		// Convert manufacturer bytes to text
+		function man2txt(tg) {
+			let k = int2_le(tg.slice(2,4))
+			const a = Math.floor(k / 1024);	k %= 1024;
+			const b = Math.floor(k / 32);
+			const c = k % 32;
+			return String.fromCharCode(a + 64, b + 64, c + 64);
+		}
+
 
 		// Decode WMBus telegram from Techem heat cost allocator
 		function TCH_HKV(tg) {
@@ -72,8 +83,6 @@
 			let tempRad  = int2_le(tg.slice(22,24))/100.0;
 
 			return {
-				manufacturer: "Techem",
-				device: "HKV",
 				prevDate: prevDateStr,
 				currDate: currDateStr,
 				prevHCA: int2_le(tg.slice(14,16)),
@@ -87,8 +96,6 @@
 		// Decode WMBus telegram from Techem heat cost allocator
 		function TCH_WMZ(tg) {
 			return {
-				manufacturer: "Techem",
-				device: "WMZ",
 				prevDate: "N/A",
 				currDate: "N/A",
 				prevHCA: "N/A",
@@ -120,8 +127,6 @@
 						wmbus.push(parseInt(row.wmbus.substr(i,2),16));
 					}
 					let decoded = {
-						manufacturer: "N/A",
-						device: "N/A",
 						prevDate: "N/A",
 						currDate: "N/A",
 						prevHCA: "N/A",
@@ -129,10 +134,10 @@
 						tempRoom: "N/A",
 						tempRad: "N/A"
 					};
-					if (wmbus.length >= 24 && wmbus[2] === 0x68 && wmbus[3] === 0x50 && wmbus[9] === 0x80) {
+					if (wmbus.length >= 24 && man2txt(wmbus) === "TCH" && typ2txt(wmbus) === "HKV") {
 						decoded = TCH_HKV(wmbus); // Techem HKV
 					} 
-					if (wmbus.length >= 24 && wmbus[2] === 0x68 && wmbus[3] === 0x50 && wmbus[9] === 0x04) {
+					if (wmbus.length >= 24 && man2txt(wmbus) === "TCH" && typ2txt(wmbus) === "WMZ") {
 						decoded = TCH_WMZ(wmbus); // Techem WMZ
 					} 
 
@@ -141,8 +146,8 @@
 							<td>${id}</td>
 							<td>${row.timestamp}</td>
 							<td>${row.rssi}</td>
-							<td>${decoded.manufacturer}</td>
-							<td>${decoded.device}</td>
+							<td>${man2txt(wmbus)}</td>
+							<td>${typ2txt(wmbus)}</td>
 							<td>${decoded.prevDate}</td>
 							<td>${decoded.prevHCA}</td>
 							<td>${decoded.currDate}</td>
@@ -182,6 +187,55 @@
 		document.getElementById('snapshotBtn').addEventListener('click', async function() {
 			await fetch(`${window.location.pathname.substring(1)}/snapshot`);
 		});
+
+
+		function typ2txt(tg) {
+			val = tg.slice(9,10) // byte 9
+			if (MEDIUM_TYPES[val]) {
+				return MEDIUM_TYPES[val].code;
+			} else {
+				//return { code: "UNK", name: "Unknown", de: "Unbekannt" };
+				return("???");
+			}
+		}
+
+
+		// Tables
+		const MEDIUM_TYPES = {
+			0x00: { code: "OTH", name: "Other", de: "Anderes" },
+			0x01: { code: "OIL", name: "Oil", de: "Öl" },
+			0x02: { code: "ELC", name: "Electricity", de: "Elektrizität" },
+			0x03: { code: "GAS", name: "Gas", de: "Gas" },
+			0x04: { code: "WMZ", name: "Heat (return)", de: "Wärme (Rücklauf)" },
+			0x05: { code: "STM", name: "Steam", de: "Dampf" },
+			0x06: { code: "WWZ", name: "Hot Water", de: "Warmwasser" },
+			0x07: { code: "KWZ", name: "Water", de: "Wasser" },
+			0x08: { code: "HKV", name: "Heat Cost Allocator", de: "Heizkostenverteiler" },
+			0x80: { code: "HKV", name: "Heat Cost Allocator", de: "Heizkostenverteiler" }, // special case for TCH
+			0x09: { code: "AIR", name: "Compressed Air", de: "Pressluft" },
+			0x0A: { code: "CLR", name: "Cooling (return)", de: "Kühlung (Rücklauf)" },
+			0x0B: { code: "CLF", name: "Cooling (flow)", de: "Kühlung (Vorlauf)" },
+			0x0C: { code: "HTF", name: "Heat (flow)", de: "Wärme (Vorlauf)" },
+			0x0D: { code: "HCX", name: "Heat / Cooling", de: "Wärme/Kühlung" },
+			0x0E: { code: "BUS", name: "Bus / System", de: "Bus / System" },
+			0x0F: { code: "UNK", name: "Unknown", de: "Unbekannt" },
+			0x14: { code: "CAL", name: "Calorific value", de: "Heiz-/Brennwert" },
+			0x15: { code: "BHW", name: "Boiling Water", de: "Heißwasser" },
+			0x16: { code: "CLD", name: "Cold Water", de: "Kaltwasser" },
+			0x17: { code: "DUW", name: "Dual Water", de: "Mischwasser" },
+			0x18: { code: "PRS", name: "Pressure", de: "Druck" },
+			0x19: { code: "ADC", name: "A/D Converter", de: "A/D Wandler" },
+			0x1A: { code: "SMK", name: "Smoke detector", de: "Rauchmelder" },
+			0x1B: { code: "RMS", name: "Room sensor", de: "Raumsensor" },
+			0x1C: { code: "GDT", name: "Gas detector", de: "Gasdetektor" },
+			0x20: { code: "CBR", name: "Circuit breaker", de: "Unterbrecher" },
+			0x21: { code: "VAL", name: "Valve", de: "Ventil" },
+			0x25: { code: "DSP", name: "Display", de: "Anzeige" },
+			0x28: { code: "SEW", name: "Sewage", de: "Abwasser" },
+			0x29: { code: "WST", name: "Waste", de: "Abfall" },
+			0x2A: { code: "CO2", name: "Carbon dioxide", de: "Kohlendioxid" }
+		};
+
 	</script>
 </body>
 </html>
