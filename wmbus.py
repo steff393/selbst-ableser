@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from meterReader import evaluate_uvi, serialize_monthly_results
 from urllib.parse import urlparse, parse_qs
 from wmBus import WMBusReceiver
-
+from snapshot import make_snapshot, time_for_snapshot, load_last_snapshot_key
 
 
 config = configparser.ConfigParser(inline_comment_prefixes='#')
@@ -87,7 +87,7 @@ class Handler(BaseHTTPRequestHandler):
 				return
 			# create snapshot now
 			if subpath == "snapshot":
-				make_snapshot(force=True)
+				make_snapshot(frameList, data_lock, cfg, last_snapshot_key, force=True)
 				self.send_response(200)
 				self.send_header("Content-Type", "application/json")
 				self.end_headers()
@@ -194,64 +194,14 @@ def start_http():
 	server.serve_forever()
 
 
-def make_snapshot(force=False):
-	global last_snapshot_key
-	with data_lock:
-		if not frameList:
-			return
-
-	os.makedirs(cfg['SnapshotDir'], exist_ok=True)
-
-	key = datetime.datetime.now().strftime("%Y-%m-%d")
-	if key == last_snapshot_key and not force:
-		return False  # snapshot already taken for this period
-	
-	filename = os.path.join(cfg['SnapshotDir'], f"{key}.json")
-
-	with open(filename, "w", encoding="utf-8") as f:
-		payload = {
-			str(k): {
-				"timestamp": v["timestamp"],
-				"rssi": v["rssi"],
-				"wmbus": v["wmbus"].hex()
-			}
-			for k, v in frameList.items()
-		}
-		json.dump(payload, f, indent=2)
-
-	last_snapshot_key = key
-	print(f"[SNAPSHOT] Gespeichert: {filename}")
-
-
-def time_for_snapshot(now):
-	if cfg['SnapshotMode'] == "daily":
-		trigger = (now.hour == 0)
-
-	if cfg['SnapshotMode'] == "monthly":
-		trigger = (now.day == 1 and now.hour == 0)
-
-	if not trigger:  # "none" or not trigger time
-		return False
-
-	return True
-
-
 def snapshot_scheduler():
 	global last_snapshot_key
 
 	while True:
 		now = datetime.datetime.now()
-		if time_for_snapshot(now):
-			make_snapshot()
+		if time_for_snapshot(now, cfg):
+			make_snapshot(frameList, data_lock, cfg, last_snapshot_key)
 		time.sleep(30)  # s
-
-
-def load_last_snapshot_key():
-	if not os.path.isdir(cfg['SnapshotDir']):
-		return None
-
-	files = sorted(f for f in os.listdir(cfg['SnapshotDir']) if f.endswith(".json"))
-	return files[-1][:-5] if files else None
 
 
 def main():
@@ -309,7 +259,7 @@ def load_meter_map():
 # Startup
 meter_map = {}
 meter_map = load_meter_map()
-last_snapshot_key = load_last_snapshot_key()
+last_snapshot_key = load_last_snapshot_key(cfg)
 
 if __name__ == "__main__":
 	main()
