@@ -1,1 +1,11 @@
-pyserial>=3.5
+# Dongle interface
+pyserial==3.5
+
+# Cryptography
+cffi==2.0.0
+cryptography==46.0.3
+pycparser==3.0
+
+# Excel import
+et_xmlfile==2.0.0
+openpyxl==3.1.5

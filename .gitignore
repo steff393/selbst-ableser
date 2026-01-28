@@ -1,3 +1,4 @@
 snapshots/
 testData/
 __pycache__/
+venv/
