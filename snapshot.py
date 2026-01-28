@@ -1,6 +1,7 @@
 import os
 import json
 import datetime
+from types import SimpleNamespace
 
 
 def make_snapshot(frameList, data_lock, cfg, last_snapshot_key, force=False):
@@ -50,3 +51,21 @@ def load_last_snapshot_key(cfg):
 
 	files = sorted(f for f in os.listdir(cfg['SnapshotDir']) if f.endswith(".json"))
 	return files[-1][:-5] if files else None
+
+
+def import_snapshot(cfg, path):
+	filename = f"{cfg['SnapshotDir']}/{path}"
+	if not os.path.isfile(filename):
+		raise FileNotFoundError(f"Snapshot nicht gefunden: {filename}")
+
+	with open(filename, "r", encoding="utf-8") as f:
+		data = json.load(f)
+
+	for meter_id, entry in data.items():
+		yield SimpleNamespace(
+			meter_id = str(meter_id),
+			timestamp = entry.get("timestamp"),
+			rssi      = entry.get("rssi"),
+			wmbus     = bytes.fromhex(entry.get("wmbus", ""))
+		)
+	

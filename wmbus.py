@@ -6,11 +6,12 @@ import threading
 import json
 import socket
 import os
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  
 from meterReader import evaluate_uvi, serialize_monthly_results
 from urllib.parse import urlparse, parse_qs
 from wmBus import WMBusReceiver
-from snapshot import make_snapshot, time_for_snapshot, load_last_snapshot_key
+from snapshot import make_snapshot, time_for_snapshot, load_last_snapshot_key, import_snapshot
 
 
 config = configparser.ConfigParser(inline_comment_prefixes='#')
@@ -205,6 +206,17 @@ def snapshot_scheduler():
 
 
 def main():
+	# Load existing data
+	if len(sys.argv) == 2:
+		for frame in import_snapshot(cfg, sys.argv[1]):
+			with data_lock:
+				frameList[frame.meter_id] = {
+					"timestamp": frame.timestamp,
+					"rssi": frame.rssi,
+					"wmbus": frame.wmbus
+				}
+		print(f"{len(frameList)} Telegramme importiert")
+
 	# Snapshot setup
 	threading.Thread(target=snapshot_scheduler, daemon=True).start()
 	
