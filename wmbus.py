@@ -8,7 +8,7 @@ import socket
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  
-from meterReader import evaluate_uvi, serialize_monthly_results
+from meterReader import evaluate_uvi, serialize_monthly_results, decrypt
 from urllib.parse import urlparse, parse_qs
 from wmBus import WMBusReceiver
 from snapshot import make_snapshot, time_for_snapshot, load_last_snapshot_key, import_snapshot
@@ -126,11 +126,17 @@ class Handler(BaseHTTPRequestHandler):
 				if filter is not None:
 					if filter != meter_map.get(meter_nr, {}).get("whg"):
 						continue
+				
+				aes_key = meter_map.get(meter_nr, {}).get("aes_key")
+				if aes_key:
+					wmbus = decrypt(v["wmbus"].hex(), aes_key)
+				else:
+					wmbus = v["wmbus"]
 
 				payload[meter_nr] = {
 					"timestamp": v["timestamp"],
 					"rssi": v["rssi"],
-					"wmbus": v["wmbus"].hex(),
+					"wmbus": wmbus.hex(),
 					"raum": meter_map.get(meter_nr, {}).get("raum")
 				}
 		self.wfile.write(json.dumps(payload).encode())
@@ -224,12 +230,12 @@ def main():
 	threading.Thread(target=start_http, daemon=True).start()
 	
 	# Serial communication
-	wmbus = WMBusReceiver(cfg['Port'])
+	iu891a = WMBusReceiver(cfg['Port'])
 	try:
-		wmbus.init_stick()
-		wmbus.get_device_info()
-		wmbus.set_config()
-		for meter_id, rssi, wmbus in wmbus.frames():
+		iu891a.init_stick()
+		iu891a.get_device_info()
+		iu891a.set_config()
+		for meter_id, rssi, wmbus in iu891a.frames():
 			with data_lock:
 				frameList[meter_id] = {
 					"timestamp": datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
@@ -261,7 +267,8 @@ def load_meter_map():
 			meter_map[meter_id] = {
 				"whg": loc["whg"],
 				"raum": loc["raum"],
-				"platz": loc.get("platz")
+				"platz": loc.get("platz"),
+				"aes_key": meter["aes_key"]
 			}
 
 	return meter_map

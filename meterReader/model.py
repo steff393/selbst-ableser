@@ -8,6 +8,7 @@ class MeterConfig:
 	startDate: datetime.date
 	startValue: int
 	finalValue: Optional[int]
+	aes_key: Optional[str]
 
 @dataclass
 class MeterReading:

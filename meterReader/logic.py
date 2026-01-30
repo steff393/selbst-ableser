@@ -108,7 +108,8 @@ def load_locations(filename: str):
 					id=meter["id"],
 					startDate  = datetime.datetime.strptime(meter["start"], "%Y-%m-%d").date(),
 					startValue = meter.get("anfangsstand", 0),
-					finalValue = meter.get("endstand")
+					finalValue = meter.get("endstand"),
+					aes_key    = meter.get("aes_key")
 				)
 			)
 		locationList.append({
