@@ -1,5 +1,4 @@
 import configparser
-import time
 import datetime
 
 import threading
@@ -12,6 +11,7 @@ from meterReader import evaluate_uvi, serialize_monthly_results, decrypt
 from urllib.parse import urlparse, parse_qs
 from wmBus import WMBusReceiver
 from frame_store import FrameStore
+from meterRegistry import MeterRegistry
 
 
 config = configparser.ConfigParser(inline_comment_prefixes='#')
@@ -119,14 +119,15 @@ class Handler(BaseHTTPRequestHandler):
 
 		payload = {}
 		for meter_nr, data in store.get_all().items():
+			meter = registry.get_meter(meter_nr)
+
 			if filter is not None:
-				if filter != meter_map.get(meter_nr, {}).get("whg"):
+				if meter is None or filter != meter.flat:
 					continue
 			
 			wmbus = None
-			aes_key = meter_map.get(meter_nr, {}).get("aes_key")
-			if aes_key:
-				wmbus = decrypt(data["wmbus"], aes_key)
+			if meter and meter.aes_key:
+				wmbus = decrypt(data["wmbus"], meter.aes_key)
 			if wmbus is None:
 				wmbus = data["wmbus"] # no decryption possible, take original value
 
@@ -134,7 +135,7 @@ class Handler(BaseHTTPRequestHandler):
 				"timestamp": data["timestamp"],
 				"rssi": data["rssi"],
 				"wmbus": wmbus.hex(),
-				"raum": meter_map.get(meter_nr, {}).get("raum")
+				"raum": meter.room if meter else None
 			}
 		self.wfile.write(json.dumps(payload).encode())
 
@@ -173,7 +174,7 @@ class Handler(BaseHTTPRequestHandler):
 
 		result = evaluate_uvi(
 			json_path      = path,   # folder with daily JSON files YYYY-MM-DD.json
-			locations_path = cfg['Locationfile'],
+			registry       = registry,
 			start_date     = start,
 			end_date       = end
 		)
@@ -216,9 +217,8 @@ def main():
 		iu891a.get_device_info()
 		iu891a.set_config()
 		for meter_id, rssi, wmbus in iu891a.frames():
-			block = meter_map.get(meter_id, {}).get("blockMsg")
-			if block and f"{wmbus[0]:02X}" == block.upper():
-				print(f"Telegramm beginnt mit {block}... => blockiert")
+			if registry.is_blocked(meter_id, wmbus):
+				print(f"Telegramm von {meter_id} blockiert")
 				continue
 			frame_store.update(meter_id, rssi, wmbus)
 	except KeyboardInterrupt:
@@ -234,30 +234,8 @@ def load_users():
     return None
 
 
-# Build meter lookup: meter_nr -> meta info
-def load_meter_map():
-	with open(cfg['Locationfile'], "r", encoding="utf-8") as f:
-		Locationfile = json.load(f)
 
-	for loc in Locationfile.get("zaehlerplaetze", []):
-		for meter in loc.get("zaehler", []):
-			meter_id = meter["id"]
-
-			meter_map[meter_id] = {
-				"whg": loc["whg"],
-				"raum": loc["raum"],
-				"platz": loc.get("platz"),
-				"aes_key": meter["aes_key"],
-				"blockMsg": meter["blockMsg"]
-			}
-
-	return meter_map
-
-
-
-# Startup
-meter_map = {}
-meter_map = load_meter_map()
+registry = MeterRegistry(cfg['Locationfile'])
 
 if __name__ == "__main__":
 	main()

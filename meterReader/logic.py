@@ -4,7 +4,7 @@ import datetime
 from typing import Optional
 from .model import MeterConfig, MeterReading, MonthlyResult
 from .logger import dbg
-
+from meterRegistry import MeterRegistry
 
 
 _daily_cache = {}
@@ -90,48 +90,15 @@ def calculate_monthly_consumption(prev: Optional[MeterReading], curr: MeterReadi
 
 
 # ============================================================
-# Load meter location configuration
-# ============================================================
-
-def load_locations(filename: str):
-	with open(filename, "r") as f:
-		locCfg = json.load(f)["zaehlerplaetze"]
-
-	locationList = []
-	# append locations
-	for loc in locCfg:
-		meterList = []
-		# append meters
-		for meter in loc["zaehler"]:
-			meterList.append(
-				MeterConfig(
-					id=meter["id"],
-					startDate  = datetime.datetime.strptime(meter["start"], "%Y-%m-%d").date(),
-					startValue = meter.get("anfangsstand", 0),
-					finalValue = meter.get("endstand"),
-					aes_key    = meter.get("aes_key")
-				)
-			)
-		locationList.append({
-			"locId": loc["platz"],
-			"flat": loc["whg"],
-			"meters": meterList
-		})
-	return locationList
-
-
-# ============================================================
 # Core logic
 # ============================================================
 
-def evaluate_uvi(json_path: str, locations_path: str, start_date=None, end_date=None) -> list[MonthlyResult]:
+def evaluate_uvi(json_path: str, registry: MeterRegistry, start_date=None, end_date=None) -> list[MonthlyResult]:
 	global _daily_cache
 	_daily_cache = {}
 
 	global _JSON_PATH
 	_JSON_PATH = json_path
-
-	locCfg = load_locations(locations_path)
 
 	results: list[MonthlyResult] = []
 	lastMonths_reading = {}
@@ -146,39 +113,33 @@ def evaluate_uvi(json_path: str, locations_path: str, start_date=None, end_date=
 	# loop over each month
 	for month_end in month_ends(start_date, end_date):		
 		# loop over each location
-		for location in locCfg:
-			locId = location["locId"]
+		for location in registry.all_locations():
+			meterCfg = registry.active_meter(location, month_end)
+			if not meterCfg:
+				continue
 
-			# find the FIRST valid meter at this location and this month
-			for meterCfg in location["meters"]:
-				if meterCfg.startDate <= month_end:
-					reading = search_meter_reading(meterCfg.id, month_end)
-					if not reading: # no reading found
-						break
-					
-					# calculate consumption based on last month's reading
-					oldValue    = lastMonths_reading.get(locId)
-					oldMeterCfg = lastMonths_meterCfg.get(locId)
-					consumption = calculate_monthly_consumption(oldValue, reading, oldMeterCfg, meterCfg)
-					# store current reading for next month
-					lastMonths_reading[locId] = reading
-					lastMonths_meterCfg[locId] = meterCfg
+			reading = search_meter_reading(meterCfg.id, month_end)
+			if not reading: # no reading found
+				continue
+			
+			oldValue    = lastMonths_reading.get(location)
+			oldMeterCfg = lastMonths_meterCfg.get(location)
+			consumption = calculate_monthly_consumption(oldValue, reading, oldMeterCfg, meterCfg)
+			lastMonths_reading[location] = reading
+			lastMonths_meterCfg[location] = meterCfg
 
-					if consumption is not None:
-						results.append(
-							MonthlyResult(
-								location_id = locId,
-								flat        = location["flat"],
-								month       = month_end.strftime("%Y-%m"),
-								consumption = consumption,
-								meter_id    = meterCfg.id,
-								meter_value = reading.value,
-								found_date  = reading.found_date.strftime("%Y-%m-%d")
-							)
-						)
-					
-					# only FIRST valid meter will be used, the next ones are too old and ignored
-					break
+			if consumption is not None:
+				results.append(
+					MonthlyResult(
+						location_id = location,
+						flat        = meterCfg.flat,
+						month       = month_end.strftime("%Y-%m"),
+						consumption = consumption,
+						meter_id    = meterCfg.id,
+						meter_value = reading.value,
+						found_date  = reading.found_date.strftime("%Y-%m-%d")
+					)
+				)
 	return results
 
 
