@@ -11,7 +11,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from meterReader import evaluate_uvi, serialize_monthly_results, decrypt
 from urllib.parse import urlparse, parse_qs
 from wmBus import WMBusReceiver
-from snapshot import make_snapshot, time_for_snapshot, load_last_snapshot_key, import_snapshot
 from frame_store import FrameStore
 
 
@@ -87,7 +86,7 @@ class Handler(BaseHTTPRequestHandler):
 				return
 			# create snapshot now
 			if subpath == "snapshot":
-				last_snapshot_key = make_snapshot(frame_store, cfg, last_snapshot_key, force=True)
+				frame_store.make_snapshot(cfg, force=True)
 				self.send_response(200)
 				self.send_header("Content-Type", "application/json")
 				self.end_headers()
@@ -200,21 +199,17 @@ def start_http():
 
 
 def snapshot_scheduler():
-	global last_snapshot_key
-
 	while True:
 		now = datetime.datetime.now()
-		if time_for_snapshot(now, cfg):
-			last_snapshot_key = make_snapshot(frame_store, cfg, last_snapshot_key)
+		if frame_store.time_for_snapshot(now, cfg):
+			frame_store.make_snapshot(cfg)
 		time.sleep(30)  # s
 
 
 def main():
 	# Load existing data
 	if len(sys.argv) == 2:
-		frames = list(import_snapshot(cfg, sys.argv[1]))
-		frame_store.bulk_import(frames)
-		print(f"{len(frames)} Telegramme importiert")
+		frame_store.load_snapshot_file(cfg, sys.argv[1])
 
 	# Snapshot setup
 	threading.Thread(target=snapshot_scheduler, daemon=True).start()
@@ -271,7 +266,6 @@ def load_meter_map():
 # Startup
 meter_map = {}
 meter_map = load_meter_map()
-last_snapshot_key = load_last_snapshot_key(cfg)
 
 if __name__ == "__main__":
 	main()

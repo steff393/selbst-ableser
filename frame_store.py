@@ -1,15 +1,19 @@
 import threading
 import datetime
+import os
+import json
+from types import SimpleNamespace
 
 class FrameStore:
 	def __init__(self):
 		self._frames = {}
 		self._lock = threading.Lock()
+		self.last_snapshot_key = None  # verwaltet intern
 
+	# Basis-Methoden
 	def update(self, meter_id, rssi, wmbus, timestamp=None):
 		if timestamp is None:
 			timestamp = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-
 		with self._lock:
 			self._frames[meter_id] = {
 				"timestamp": timestamp,
@@ -26,9 +30,30 @@ class FrameStore:
 					"wmbus": f.wmbus
 				}
 
+
+	def load_snapshot_file(self, cfg, filename):
+		"""Liest eine Snapshot-Datei aus SnapshotDir und lädt die Frames in den Store."""
+		path = os.path.join(cfg['SnapshotDir'], filename)
+		if not os.path.isfile(path):
+			raise FileNotFoundError(f"Snapshot nicht gefunden: {path}")
+
+		count = 0
+		with self._lock:
+			with open(path, "r", encoding="utf-8") as f:
+				data = json.load(f)
+			for meter_id, entry in data.items():
+				self._frames[meter_id] = {
+					"timestamp": entry.get("timestamp"),
+					"rssi": entry.get("rssi"),
+					"wmbus": bytes.fromhex(entry.get("wmbus", ""))
+				}
+				count += 1
+
+		print(f"{count} Telegramme importiert")
+		return count
+				
 	def snapshot(self):
 		with self._lock:
-			# wichtig: copy, nicht Referenz
 			return dict(self._frames)
 
 	def get_all(self):
@@ -36,5 +61,53 @@ class FrameStore:
 			return dict(self._frames)
 
 	def get_lock(self):
-		# für Legacy-Code (make_snapshot etc.)
 		return self._lock
+
+	# --- Snapshot-Funktionalität ---
+
+
+	def make_snapshot(self, cfg, force=False):
+		with self._lock:
+			frame_copy = dict(self._frames)
+			if not frame_copy:
+				return self.last_snapshot_key
+
+		os.makedirs(cfg['SnapshotDir'], exist_ok=True)
+		key = datetime.datetime.now().strftime("%Y-%m-%d")
+		if key == self.last_snapshot_key and not force:
+			return self.last_snapshot_key
+
+		filename = os.path.join(cfg['SnapshotDir'], f"{key}.json")
+		payload = {
+			meter_id: {
+				"timestamp": data["timestamp"],
+				"rssi": data["rssi"],
+				"wmbus": data["wmbus"].hex()
+			}
+			for meter_id, data in frame_copy.items()
+		}
+
+		with open(filename, "w", encoding="utf-8") as f:
+			json.dump(payload, f, indent=2)
+
+		self.last_snapshot_key = key
+		print(f"[SNAPSHOT] Gespeichert: {filename}")
+		return key
+
+
+	def time_for_snapshot(self, now, cfg):
+		if cfg['SnapshotMode'] == "daily":
+			trigger = (now.hour == 0)
+		elif cfg['SnapshotMode'] == "monthly":
+			trigger = (now.day == 1 and now.hour == 0)
+		else:
+			trigger = False
+		return trigger
+
+
+	@staticmethod
+	def load_last_snapshot_key(cfg):
+		if not os.path.isdir(cfg['SnapshotDir']):
+			return None
+		files = sorted(f for f in os.listdir(cfg['SnapshotDir']) if f.endswith(".json"))
+		return files[-1][:-5] if files else None
