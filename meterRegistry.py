@@ -66,11 +66,15 @@ class MeterRegistry:
 	# Öffentliche API
 	# ------------------------------------------------------------------
 
-	def all_locations(self) -> List[str]:
+	def all_locations(self, flat = None) -> List[str]:
 		"""
 		Gibt alle Zählerplätze zurück (ohne weitere Infos)
 		"""
-		return sorted({m.location for m in self._meters})
+		return sorted(
+			{m.location 
+			for m in self._meters
+			if flat is None or m.flat == flat # if flat=None => return all, else => return only the locations for the flat
+		})
 
 
 	def meters_for_location(self, location: str) -> List[MeterConfig]:
@@ -116,6 +120,7 @@ class MeterRegistry:
 		if not meter or not meter.blockMsg:
 			return False
 		return f"{wmbus[0]:02X}" == meter.blockMsg.upper()
+
 
 	def print(self):
 		print("MeterRegistry")

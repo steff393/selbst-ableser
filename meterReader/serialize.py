@@ -4,6 +4,8 @@ def serialize_monthly_results(results):
 				"month": r.month,
 				"location_id": r.location_id,
 				"flat": r.flat,
+				"room": r.room,
+				"type": r.type,
 				"meter_id": r.meter_id,
 				"found_date": r.found_date,
 				"meter_value": r.meter_value,

@@ -44,7 +44,8 @@ class Handler(BaseHTTPRequestHandler):
 			response = self.handle_uvi_request(
 				params.get("start", ["2024-01-01"])[0],
 				params.get("end",   ["2025-12-31"])[0],
-				params.get("path",  [self.cfg['SnapshotDir']])[0]
+				params.get("path",  [self.cfg['SnapshotDir']])[0],
+				filter
 			)
 			self.send_json(response)
 			return
@@ -169,13 +170,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 	# calculate data for UVI
-	def handle_uvi_request(self, start, end, path):
+	def handle_uvi_request(self, start, end, path, filter=None):
 		print(f"[UVI] Anfrage: {start} bis {end}, Pfad: {path}")
 		result = evaluate_uvi(
 			json_path  = path,
 			registry   = self.registry,
 			start_date = start,
-			end_date   = end
+			end_date   = end,
+			flat       = filter
 		)
 		return serialize_monthly_results(result)
 	

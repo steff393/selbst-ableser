@@ -20,6 +20,8 @@ class MeterReading:
 class MonthlyResult:
 	location_id: str
 	flat: str
+	room: str
+	type: str
 	month: str
 	consumption: int
 	meter_id: str

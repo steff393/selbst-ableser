@@ -93,7 +93,7 @@ def calculate_monthly_consumption(prev: Optional[MeterReading], curr: MeterReadi
 # Core logic
 # ============================================================
 
-def evaluate_uvi(json_path: str, registry: MeterRegistry, start_date=None, end_date=None) -> list[MonthlyResult]:
+def evaluate_uvi(json_path: str, registry: MeterRegistry, start_date=None, end_date=None, flat=None) -> list[MonthlyResult]:
 	global _daily_cache
 	_daily_cache = {}
 
@@ -113,7 +113,7 @@ def evaluate_uvi(json_path: str, registry: MeterRegistry, start_date=None, end_d
 	# loop over each month
 	for month_end in month_ends(start_date, end_date):		
 		# loop over each location
-		for location in registry.all_locations():
+		for location in registry.all_locations(flat):
 			meterCfg = registry.active_meter(location, month_end)
 			if not meterCfg:
 				continue
@@ -133,6 +133,8 @@ def evaluate_uvi(json_path: str, registry: MeterRegistry, start_date=None, end_d
 					MonthlyResult(
 						location_id = location,
 						flat        = meterCfg.flat,
+						room        = meterCfg.room,
+						type        = meterCfg.type,
 						month       = month_end.strftime("%Y-%m"),
 						consumption = consumption,
 						meter_id    = meterCfg.id,

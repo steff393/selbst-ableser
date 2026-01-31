@@ -1,7 +1,5 @@
 import configparser
 import threading
-import json
-import os
 import sys
 from wmBus import WMBusReceiver
 from frame_store import FrameStore
