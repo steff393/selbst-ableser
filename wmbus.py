@@ -128,7 +128,7 @@ class Handler(BaseHTTPRequestHandler):
 				wmbus = None
 				aes_key = meter_map.get(meter_nr, {}).get("aes_key")
 				if aes_key:
-					wmbus = decrypt(data["wmbus"].hex(), aes_key)
+					wmbus = decrypt(data["wmbus"], aes_key)
 				if wmbus is None:
 					wmbus = data["wmbus"] # no decryption possible, take original value
 

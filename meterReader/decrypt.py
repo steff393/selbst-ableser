@@ -2,7 +2,10 @@ from Crypto.Cipher import AES
 import binascii
 
 def decrypt(telegram, key):
-	data    = binascii.unhexlify(''.join(c for c in telegram.lower() if c in '0123456789abcdef')) # to lower case
+	if isinstance(telegram, (bytes, bytearray)):
+		data = bytes(telegram)
+	elif isinstance(telegram, str):
+		data    = binascii.unhexlify(''.join(c for c in telegram.lower() if c in '0123456789abcdef')) # to lower case
 	hex_key = binascii.unhexlify(key)
 	# Standard IV Konstruktion
 	m_field    = data[2:4]       # Manufacturer       --| 
