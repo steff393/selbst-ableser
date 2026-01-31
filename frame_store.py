@@ -1,8 +1,9 @@
 import threading
 import datetime
+import time
 import os
 import json
-from types import SimpleNamespace
+
 
 class FrameStore:
 	def __init__(self, cfg):
@@ -17,7 +18,15 @@ class FrameStore:
 		self.last_snapshot_key =  files[-1][:-5] if files else None
 
 
-	# Basis-Methoden
+	def start_scheduler(self, interval=30):
+		def run():
+			while True:
+				if self.time_for_snapshot(datetime.datetime.now()):
+					self.make_snapshot()
+				time.sleep(interval)
+		threading.Thread(target=run, daemon=True).start()
+
+
 	def update(self, meter_id, rssi, wmbus, timestamp=None):
 		if timestamp is None:
 			timestamp = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
@@ -49,19 +58,11 @@ class FrameStore:
 
 		print(f"{count} Telegramme importiert")
 		return count
-				
-
-	def snapshot(self):
-		with self._lock:
-			return dict(self._frames)
 
 
 	def get_all(self):
 		with self._lock:
 			return dict(self._frames)
-
-
-	# --- Snapshot-Funktionalität ---
 
 
 	def make_snapshot(self, force=False):

@@ -198,21 +198,13 @@ def start_http():
 	server.serve_forever()
 
 
-def snapshot_scheduler():
-	while True:
-		now = datetime.datetime.now()
-		if frame_store.time_for_snapshot(now):
-			frame_store.make_snapshot()
-		time.sleep(30)  # s
-
-
 def main():
 	# Load existing data
 	if len(sys.argv) == 2:
 		frame_store.load_snapshot_file(sys.argv[1])
 
 	# Snapshot setup
-	threading.Thread(target=snapshot_scheduler, daemon=True).start()
+	frame_store.start_scheduler()
 	
 	# HTTP-Server setup
 	threading.Thread(target=start_http, daemon=True).start()
