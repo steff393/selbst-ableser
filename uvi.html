@@ -1,245 +1,199 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-	<meta charset="UTF-8">
-	<title>Unterjährige Verbrauchsinformation</title>
-	<link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
-	<text x="50%" y="50%" font-size="36" font-family="Arial" fill="blue" text-anchor="middle" dominant-baseline="middle">UVI</text>
-	</svg>'>
+	<meta charset="utf-8">
+	<title>Unterjährige Verbrauchsmitteilung – HeizkostenV §6</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<style>
-		body { font-family: Arial, sans-serif; margin: 20px; }
-		h1 { text-align: center; }
-		h2 { margin-top: 40px; }
-		table { border-collapse: collapse; width: 60%; margin-top: 20px; }
-		th, td { border: 1px solid #ccc; padding: 8px; text-align: right; }
-		th { background-color: #eee; }
-		td.left { text-align: left; }
+		body {
+			font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+			margin: 2rem;
+			background: #f6f7f9;
+			color: #222;
+		}
+		h1 { margin-bottom: 0.25rem; }
+		.sub { color: #555; margin-bottom: 2rem; }
+		.section {
+			background: #fff;
+			border-radius: 10px;
+			padding: 1.5rem;
+			margin-bottom: 2rem;
+			box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+		}
+		h2 { margin-top: 0; }
+		.hint {
+			font-size: 0.9rem;
+			color: #555;
+			margin-bottom: 1rem;
+		}
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			margin-top: 1rem;
+		}
+		th, td {
+			padding: 0.6rem 0.8rem;
+			text-align: left;
+			border-bottom: 1px solid #ddd;
+		}
+		th { background: #f0f2f5; font-weight: 600; }
+		tfoot td {
+			font-weight: 600;
+			background: #fafafa;
+		}
+		.small { color: #666; font-size: 0.85rem; }
+		.footer { font-size: 0.85rem; color: #555; margin-top: 3rem; }
+
+		@media print {
+			body { background: #fff; margin: 1cm; }
+			.section { box-shadow: none; page-break-inside: avoid; }
+		}
 	</style>
 </head>
 <body>
 
-<h1>Unterjährige Verbrauchsinformation</h1>
+<h1>Unterjährige Verbrauchsmitteilung</h1>
+<div class="sub">gemäß §6 Heizkostenverordnung</div>
 
-<button id="reloadData">Aktualisieren</button>
+<div id="content"></div>
 
-<h2>Heizkostenverteiler</h2>
-<table id="tableHKV">
-	<thead>
-		<tr>
-			<th>Raum</th>
-			<th>Zähler</th>
-			<th>Aktuell</th>
-			<th>Vormonat</th>
-			<th>Differenz</th>
-		</tr>
-	</thead>
-	<tbody></tbody>
-	<tfoot>
-		<tr>
-			<th colspan="2">Summe</th>
-			<th id="hkvSumCurr">0</th>
-			<th id="hkvSumPrev">0</th>
-			<th id="hkvSumDiff">0</th>
-		</tr>
-		<tr>
-			<th colspan="4">Heizenergie (kWh)</th>
-			<th id="hkvKwh">0</th>
-		</tr>
-	</tfoot>
-</table>
-<p>
-Der ausgewiesene Verbrauch in kWh basiert auf einer rechnerischen Umrechnung von Heizkostenverteiler-Einheiten und dient der Verbrauchsinformation. 
-Maßgeblich für die Abrechnung ist die Jahresabrechnung.
-</p>
-
-<h2>Warmwasserzähler</h2>
-<table id="tableWWZ">
-	<thead>
-		<tr>
-			<th>Raum</th>
-			<th>Zähler</th>
-			<th>Aktuell (m³)</th>
-			<th>Vormonat (m³)</th>
-			<th>Differenz (m³)</th>
-		</tr>
-	</thead>
-	<tbody></tbody>
-	<tfoot>
-		<tr>
-			<th colspan="2">Summe</th>
-			<th id="wwzSumCurr">0</th>
-			<th id="wwzSumPrev">0</th>
-			<th id="wwzSumDiff">0</th>
-		</tr>
-	</tfoot>
-</table>
+<div class="footer">
+	Diese Verbrauchsinformation dient der Transparenz über den bisherigen Verbrauch. Sie stellt keine Abrechnung dar und begründet keinen Zahlungsanspruch.
+	Der ausgewiesene Verbrauch in kWh basiert auf einer rechnerischen Umrechnung von Heizkostenverteiler-Einheiten und dient der Verbrauchsinformation. 
+	Maßgeblich für die Abrechnung ist die Jahresabrechnung.
+</div>
 
 <script>
-// Daten abrufen und Tabelle füllen
-async function loadData() {
-	try {
+	const TYPE_LABELS = {
+		HKV: 'Heizkostenverteiler',
+		WWZ: 'Warmwasserzähler',
+		KWZ: 'Kaltwasserzähler'
+	};
+
+	const TYPE_HINTS = {
+		HKV: 'Die angezeigten Werte basieren auf den Heizkostenverteilern und dienen dem monatlichen Verbrauchsvergleich.',
+		WWZ: 'Der Warmwasserverbrauch wird in Verbrauchseinheiten gemäß Zählerstand erfasst.',
+		KWZ: 'Der Kaltwasserverbrauch dient ausschließlich der Information und ist nicht Bestandteil der Heizkostenabrechnung.'
+	};
+
+	function ym(date) {
+		return date.toISOString().slice(0,7);
+	}
+
+	function addMonths(date, diff) {
+		const d = new Date(date);
+		d.setMonth(d.getMonth() + diff);
+		return d;
+	}
+
+	async function loadData() {
 		const parts = window.location.pathname.split("/").filter(p => p); // ["A1b2C3d4E5f6G7", "uvi.html"]
 		const token = parts[0]; 
+		const res = await fetch(`/${token}/eval`);
+		return await res.json();
+	}
 
-		let todayResp = await fetch(`/${token}/data`);
-		let prevResp  = await fetch(`/${token}/data/2026-01-22`); // Beispiel Vormonat
-		let todayRaw  = await todayResp.json();
-		let prevRaw   = await prevResp.json();
+	function pct(cur, prev) {
+		if (prev === 0 || prev == null) return '–';
+		return ((cur - prev) / prev * 100).toFixed(1) + ' %';
+	}
 
-		// Hilfsfunktion: Little-Endian 2-Byte Integer
-		function int2_le(b) { return b[0] + (b[1] << 8); }
+	function render(data) {
+		const months = [...new Set(data.map(e => e.month))].sort();
+		const currentMonth = months[months.length - 1];
+		const currentDate = new Date(currentMonth + '-01');
+		const prevMonth = ym(addMonths(currentDate, -1));
+		const prevYearMonth = ym(addMonths(currentDate, -12));
 
-		// Techem HKV Telegramm dekodieren
-		function TCH_HKV(tg) {
-			let prevDate = int2_le(tg.slice(12,14));
-			let currDate = int2_le(tg.slice(16,18));
-
-			let d_prev = (prevDate >> 0) & 0x1F;
-			let m_prev = (prevDate >> 5) & 0x0F;
-			let y_prev = 2000 + ((prevDate >> 9) & 0x3F);
-			let prevDateStr = `${y_prev}-${String(m_prev).padStart(2,'0')}-${String(d_prev).padStart(2,'0')}`;
-
-			let d_curr = (currDate >> 4) & 0x1F; if(d_curr<=0) d_curr=1;
-			let m_curr = (currDate >> 9) & 0x0F; if(m_curr<=0) m_curr=12;
-			let y_curr = y_prev;
-			if(m_curr < m_prev || (m_curr == m_prev && d_curr <= d_prev)) y_curr += 1;
-			let currDateStr = `${y_curr}-${String(m_curr).padStart(2,'0')}-${String(d_curr).padStart(2,'0')}`;
-
-			let tempRoom = int2_le(tg.slice(20,22))/100.0;
-			let tempRad  = int2_le(tg.slice(22,24))/100.0;
-
-			return {
-				manufacturer: "Techem",
-				device: "HKV",
-				prevDate: prevDateStr,
-				currDate: currDateStr,
-				prevHCA: int2_le(tg.slice(14,16)),
-				currHCA: int2_le(tg.slice(18,20)),
-				tempRoom: tempRoom.toFixed(2),
-				tempRad: tempRad.toFixed(2)
-			};
+		const byType = {};
+		for (const e of data) {
+			byType[e.type] ??= [];
+			byType[e.type].push(e);
 		}
 
-		// Techem WMZ Telegramm dekodieren (Platzhalter)
-		function TCH_WMZ(tg) {
-			return {
-				manufacturer: "Techem",
-				device: "WMZ",
-				prevDate: "N/A",
-				currDate: "N/A",
-				prevHCA: 0,
-				currHCA: 0,
-				tempRoom: "N/A",
-				tempRad: "N/A"
-			};
-		}
+		const container = document.getElementById('content');
+		container.innerHTML = '';
 
-		// Dekodieren der Rohdaten
-		function decodeWMBus(row) {
-			let wmbus = [];
-			for (let i = 0; i < row.wmbus.length; i += 2) {
-				wmbus.push(parseInt(row.wmbus.substr(i,2),16));
+		for (const [type, entries] of Object.entries(byType)) {
+			const section = document.createElement('div');
+			section.className = 'section';
+
+			section.innerHTML = `
+				<h2>${TYPE_LABELS[type] ?? type}</h2>
+				<div class="hint">${TYPE_HINTS[type] ?? ''}</div>
+			`;
+
+			const table = document.createElement('table');
+			table.innerHTML = `
+				<thead>
+				<tr>
+					<th>Raum</th>
+					<th>Zählernummer</th>
+					<th>${currentMonth}</th>
+					<th>${prevMonth}</th>
+					<th>${prevYearMonth}</th>
+					<th>Δ Vorjahr</th>
+					<th>Zählerstand</th>
+					<th>Ablesedatum</th>
+				</tr>
+				</thead>
+			`;
+
+			const byMeter = {};
+			for (const e of entries) {
+				byMeter[e.meter_id] ??= {};
+				byMeter[e.meter_id][e.month] = e;
 			}
 
-			if(wmbus.length >= 24 && wmbus[2] === 0x68 && wmbus[3] === 0x50 && wmbus[9] === 0x80) {
-				return TCH_HKV(wmbus);
-			} 
-			if(wmbus.length >= 24 && wmbus[2] === 0x68 && wmbus[3] === 0x50 && wmbus[9] === 0x04) {
-				return TCH_WMZ(wmbus);
-			} 
-			if(wmbus.length >= 80 && wmbus[0] === 0x57 && wmbus[1] === 0x44 && wmbus[2] === 0x68 && wmbus[3] === 0x50 && wmbus[9] === 0x08) {
-				// just for testing
-				return {
-					device: "WWZ",
-					prevM3: 23,
-					currM3: 42,
-				}
-			} 
-			return {
-				currHCA: 0,
-				prevHCA: 0
-			};
+			let sumCur = 0;
+			let sumPrevMonth = 0;
+			let sumPrevYear = 0;
+
+			for (const [meterId, m] of Object.entries(byMeter)) {
+				const cur = m[currentMonth];
+				if (!cur) continue;
+
+				const prevY = m[prevYearMonth];
+				sumCur += cur.consumption ?? 0;
+				sumPrevMonth += m[prevMonth]?.consumption ?? 0;
+				sumPrevYear += prevY?.consumption ?? 0;
+
+				const tr = document.createElement('tr');
+				tr.innerHTML = `
+					<td>${cur.room}</td>
+					<td>${meterId}</td>
+					<td>${cur.consumption ?? 'k. A.'}</td>
+					<td>${m[prevMonth]?.consumption ?? 'k. A.'}</td>
+					<td>${prevY?.consumption ?? 'k. A.'}</td>
+					<td>${prevY ? pct(cur.consumption, prevY.consumption) : 'k. A.'}</td>
+					<td>${cur.meter_value}</td>
+					<td>${cur.found_date}</td>
+				`;
+				table.appendChild(tr);
+			}
+
+			const tfoot = document.createElement('tfoot');
+			tfoot.innerHTML = `
+				<tr>
+					<td colspan="2">Summe</td>
+					<td>${sumCur}</td>
+					<td>${sumPrevMonth || 'k. A.'}</td>
+					<td>${sumPrevYear || 'k. A.'}</td>
+					<td>${sumPrevYear ? pct(sumCur, sumPrevYear) : 'k. A.'}</td>
+					<td colspan="2"></td>
+				</tr>
+			`;
+			table.appendChild(tfoot);
+
+			section.appendChild(table);
+			container.appendChild(section);
 		}
-
-		let todayData = {};
-		for(let id in todayRaw) todayData[id] = decodeWMBus(todayRaw[id]);
-
-		let prevData = {};
-		for(let id in prevRaw) prevData[id] = decodeWMBus(prevRaw[id]);
-
-		// HKV
-		const hkvBody = document.querySelector("#tableHKV tbody");
-		hkvBody.innerHTML = "";
-
-		let hkvCurr=0, hkvPrev=0;
-
-		for (let id in todayRaw) {
-			if (todayData[id]?.device !== "HKV") continue;
-			let room = todayRaw[id].raum ?? "—";
-			let curr = todayData[id]?.currHCA || 0;
-			let prev = prevData[id]?.currHCA || 0;
-			let diff = curr - prev;
-
-			hkvCurr += curr;
-			hkvPrev += prev;
-
-			hkvBody.innerHTML += `<tr>
-				<td class="left">${room}</td>
-				<td>${id}</td>
-				<td>${curr}</td>
-				<td>${prev}</td>
-				<td>${diff}</td>
-			</tr>`;
-		}
-
-		let sumDiff = hkvCurr - hkvPrev;
-		document.getElementById('hkvSumCurr').textContent = hkvCurr;
-		document.getElementById('hkvSumPrev').textContent = hkvPrev;
-		document.getElementById('hkvSumDiff').textContent = sumDiff;
-
-		let EINHEITEN_PRO_KWH = 1.42; // TODO
-		let share = sumDiff * EINHEITEN_PRO_KWH;
-		document.getElementById('hkvKwh').textContent = share.toFixed(2);
-
-		// WWZ
-		const wwzBody = document.querySelector("#tableWWZ tbody");
-		wwzBody.innerHTML = "";
-
-		let wwzCurr=0, wwzPrev=0;
-
-		for (let id in todayRaw) {
-			if (todayData[id]?.device !== "WWZ") continue;
-
-			const room = todayRaw[id].raum ?? "—";
-			const curr = todayData[id].currM3 || 0;
-			const prevVal = prevData[id]?.currM3 || 0;
-			const diff = curr - prevVal;
-
-			wwzCurr += curr;
-			wwzPrev += prevVal;
-
-			wwzBody.innerHTML += `
-			<tr>
-				<td class="left">${room}</td>
-				<td>${id}</td>
-				<td>${curr}</td>
-				<td>${prevVal}</td>
-				<td>${diff}</td>
-			</tr>`;
-		}
-
-		document.getElementById("wwzSumCurr").textContent = wwzCurr;
-		document.getElementById("wwzSumPrev").textContent = wwzPrev;
-		document.getElementById("wwzSumDiff").textContent = wwzCurr - wwzPrev;
-	} catch(e) {
-		alert("Fehler beim Laden der Daten: " + e);
-		console.error(e);
 	}
-}
 
-
-document.getElementById('reloadData').addEventListener('click', loadData);
-loadData();
+	loadData().then(render).catch(err => {
+		document.getElementById('content').textContent = 'Fehler beim Laden der Daten';
+		console.error(err);
+	});
 </script>
 
 </body>
