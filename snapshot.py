@@ -19,12 +19,12 @@ def make_snapshot(frameList, data_lock, cfg, last_snapshot_key, force=False):
 
 	with open(filename, "w", encoding="utf-8") as f:
 		payload = {
-			str(k): {
-				"timestamp": v["timestamp"],
-				"rssi": v["rssi"],
-				"wmbus": v["wmbus"].hex()
+			meter_id: {
+				"timestamp": data["timestamp"],
+				"rssi": data["rssi"],
+				"wmbus": data["wmbus"].hex()
 			}
-			for k, v in frameList.items()
+			for meter_id, data in frameList.items()
 		}
 		json.dump(payload, f, indent=2)
 
@@ -63,7 +63,7 @@ def import_snapshot(cfg, path):
 
 	for meter_id, entry in data.items():
 		yield SimpleNamespace(
-			meter_id = str(meter_id),
+			meter_id  = meter_id,
 			timestamp = entry.get("timestamp"),
 			rssi      = entry.get("rssi"),
 			wmbus     = bytes.fromhex(entry.get("wmbus", ""))

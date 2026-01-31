@@ -120,9 +120,7 @@ class Handler(BaseHTTPRequestHandler):
 		self.end_headers()
 		with data_lock:
 			payload = {}
-			for k, v in data_dict.items():
-				meter_nr = str(k)
-
+			for meter_nr, data in data_dict.items():
 				if filter is not None:
 					if filter != meter_map.get(meter_nr, {}).get("whg"):
 						continue
@@ -130,13 +128,13 @@ class Handler(BaseHTTPRequestHandler):
 				wmbus = None
 				aes_key = meter_map.get(meter_nr, {}).get("aes_key")
 				if aes_key:
-					wmbus = decrypt(v["wmbus"].hex(), aes_key)
+					wmbus = decrypt(data["wmbus"].hex(), aes_key)
 				if wmbus is None:
-					wmbus = v["wmbus"] # no decryption possible, take original value
+					wmbus = data["wmbus"] # no decryption possible, take original value
 
 				payload[meter_nr] = {
-					"timestamp": v["timestamp"],
-					"rssi": v["rssi"],
+					"timestamp": data["timestamp"],
+					"rssi": data["rssi"],
 					"wmbus": wmbus.hex(),
 					"raum": meter_map.get(meter_nr, {}).get("raum")
 				}
@@ -237,7 +235,7 @@ def main():
 		iu891a.get_device_info()
 		iu891a.set_config()
 		for meter_id, rssi, wmbus in iu891a.frames():
-			block = meter_map.get(str(meter_id), {}).get("blockMsg")
+			block = meter_map.get(meter_id, {}).get("blockMsg")
 			if block and f"{wmbus[0]:02X}" == block.upper():
 				print(f"Telegramm beginnt mit {block}... => blockiert")
 				continue

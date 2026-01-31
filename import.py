@@ -129,10 +129,16 @@ def main():
         }
 
         for bidx in block_indices:
-            zid = row[bidx[0]]
-            if zid is None:
+            zid_raw = row[bidx[0]]
+            if zid_raw is None:
                 continue
-            zid = str(int(zid))
+            # normalize to string, keep digits only
+            zid = str(zid_raw).strip()
+            if not zid.isdigit():
+                die(f"Zähler-ID ist nicht numerisch: {zid}")
+            zid = zid.zfill(8) # enforce 8 digits with leading zeros
+            if len(zid) != 8:
+                die(f"Zähler-ID hat nicht 8 Stellen: {zid}")
             if zid in used_meter_ids:
                 die(f"Zähler-ID mehrfach vorhanden: {zid}")
             used_meter_ids.add(zid)

@@ -19,7 +19,7 @@ def extract_wmbus_data(frame):
 	meter_id = None
 	meter_bytes = frame[15:19][::-1]
 	if not any(b > 0x99 for b in meter_bytes):
-		meter_id = int("".join(f"{b:02X}" for b in meter_bytes))
+		meter_id = "".join(f"{b:02X}" for b in meter_bytes)
 	rssi = frame[10] - 256  # signed RSSI
 	wmbus = frame[11:-3]
 	return meter_id, rssi, wmbus
