@@ -4,10 +4,12 @@ import datetime
 from types import SimpleNamespace
 
 
-def make_snapshot(frameList, data_lock, cfg, last_snapshot_key, force=False):
-	with data_lock:
-		if not frameList:
-			return(last_snapshot_key)
+def make_snapshot(frame_store, cfg, last_snapshot_key, force=False):
+	with frame_store.get_lock():
+		frame_copy = frame_store.snapshot()
+
+	if not frame_copy:
+		return last_snapshot_key
 
 	os.makedirs(cfg['SnapshotDir'], exist_ok=True)
 
@@ -17,15 +19,16 @@ def make_snapshot(frameList, data_lock, cfg, last_snapshot_key, force=False):
 	
 	filename = os.path.join(cfg['SnapshotDir'], f"{key}.json")
 
-	with open(filename, "w", encoding="utf-8") as f:
-		payload = {
-			meter_id: {
-				"timestamp": data["timestamp"],
-				"rssi": data["rssi"],
-				"wmbus": data["wmbus"].hex()
-			}
-			for meter_id, data in frameList.items()
+	payload = {
+		meter_id: {
+			"timestamp": data["timestamp"],
+			"rssi": data["rssi"],
+			"wmbus": data["wmbus"].hex()
 		}
+		for meter_id, data in frame_copy.items()
+	}
+
+	with open(filename, "w", encoding="utf-8") as f:
 		json.dump(payload, f, indent=2)
 
 	print(f"[SNAPSHOT] Gespeichert: {filename}")

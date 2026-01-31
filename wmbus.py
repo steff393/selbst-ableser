@@ -12,15 +12,14 @@ from meterReader import evaluate_uvi, serialize_monthly_results, decrypt
 from urllib.parse import urlparse, parse_qs
 from wmBus import WMBusReceiver
 from snapshot import make_snapshot, time_for_snapshot, load_last_snapshot_key, import_snapshot
+from frame_store import FrameStore
 
 
 config = configparser.ConfigParser(inline_comment_prefixes='#')
 config.read('cfg.ini')
 cfg = config['Configuration']
 
-# Thread-safe RAM storage
-frameList = {}
-data_lock = threading.Lock()
+frame_store = FrameStore()
 
 
 # HTTP-Server Handler
@@ -51,7 +50,7 @@ class Handler(BaseHTTPRequestHandler):
 
 		# /data
 		if subpath=="data" or subpath=="data/":
-			self.serve_data(frameList, filter)
+			self.serve_data(frame_store, filter)
 			return
 
 		if subpath.startswith("eval"):
@@ -88,7 +87,7 @@ class Handler(BaseHTTPRequestHandler):
 				return
 			# create snapshot now
 			if subpath == "snapshot":
-				make_snapshot(frameList, data_lock, cfg, last_snapshot_key, force=True)
+				last_snapshot_key = make_snapshot(frame_store, cfg, last_snapshot_key, force=True)
 				self.send_response(200)
 				self.send_header("Content-Type", "application/json")
 				self.end_headers()
@@ -114,30 +113,30 @@ class Handler(BaseHTTPRequestHandler):
 			self.send_error(404, f"{filename} nicht gefunden")
 
 	# get current data
-	def serve_data(self, data_dict, filter):
+	def serve_data(self, store, filter):
 		self.send_response(200)
 		self.send_header("Content-Type", "application/json")
 		self.end_headers()
-		with data_lock:
-			payload = {}
-			for meter_nr, data in data_dict.items():
-				if filter is not None:
-					if filter != meter_map.get(meter_nr, {}).get("whg"):
-						continue
-				
-				wmbus = None
-				aes_key = meter_map.get(meter_nr, {}).get("aes_key")
-				if aes_key:
-					wmbus = decrypt(data["wmbus"], aes_key)
-				if wmbus is None:
-					wmbus = data["wmbus"] # no decryption possible, take original value
 
-				payload[meter_nr] = {
-					"timestamp": data["timestamp"],
-					"rssi": data["rssi"],
-					"wmbus": wmbus.hex(),
-					"raum": meter_map.get(meter_nr, {}).get("raum")
-				}
+		payload = {}
+		for meter_nr, data in store.get_all().items():
+			if filter is not None:
+				if filter != meter_map.get(meter_nr, {}).get("whg"):
+					continue
+			
+			wmbus = None
+			aes_key = meter_map.get(meter_nr, {}).get("aes_key")
+			if aes_key:
+				wmbus = decrypt(data["wmbus"], aes_key)
+			if wmbus is None:
+				wmbus = data["wmbus"] # no decryption possible, take original value
+
+			payload[meter_nr] = {
+				"timestamp": data["timestamp"],
+				"rssi": data["rssi"],
+				"wmbus": wmbus.hex(),
+				"raum": meter_map.get(meter_nr, {}).get("raum")
+			}
 		self.wfile.write(json.dumps(payload).encode())
 
 
@@ -206,21 +205,16 @@ def snapshot_scheduler():
 	while True:
 		now = datetime.datetime.now()
 		if time_for_snapshot(now, cfg):
-			make_snapshot(frameList, data_lock, cfg, last_snapshot_key)
+			last_snapshot_key = make_snapshot(frame_store, cfg, last_snapshot_key)
 		time.sleep(30)  # s
 
 
 def main():
 	# Load existing data
 	if len(sys.argv) == 2:
-		for frame in import_snapshot(cfg, sys.argv[1]):
-			with data_lock:
-				frameList[frame.meter_id] = {
-					"timestamp": frame.timestamp,
-					"rssi": frame.rssi,
-					"wmbus": frame.wmbus
-				}
-		print(f"{len(frameList)} Telegramme importiert")
+		frames = list(import_snapshot(cfg, sys.argv[1]))
+		frame_store.bulk_import(frames)
+		print(f"{len(frames)} Telegramme importiert")
 
 	# Snapshot setup
 	threading.Thread(target=snapshot_scheduler, daemon=True).start()
@@ -239,12 +233,7 @@ def main():
 			if block and f"{wmbus[0]:02X}" == block.upper():
 				print(f"Telegramm beginnt mit {block}... => blockiert")
 				continue
-			with data_lock:
-				frameList[meter_id] = {
-					"timestamp": datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
-					"rssi": rssi,
-					"wmbus": wmbus
-				}
+			frame_store.update(meter_id, rssi, wmbus)
 	except KeyboardInterrupt:
 		print("Beendet.")
 	except Exception as e:
