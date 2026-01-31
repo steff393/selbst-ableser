@@ -23,7 +23,8 @@ METER_BLOCK = [
     "Anfangsstand",
     "Endstand",
     "AES-Schlüssel",
-    "kc-Faktor"
+    "kc-Faktor",
+    "Blockierte Telegramme"
 ]
 
 # =========================
@@ -153,7 +154,8 @@ def main():
                 "anfangsstand": int(row[bidx[3]]) if row[bidx[3]] is not None else None,
                 "endstand": int(row[bidx[4]]) if row[bidx[4]] is not None else None,
                 "aes_key": str(row[bidx[5]]) if row[bidx[5]] is not None else None,
-                "kcfaktor": float(row[bidx[6]]) if row[bidx[6]] is not None else 1
+                "kcfaktor": float(row[bidx[6]]) if row[bidx[6]] is not None else 1,
+                "blockMsg": str(row[bidx[7]]) if row[bidx[7]] is not None else None,
             })
 
         if not entry["zaehler"]:

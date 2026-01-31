@@ -127,11 +127,12 @@ class Handler(BaseHTTPRequestHandler):
 					if filter != meter_map.get(meter_nr, {}).get("whg"):
 						continue
 				
+				wmbus = None
 				aes_key = meter_map.get(meter_nr, {}).get("aes_key")
 				if aes_key:
 					wmbus = decrypt(v["wmbus"].hex(), aes_key)
-				else:
-					wmbus = v["wmbus"]
+				if wmbus is None:
+					wmbus = v["wmbus"] # no decryption possible, take original value
 
 				payload[meter_nr] = {
 					"timestamp": v["timestamp"],
@@ -236,6 +237,10 @@ def main():
 		iu891a.get_device_info()
 		iu891a.set_config()
 		for meter_id, rssi, wmbus in iu891a.frames():
+			block = meter_map.get(str(meter_id), {}).get("blockMsg")
+			if block and f"{wmbus[0]:02X}" == block.upper():
+				print(f"Telegramm beginnt mit {block}... => blockiert")
+				continue
 			with data_lock:
 				frameList[meter_id] = {
 					"timestamp": datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
@@ -268,7 +273,8 @@ def load_meter_map():
 				"whg": loc["whg"],
 				"raum": loc["raum"],
 				"platz": loc.get("platz"),
-				"aes_key": meter["aes_key"]
+				"aes_key": meter["aes_key"],
+				"blockMsg": meter["blockMsg"]
 			}
 
 	return meter_map

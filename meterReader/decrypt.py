@@ -12,13 +12,17 @@ def decrypt(telegram, key):
 	ci_field   = data[10:11]     # CI-Field -> skipped
 	acc_field  = data[11:12] * 8 # Access Number * 8
 	block_cnt  =(data[13] & 0xF0) >> 4 # Size             | confWord, spec ch. 7.2.4.3
-	encr_mode  = data[14]        # Encryption Mode  |    ""
-	offset     = 15  # -> Encryption Mode??
+	encr_mode  =(data[14] & 0x1F)# Encryption Mode M      |    ""
+	offset     = 15
 	block_size = 16
 
+	if encr_mode != 5:
+		print(f"encr_mode {encr_mode} can't be decoded")
+		return(None)
+
 	iv = m_field + id_field + ver_field + type_field + acc_field # no sum, but concatenation of bytes
-	print(f"IV: {iv.hex().upper()}")
-	print(f"Size: {block_cnt} Blöcke a {block_size} Bytes = {block_cnt * block_size}dez. Bytes")
+	#print(f"IV: {iv.hex().upper()}")
+	#print(f"Size: {block_cnt} Blöcke a {block_size} Bytes = {block_cnt * block_size}dez. Bytes")
 
 	cipher = AES.new(hex_key, AES.MODE_CBC, iv)
 	result = cipher.decrypt(data[offset : offset + block_cnt * block_size])
