@@ -18,7 +18,7 @@ config = configparser.ConfigParser(inline_comment_prefixes='#')
 config.read('cfg.ini')
 cfg = config['Configuration']
 
-frame_store = FrameStore()
+frame_store = FrameStore(cfg)
 
 
 # HTTP-Server Handler
@@ -86,7 +86,7 @@ class Handler(BaseHTTPRequestHandler):
 				return
 			# create snapshot now
 			if subpath == "snapshot":
-				frame_store.make_snapshot(cfg, force=True)
+				frame_store.make_snapshot(force=True)
 				self.send_response(200)
 				self.send_header("Content-Type", "application/json")
 				self.end_headers()
@@ -201,15 +201,15 @@ def start_http():
 def snapshot_scheduler():
 	while True:
 		now = datetime.datetime.now()
-		if frame_store.time_for_snapshot(now, cfg):
-			frame_store.make_snapshot(cfg)
+		if frame_store.time_for_snapshot(now):
+			frame_store.make_snapshot()
 		time.sleep(30)  # s
 
 
 def main():
 	# Load existing data
 	if len(sys.argv) == 2:
-		frame_store.load_snapshot_file(cfg, sys.argv[1])
+		frame_store.load_snapshot_file(sys.argv[1])
 
 	# Snapshot setup
 	threading.Thread(target=snapshot_scheduler, daemon=True).start()

@@ -5,10 +5,17 @@ import json
 from types import SimpleNamespace
 
 class FrameStore:
-	def __init__(self):
+	def __init__(self, cfg):
 		self._frames = {}
 		self._lock = threading.Lock()
-		self.last_snapshot_key = None  # verwaltet intern
+		self.cfg = cfg
+
+		# load last snapshot
+		if not os.path.isdir(cfg['SnapshotDir']):
+			return None
+		files = sorted(f for f in os.listdir(cfg['SnapshotDir']) if f.endswith(".json"))
+		self.last_snapshot_key =  files[-1][:-5] if files else None
+
 
 	# Basis-Methoden
 	def update(self, meter_id, rssi, wmbus, timestamp=None):
@@ -21,19 +28,10 @@ class FrameStore:
 				"wmbus": wmbus
 			}
 
-	def bulk_import(self, frames):
-		with self._lock:
-			for f in frames:
-				self._frames[f.meter_id] = {
-					"timestamp": f.timestamp,
-					"rssi": f.rssi,
-					"wmbus": f.wmbus
-				}
 
-
-	def load_snapshot_file(self, cfg, filename):
+	def load_snapshot_file(self, filename):
 		"""Liest eine Snapshot-Datei aus SnapshotDir und lädt die Frames in den Store."""
-		path = os.path.join(cfg['SnapshotDir'], filename)
+		path = os.path.join(self.cfg['SnapshotDir'], filename)
 		if not os.path.isfile(path):
 			raise FileNotFoundError(f"Snapshot nicht gefunden: {path}")
 
@@ -52,32 +50,32 @@ class FrameStore:
 		print(f"{count} Telegramme importiert")
 		return count
 				
+
 	def snapshot(self):
 		with self._lock:
 			return dict(self._frames)
+
 
 	def get_all(self):
 		with self._lock:
 			return dict(self._frames)
 
-	def get_lock(self):
-		return self._lock
 
 	# --- Snapshot-Funktionalität ---
 
 
-	def make_snapshot(self, cfg, force=False):
+	def make_snapshot(self, force=False):
 		with self._lock:
 			frame_copy = dict(self._frames)
 			if not frame_copy:
 				return self.last_snapshot_key
 
-		os.makedirs(cfg['SnapshotDir'], exist_ok=True)
+		os.makedirs(self.cfg['SnapshotDir'], exist_ok=True)
 		key = datetime.datetime.now().strftime("%Y-%m-%d")
 		if key == self.last_snapshot_key and not force:
 			return self.last_snapshot_key
 
-		filename = os.path.join(cfg['SnapshotDir'], f"{key}.json")
+		filename = os.path.join(self.cfg['SnapshotDir'], f"{key}.json")
 		payload = {
 			meter_id: {
 				"timestamp": data["timestamp"],
@@ -95,19 +93,11 @@ class FrameStore:
 		return key
 
 
-	def time_for_snapshot(self, now, cfg):
-		if cfg['SnapshotMode'] == "daily":
+	def time_for_snapshot(self, now):
+		if self.cfg['SnapshotMode'] == "daily":
 			trigger = (now.hour == 0)
-		elif cfg['SnapshotMode'] == "monthly":
+		elif self.cfg['SnapshotMode'] == "monthly":
 			trigger = (now.day == 1 and now.hour == 0)
 		else:
 			trigger = False
 		return trigger
-
-
-	@staticmethod
-	def load_last_snapshot_key(cfg):
-		if not os.path.isdir(cfg['SnapshotDir']):
-			return None
-		files = sorted(f for f in os.listdir(cfg['SnapshotDir']) if f.endswith(".json"))
-		return files[-1][:-5] if files else None
