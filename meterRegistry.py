@@ -10,7 +10,7 @@ class MeterConfig:
 	location:   str
 	flat:       str
 	room:       str
-	#type:       str
+	type:       str
 	startDate:  datetime.date
 	startValue: int
 	finalValue: Optional[int] = None
@@ -30,16 +30,16 @@ class MeterRegistry:
 		with open(json_path, "r", encoding="utf-8") as f:
 			cfg = json.load(f)
 
-		for loc in cfg.get("zaehlerplaetze", []):
-			for meter in loc.get("zaehler", []):
+		for loc in cfg.get("locations", []):
+			for meter in loc.get("meter", []):
 				self.add_meter(
 					MeterConfig(
 						id         = meter["id"],
-						location   = loc["platz"],
-						flat       = loc["whg"],
-						room       = loc["raum"],
-						#type     = loc["type"],
-						startDate  = datetime.date.fromisoformat(meter["start"]),
+						location   = loc["location"],
+						flat       = loc["flat"],
+						room       = loc["room"],
+						type       = loc["type"],
+						startDate  = datetime.date.fromisoformat(meter["startDate"]),
 						startValue = meter.get("anfangsstand", 0),
 						finalValue = meter.get("endstand"),
 						cutoffDate = meter.get("stichtag"),
@@ -116,3 +116,25 @@ class MeterRegistry:
 		if not meter or not meter.blockMsg:
 			return False
 		return f"{wmbus[0]:02X}" == meter.blockMsg.upper()
+
+	def print(self):
+		print("MeterRegistry")
+		print("=" * 60)
+
+		for location in self.all_locations():
+			print(f"Zählerplatz {location}")
+			print("-" * 60)
+
+			for m in self.meters_for_location(location):
+				end = m.finalValue if m.finalValue is not None else "—"
+				cutoff = m.cutoffDate or "—"
+
+				print(
+					f"  ID {m.id:>10} | "
+					f"Start: {m.startDate.isoformat()} | "
+					f"Anfang: {m.startValue:>6} | "
+					f"Ende: {end:>6} | "
+					f"Raum: {m.room}"
+				)
+
+			print()

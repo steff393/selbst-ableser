@@ -110,22 +110,23 @@ def main():
         block_indices.append(list(range(blocks_start_idx, blocks_start_idx + len(METER_BLOCK))))
         blocks_start_idx += len(METER_BLOCK)
 
-    used_plaetze = set()
+    used_locations = set()
     used_meter_ids = set()
-    zaehlerplaetze = []
+    locations = []
     all_starts = []
 
     for row in rows:
-        platz = str(row[fixed_idx[0]])
-        if platz in used_plaetze:
-            die(f"Platz mehrfach vergeben: {platz}")
-        used_plaetze.add(platz)
+        location = str(row[fixed_idx[0]])
+        if location in used_locations:
+            die(f"Platz mehrfach vergeben: {location}")
+        used_locations.add(location)
 
         entry = {
-            "platz": platz,
-            "whg": str(row[fixed_idx[1]]),
-            "raum": str(row[fixed_idx[2]]),
-            "zaehler": []
+            "location": location,
+            "flat": str(row[fixed_idx[1]]),
+            "room": str(row[fixed_idx[2]]),
+            "type": str(row[fixed_idx[3]]),
+            "meter": []
         }
 
         for bidx in block_indices:
@@ -153,29 +154,29 @@ def main():
             if start_iso:
                 all_starts.append(start_iso)
 
-            entry["zaehler"].append({
+            entry["meter"].append({
                 "id": zid,
-                "start": start_iso,
-                "stichtag": row[bidx[2]] if row[bidx[2]] is not None else "YYYY-01-01",
-                "anfangsstand": int(row[bidx[3]]) if row[bidx[3]] is not None else None,
-                "endstand": int(row[bidx[4]]) if row[bidx[4]] is not None else None,
-                "aes_key": str(row[bidx[5]]) if row[bidx[5]] is not None else None,
-                "kcfaktor": float(row[bidx[6]]) if row[bidx[6]] is not None else 1,
-                "blockMsg": str(row[bidx[7]]) if row[bidx[7]] is not None else None,
+                "startDate":  start_iso,
+                "cutoffDate":       row[bidx[2]]  if row[bidx[2]] is not None else "YYYY-01-01",
+                "startValue": int(  row[bidx[3]]) if row[bidx[3]] is not None else None,
+                "finalValue": int(  row[bidx[4]]) if row[bidx[4]] is not None else None,
+                "aes_key":    str(  row[bidx[5]]) if row[bidx[5]] is not None else None,
+                "kc_factor":  float(row[bidx[6]]) if row[bidx[6]] is not None else 1,
+                "blockMsg":   str(  row[bidx[7]]) if row[bidx[7]] is not None else None,
             })
 
-        if not entry["zaehler"]:
-            die(f"Platz {platz} enthält keinen Zähler")
+        if not entry["meter"]:
+            die(f"Platz {location} enthält keinen Zähler")
 
         # neuster Zähler zuerst
-        entry["zaehler"].sort(key=lambda z: z["start"] or "", reverse=True)
-        zaehlerplaetze.append(entry)
+        entry["meter"].sort(key=lambda z: z["startDate"] or "", reverse=True)
+        locations.append(entry)
 
     # =========================
     # JSON erzeugen
     # =========================
     plain_json = json.dumps(
-        {"zaehlerplaetze": zaehlerplaetze},
+        {"locations": locations},
         indent=2,
         ensure_ascii=False
     ).encode("utf-8")
@@ -196,8 +197,8 @@ def main():
     # Summary
     # =========================
     print("OK")
-    print(f"- {len(zaehlerplaetze)} Zählerplätze")
-    print(f"- {sum(len(p['zaehler']) for p in zaehlerplaetze)} Zähler gesamt")
+    print(f"- {len(locations)} Zählerplätze")
+    print(f"- {sum(len(loc['meter']) for loc in locations)} Zähler gesamt")
     if all_starts:
         print(f"- ältester Start: {min(all_starts)}")
         print(f"- neuester Start: {max(all_starts)}")

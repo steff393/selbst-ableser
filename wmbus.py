@@ -236,6 +236,7 @@ def load_users():
 
 
 registry = MeterRegistry(cfg['Locationfile'])
+#registry.print()
 
 if __name__ == "__main__":
 	main()
