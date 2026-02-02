@@ -55,6 +55,12 @@
 <h1>Unterjährige Verbrauchsmitteilung</h1>
 <div class="sub">gemäß §6 Heizkostenverordnung</div>
 
+<div class="section" style="display:flex;justify-content:space-between;align-items:center">
+	<button id="prevBtn">◀</button>
+	<strong id="monthLabel"></strong>
+	<button id="nextBtn">▶</button>
+</div>
+
 <div id="content"></div>
 
 <div class="footer">
@@ -85,6 +91,10 @@
 		KWZ: 'Der Kaltwasserverbrauch dient ausschließlich der Information und ist nicht Bestandteil der Heizkostenabrechnung.'
 	};
 
+	let DATA = [];
+	let ALL_MONTHS = [];
+	let MONTH_INDEX = 0;
+
 	function ym(date) {
 		return date.toISOString().slice(0,7);
 	}
@@ -97,25 +107,26 @@
 
 	async function loadData() {
 		const parts = window.location.pathname.split("/").filter(p => p); // ["A1b2C3d4E5f6G7", "uvi.html"]
-		const token = parts[0]; 
+		const token = parts[0];
 		const res = await fetch(`/${token}/eval`);
 		return await res.json();
 	}
 
 	function pct(cur, prev) {
-		if (prev === 0 || prev == null) return '–';
+		if (!prev) return '–';
 		return ((cur - prev) / prev * 100).toFixed(1) + ' %';
 	}
 
-	function render(data) {
-		const months = [...new Set(data.map(e => e.month))].sort();
-		const currentMonth = months[months.length - 1];
+	function render() {
+		const currentMonth = ALL_MONTHS[MONTH_INDEX];
 		const currentDate = new Date(currentMonth + '-01');
 		const prevMonth = ym(addMonths(currentDate, -1));
 		const prevYearMonth = ym(addMonths(currentDate, -12));
 
+		document.getElementById('monthLabel').textContent = currentMonth;
+
 		const byType = {};
-		for (const e of data) {
+		for (const e of DATA) {
 			byType[e.type] ??= [];
 			byType[e.type].push(e);
 		}
@@ -141,12 +152,12 @@
 			const table = document.createElement('table');
 			table.innerHTML = `
 				<thead>
-				<tr>
-					<th>${currentMonth}</th>
-					<th>${prevMonth}</th>
-					<th>${prevYearMonth}</th>
-					<th>Δ Vorjahr</th>
-				</tr>
+					<tr>
+						<th>${currentMonth}</th>
+						<th>${prevMonth}</th>
+						<th>${prevYearMonth}</th>
+						<th>Δ Vorjahr</th>
+					</tr>
 				</thead>
 			`;
 
@@ -159,26 +170,26 @@
 			let sumCur = 0;
 			let sumPrev = 0;
 			let sumPrevYear = 0;
-
+			
 			for (const loc of Object.values(byLocation)) {
-				sumCur += loc[currentMonth]?.consumption ?? 0;
-				sumPrev += loc[prevMonth]?.consumption ?? 0;
+				sumCur      += loc[currentMonth]?.consumption ?? 0;
+				sumPrev     += loc[prevMonth]?.consumption ?? 0;
 				sumPrevYear += loc[prevYearMonth]?.consumption ?? 0;
 			}
 
 			const tr = document.createElement('tr');
 			tr.innerHTML = `
-				<td>${sumCur      / TYPE_DIVIDER[type]}</td>
-				<td>${sumPrev     / TYPE_DIVIDER[type] || 'k. A.'}</td>
-				<td>${sumPrevYear / TYPE_DIVIDER[type] || 'k. A.'}</td>
-				<td>${sumPrevYear ? pct(sumCur, sumPrevYear) : 'k. A.'}</td>
+				<td>${sumCur / TYPE_DIVIDER[type]}</td>
+				<td>${sumPrev ? sumPrev / TYPE_DIVIDER[type] : 'k. A.'}</td>
+				<td>${sumPrevYear ? sumPrevYear / TYPE_DIVIDER[type] : 'k. A.'}</td>
+				<td>${pct(sumCur, sumPrevYear)}</td>
 			`;
 			table.appendChild(tr);
 
 			section.appendChild(table);
 			container.appendChild(section);
 		}
-
+		
 		/* =====================
 		 * DETAIL: Aktuelle Zählerstände
 		 * ===================== */
@@ -223,7 +234,27 @@
 		}
 	}
 
-	loadData().then(render).catch(err => {
+	function changeMonth(diff) {
+		MONTH_INDEX = Math.max(0, Math.min(ALL_MONTHS.length - 1, MONTH_INDEX + diff));
+		render();
+	}
+
+	// Buttons
+	document.getElementById('prevBtn').onclick = () => changeMonth(-1);
+	document.getElementById('nextBtn').onclick = () => changeMonth(1);
+
+	// Cursor-Tasten
+	document.addEventListener('keydown', e => {
+		if (e.key === 'ArrowLeft')  changeMonth(-1);
+		if (e.key === 'ArrowRight') changeMonth(1);
+	});
+
+	loadData().then(data => {
+		DATA = data;
+		ALL_MONTHS = [...new Set(data.map(e => e.month))].sort();
+		MONTH_INDEX = ALL_MONTHS.length - 1; // Start: letzter Monat
+		render();
+	}).catch(err => {
 		document.getElementById('content').textContent = 'Fehler beim Laden der Daten';
 		console.error(err);
 	});
