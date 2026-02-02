@@ -29,9 +29,23 @@ def month_ends(start_date, end_date):
 
 
 def get_currHCA_from_wmbus(wmbus_hex: str) -> Optional[int]:
-	try:
-		# Byte 18/19, Little Endian
-		return int(wmbus_hex[38:40] + wmbus_hex[36:38], 16)
+	try: 
+		if wmbus_hex[0:2] == "32":
+			# Byte 18/19, Little Endian
+			return int(wmbus_hex[38:40] + wmbus_hex[36:38], 16)
+
+		if wmbus_hex[0:2] == "38":
+			# Byte 19/20/21, BCD
+			return int(wmbus_hex[38:39]) * 100000 + \
+			       int(wmbus_hex[39:40]) * 10000 + \
+			       int(wmbus_hex[40:41]) * 1000 + \
+			       int(wmbus_hex[41:42]) * 100 + \
+			       int(wmbus_hex[42:43]) * 10 + \
+			       int(wmbus_hex[43:44])
+
+		if wmbus_hex[0:2] == "9e":
+			# Byte 25-28, Little Endian
+			return int(wmbus_hex[56:58] + wmbus_hex[54:56] + wmbus_hex[52:54] + wmbus_hex[50:52], 16)
 	except Exception:
 		return None
 
@@ -124,6 +138,8 @@ def evaluate_uvi(json_path: str, registry: MeterRegistry, start_date=None, end_d
 			
 			oldValue    = lastMonths_reading.get(location)
 			oldMeterCfg = lastMonths_meterCfg.get(location)
+			if meterCfg.type == "HKV" and month_end.month == 1 and oldValue:
+				oldValue.value = 0 # reset HKV value at cutoff date
 			consumption = calculate_monthly_consumption(oldValue, reading, oldMeterCfg, meterCfg)
 			lastMonths_reading[location] = reading
 			lastMonths_meterCfg[location] = meterCfg

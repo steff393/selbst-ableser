@@ -59,15 +59,24 @@
 
 <div class="footer">
 	Diese Verbrauchsinformation dient der Transparenz über den bisherigen Verbrauch. Sie stellt keine Abrechnung dar und begründet keinen Zahlungsanspruch.
+	<br>
 	Der ausgewiesene Verbrauch in kWh basiert auf einer rechnerischen Umrechnung von Heizkostenverteiler-Einheiten und dient der Verbrauchsinformation. 
 	Maßgeblich für die Abrechnung ist die Jahresabrechnung.
 </div>
 
 <script>
+	const TYPE_ORDER = ['HKV', 'WWZ', 'KWZ'];
+
 	const TYPE_LABELS = {
 		HKV: 'Heizkostenverteiler',
 		WWZ: 'Warmwasserzähler',
 		KWZ: 'Kaltwasserzähler'
+	};
+
+	const TYPE_DIVIDER = {
+		HKV: 1,
+		WWZ: 1000,
+		KWZ: 1000
 	};
 
 	const TYPE_HINTS = {
@@ -114,13 +123,74 @@
 		const container = document.getElementById('content');
 		container.innerHTML = '';
 
-		for (const [type, entries] of Object.entries(byType)) {
+		/* =====================
+		 * ÜBERSICHT (UVI)
+		 * Summen je Typ, gruppiert nach Location
+		 * ===================== */
+		for (const type of TYPE_ORDER) {
+			const entries = byType[type];
+			if (!entries) continue;
 			const section = document.createElement('div');
 			section.className = 'section';
 
 			section.innerHTML = `
-				<h2>${TYPE_LABELS[type] ?? type}</h2>
+				<h2>${TYPE_LABELS[type] ?? type} – Übersicht</h2>
 				<div class="hint">${TYPE_HINTS[type] ?? ''}</div>
+			`;
+
+			const table = document.createElement('table');
+			table.innerHTML = `
+				<thead>
+				<tr>
+					<th>${currentMonth}</th>
+					<th>${prevMonth}</th>
+					<th>${prevYearMonth}</th>
+					<th>Δ Vorjahr</th>
+				</tr>
+				</thead>
+			`;
+
+			const byLocation = {};
+			for (const e of entries) {
+				byLocation[e.location_id] ??= {};
+				byLocation[e.location_id][e.month] = e;
+			}
+
+			let sumCur = 0;
+			let sumPrev = 0;
+			let sumPrevYear = 0;
+
+			for (const loc of Object.values(byLocation)) {
+				sumCur += loc[currentMonth]?.consumption ?? 0;
+				sumPrev += loc[prevMonth]?.consumption ?? 0;
+				sumPrevYear += loc[prevYearMonth]?.consumption ?? 0;
+			}
+
+			const tr = document.createElement('tr');
+			tr.innerHTML = `
+				<td>${sumCur      / TYPE_DIVIDER[type]}</td>
+				<td>${sumPrev     / TYPE_DIVIDER[type] || 'k. A.'}</td>
+				<td>${sumPrevYear / TYPE_DIVIDER[type] || 'k. A.'}</td>
+				<td>${sumPrevYear ? pct(sumCur, sumPrevYear) : 'k. A.'}</td>
+			`;
+			table.appendChild(tr);
+
+			section.appendChild(table);
+			container.appendChild(section);
+		}
+
+		/* =====================
+		 * DETAIL: Aktuelle Zählerstände
+		 * ===================== */
+		for (const type of TYPE_ORDER) {
+			const entries = byType[type];
+			if (!entries) continue; 
+			const section = document.createElement('div');
+			section.className = 'section';
+
+			section.innerHTML = `
+				<h2>${TYPE_LABELS[type] ?? type} – Aktuelle Zählerstände (${currentMonth})</h2>
+				<div class="hint">Rein informativ, ohne Einfluss auf die Abrechnung</div>
 			`;
 
 			const table = document.createElement('table');
@@ -129,61 +199,24 @@
 				<tr>
 					<th>Raum</th>
 					<th>Zählernummer</th>
-					<th>${currentMonth}</th>
-					<th>${prevMonth}</th>
-					<th>${prevYearMonth}</th>
-					<th>Δ Vorjahr</th>
 					<th>Zählerstand</th>
 					<th>Ablesedatum</th>
 				</tr>
 				</thead>
 			`;
 
-			const byMeter = {};
 			for (const e of entries) {
-				byMeter[e.meter_id] ??= {};
-				byMeter[e.meter_id][e.month] = e;
-			}
-
-			let sumCur = 0;
-			let sumPrevMonth = 0;
-			let sumPrevYear = 0;
-
-			for (const [meterId, m] of Object.entries(byMeter)) {
-				const cur = m[currentMonth];
-				if (!cur) continue;
-
-				const prevY = m[prevYearMonth];
-				sumCur += cur.consumption ?? 0;
-				sumPrevMonth += m[prevMonth]?.consumption ?? 0;
-				sumPrevYear += prevY?.consumption ?? 0;
+				if (e.month !== currentMonth) continue;
 
 				const tr = document.createElement('tr');
 				tr.innerHTML = `
-					<td>${cur.room}</td>
-					<td>${meterId}</td>
-					<td>${cur.consumption ?? 'k. A.'}</td>
-					<td>${m[prevMonth]?.consumption ?? 'k. A.'}</td>
-					<td>${prevY?.consumption ?? 'k. A.'}</td>
-					<td>${prevY ? pct(cur.consumption, prevY.consumption) : 'k. A.'}</td>
-					<td>${cur.meter_value}</td>
-					<td>${cur.found_date}</td>
+					<td>${e.room}</td>
+					<td>${e.meter_id}</td>
+					<td>${e.meter_value / TYPE_DIVIDER[type]}</td>
+					<td>${e.found_date}</td>
 				`;
 				table.appendChild(tr);
 			}
-
-			const tfoot = document.createElement('tfoot');
-			tfoot.innerHTML = `
-				<tr>
-					<td colspan="2">Summe</td>
-					<td>${sumCur}</td>
-					<td>${sumPrevMonth || 'k. A.'}</td>
-					<td>${sumPrevYear || 'k. A.'}</td>
-					<td>${sumPrevYear ? pct(sumCur, sumPrevYear) : 'k. A.'}</td>
-					<td colspan="2"></td>
-				</tr>
-			`;
-			table.appendChild(tfoot);
 
 			section.appendChild(table);
 			container.appendChild(section);
