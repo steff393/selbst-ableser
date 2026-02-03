@@ -1,26 +1,33 @@
 import configparser
 import threading
-import sys
 import time
+import argparse
 from wmBus import WMBusReceiver
 from frame_store import FrameStore
 from meterRegistry import MeterRegistry
 from httpServer.http_server import start_http
 
+parser = argparse.ArgumentParser()
+parser.add_argument("-pw",   help="Passwort für Locationfile (optional)")
+parser.add_argument("-snap", help="Laden von Daten aus Snapshot-Datei (optional)")
+args = parser.parse_args()
 
 config = configparser.ConfigParser(inline_comment_prefixes='#')
 config.read('cfg.ini')
 cfg = config['Configuration']
 
 frame_store = FrameStore(cfg)
-registry = MeterRegistry(cfg['Locationfile'])
+registry    = MeterRegistry(
+	cfg['Locationfile'], 
+	password = args.pw if not "" else None, 
+	key_port=int(cfg.get('KeyPort', 0)) or None)
 #registry.print()
 
 
 def main():
 	# Load existing data
-	if len(sys.argv) == 2:
-		frame_store.load_snapshot_file(sys.argv[1])
+	if (args.snap):
+		frame_store.load_snapshot_file(args.snap)
 
 	# Snapshot setup
 	frame_store.start_scheduler()

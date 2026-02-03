@@ -42,8 +42,9 @@ class FrameStore:
 		"""Liest eine Snapshot-Datei aus SnapshotDir und lädt die Frames in den Store."""
 		path = os.path.join(self.cfg['SnapshotDir'], filename)
 		if not os.path.isfile(path):
-			raise FileNotFoundError(f"Snapshot nicht gefunden: {path}")
-
+			print(f"Snapshot nicht gefunden: {path}")
+			return
+		
 		count = 0
 		with self._lock:
 			with open(path, "r", encoding="utf-8") as f:
@@ -55,9 +56,7 @@ class FrameStore:
 					"wmbus": bytes.fromhex(entry.get("wmbus", ""))
 				}
 				count += 1
-
 		print(f"{count} Telegramme importiert")
-		return count
 
 
 	def get_all(self):
