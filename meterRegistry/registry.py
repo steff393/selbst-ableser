@@ -1,80 +1,11 @@
 import json
 import datetime
-import socket
+import threading
 from dataclasses import dataclass
 from typing import Dict, List, Optional
-from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-import threading
 
-
-class WrongPassword(Exception):
-	pass
-
-
-def derive_key(password: str, salt: bytes) -> bytes:
-	kdf = Scrypt(
-		salt=salt,
-		length=32,
-		n=2**14,
-		r=8,
-		p=1,
-	)
-	return kdf.derive(password.encode("utf-8"))
-
-
-def decrypt(data: bytes, password: str) -> bytes:
-	try:
-		if len(data) < 28:
-			raise ValueError("Datei zu kurz oder beschädigt")
-
-		salt = data[:16]
-		nonce = data[16:28]
-		ciphertext = data[28:]
-
-		key = derive_key(password, salt)
-		aesgcm = AESGCM(key)
-		return aesgcm.decrypt(nonce, ciphertext, None)
-	except Exception:
-		raise WrongPassword("Falsches Passwort oder beschädigte Datei")
-
-
-# Programm erstellt einen Socket-Server, der auf einen Key wartet.
-# Sobald der Key empfangen wurde, wird das Programm fortgesetzt.
-# Der Key wird über eine einfache HTTP-Anfrage übertragen.
-# 
-# curl -X POST --data-binary @- http://localhost:53165
-# dann das Passwort eingeben + Enter(!) und mit Strg-D (Linux) oder Strg-Z + Enter (Windows) abschicken.
-# POST, damit es nicht in der Bash-History gespeichert wird.
-#
-# Alternative auf Linux:
-#  echo -n "Passwort" | nc 127.0.0.1 53165
-# Wichtig: Leerzeichen vor echo, damit es nicht geloggt wird.
-# 
-# Alternative auf Linux:
-# nc 127.0.0.1 53165
-# dann das Passwort eingeben und mit Strg-D oder Strg-C + Enter abschicken.
-
-def wait_for_key_secure(port: int = 53165) -> str:
-	host = "127.0.0.1"
-	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-		s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		s.bind((host, port))
-		s.listen(1)
-
-		print(f"Warte auf Key auf Port {port} …")
-		conn, _ = s.accept()
-		with conn:
-			data = conn.recv(4096).decode("utf-8")
-
-			if "\r\n\r\n" in data:
-				data = data.split("\r\n\r\n", 1)[1]
-
-			secret = data.strip()
-			conn.sendall(
-				b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nKey erhalten\n"
-			)
-			return secret
+from .crypto import decrypt, WrongPassword
+from .keywaiter import wait_for_key_secure
 
 
 @dataclass(frozen=True)
