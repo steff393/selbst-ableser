@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from meterReader import evaluate_uvi, serialize_monthly_results, decrypt
 
+
 class Handler(BaseHTTPRequestHandler):
 	def __init__(self, *args, cfg=None, frame_store=None, registry=None, **kwargs):
 		self.cfg = cfg
@@ -12,30 +13,38 @@ class Handler(BaseHTTPRequestHandler):
 		self.registry = registry
 		super().__init__(*args, **kwargs)
 
+	def get_token_and_subpath(self):
+		parts = self.path.strip("/").split("/", 1)
+		token = parts[0] if parts else None
+		subpath = parts[1] if len(parts) > 1 else ""
+		return token, subpath
+
 	def do_GET(self):
-		users = self.load_users()
 		parsed = urlparse(self.path)
 		params = parse_qs(parsed.query)
+		token, subpath = self.get_token_and_subpath()
 
 		if self.path == "/favicon.ico":
 			self.serve_file("favicon.ico", "image/svg+xml")
 			return
 
-		if users is None:
-			# no user configured or no users file -> allow all
-			token = None
-			subpath = self.path.strip("/")
-			filter = None
+		users = self.load_users()
+		is_setup_mode = len(users) == 0
+		
+		if is_setup_mode:
+			# Im Setup-Modus ist jeder ein Admin
+			filter = None 
 		else:
-			# token based user authentication
-			parts = self.path.strip("/").split("/", 1)
-			token = parts[0] if parts else None
-			subpath = parts[1] if len(parts) > 1 else ""
 			if token not in users:
-				self.send_error(403, "Ungültiger Nutzer")
+				self.send_error(403, "Ungültiger Token")
 				return
-			filter = users.get(token) # null for admin -> will become None in Python
+			
+			# Hole das Daten-Objekt des Nutzers (z.B. {"flat": "A1", ...})
+			user_data = users.get(token)
+			# Der Filter ist der Wert von 'flat'. Wenn dieser None/null ist -> Admin
+			filter = user_data.get("flat")
 
+		# Routing
 		if subpath in ("data", "data/"):
 			self.serve_data(self.frame_store, filter)
 			return
@@ -69,6 +78,7 @@ class Handler(BaseHTTPRequestHandler):
 			if subpath == "list":
 				self.serve_snapshot_list()
 				return
+			
 			if subpath == "snapshot":
 				self.frame_store.make_snapshot(force=True)
 				self.send_json({
@@ -76,8 +86,61 @@ class Handler(BaseHTTPRequestHandler):
 					"snapshot": datetime.datetime.now().strftime("%Y-%m-%d")
 				})
 				return
+			
+			if subpath in ("users.html", "users"):
+				self.serve_file("users.html", "text/html")
+				return
+
+			if subpath == "users/data":
+				self.send_json(users)
+				return
+
+			if subpath == "users/export":
+				self.export_users(users)
+				return
 
 		self.send_error(404, "Seite nicht gefunden")
+
+
+	def do_POST(self):
+		token, subpath = self.get_token_and_subpath()
+		users = self.load_users()
+
+		# Nur Admins dürfen speichern
+		if users is not None and users.get(token).get("flat") is not None:
+			self.send_error(403, "Nur für Admins")
+			return
+
+		if subpath == "users/save":
+			length = int(self.headers.get("Content-Length", 0))
+			try:
+				data = json.loads(self.rfile.read(length))
+				with open(self.cfg['Userfile'], "w", encoding="utf-8") as f:
+					json.dump(data, f, indent=2)
+				self.send_json({"status": "ok"})
+			except Exception as e:
+				self.send_error(500, str(e))
+			return
+
+		self.send_error(404)
+
+	def load_users(self):
+		path = self.cfg.get('Userfile', 'users.json')
+		if os.path.isfile(path):
+			with open(path, "r", encoding="utf-8") as f:
+				return json.load(f)
+		return None
+	
+	
+	def export_users(self, users):
+		self.send_response(200)
+		self.send_header("Content-Type", "application/json")
+		self.send_header(
+			"Content-Disposition",
+			f'attachment; filename="users-backup-{datetime.date.today()}.json"'
+		)
+		self.end_headers()
+		self.wfile.write(json.dumps(users, indent=2).encode())
 
 
 	def send_json(self, data, status=200):
@@ -88,13 +151,6 @@ class Handler(BaseHTTPRequestHandler):
 			data = json.dumps(data)
 		self.wfile.write(data.encode())
 
-
-	def load_users(self):
-		if os.path.isfile(self.cfg['Userfile']):
-			with open(self.cfg['Userfile'], "r", encoding="utf-8") as f:
-				return json.load(f)
-		return None
-	
 	# get a static file
 	def serve_file(self, filename, content_type):
 		try:

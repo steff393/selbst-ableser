@@ -114,6 +114,7 @@ Das Programm läuft vollständig auf einem Raspberry Pi, an dem auch der wM-Bus-
 - Raspberry Pi ist ggf. physisch zugänglich.
 - AES-Schlüssel müssen auf dem Gerät gespeichert sein.
 - Speicherkarte ist prinzipiell auslesbar.
+- Jemand mit Zugriff auf die Speicherkarte kann Passwörter abgreifen und damit an die AES-Schlüssel gelangen.
 - Mieter/Nutzer müssen sich ins lokale Netzwerk einwählen.
 - Backups nur manuell (z. B. USB-Stick).
 
