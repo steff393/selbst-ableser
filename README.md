@@ -46,7 +46,7 @@ pip install -r requirements.txt
 ## Verwendung
 
 ```bash
-python wmbus.py
+python main.py
 ```
 
 Das Programm liest die empfangenen Funktelegramme aus. Sie können anschließend im Browser dekodiert und lokal weiterverarbeitet bzw. angezeigt werden.

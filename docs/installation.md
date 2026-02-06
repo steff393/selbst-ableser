@@ -21,7 +21,7 @@ Description=Read wmbus meters
 After=network.target  
 
 [Service]  
-ExecStart=/home/sf/selbst-ableser/venv/bin/python /home/sf/selbst-ableser/wmbus.py  
+ExecStart=/home/sf/selbst-ableser/venv/bin/python /home/sf/selbst-ableser/main.py  
 WorkingDirectory=/home/sf/selbst-ableser/
 StandardOutput=inherit
 StandardError=inherit
