@@ -1,5 +1,4 @@
 snapshots/
-testData/
-testData2/
 __pycache__/
 venv/
+wmbusBlocklist.json
