@@ -23,9 +23,9 @@ def start_http(cfg, frame_store):
 	)
 
 	server = ThreadingHTTPServer(
-		("0.0.0.0", int(cfg['HttpPort'])),
+		("0.0.0.0", int(cfg['HttpPort'] + 1)),
 		handler_factory
 	)
 
-	print(f"HTTP-Server aktiv: http://{get_local_ip()}:{cfg['HttpPort']}")
+	print(f"HTTP-Server aktiv: http://{get_local_ip()}:{cfg['HttpPort'] + 1}")
 	server.serve_forever()

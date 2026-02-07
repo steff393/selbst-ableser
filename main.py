@@ -21,8 +21,12 @@ registry    = MeterRegistry(
 
 
 def main():
-	# HTTP-Server setup
-	start_http(cfg, frame_store, registry)
+	try:
+		# HTTP-Server setup
+		start_http(cfg, frame_store, registry)
+	except KeyboardInterrupt:
+		print("Server beendet.")
+
 
 if __name__ == "__main__":
 	main()
