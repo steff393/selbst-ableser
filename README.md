@@ -34,23 +34,10 @@ Das Projekt richtet sich an Eigentümer & Mieter, die ihre Verbrauchsdaten **sel
 
 ---
 
-## Installation
+## Installation und erste Schritte
 
-Das Python-Modul pyserial wird benötigt:
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## Verwendung
-
-```bash
-python main.py
-```
-
-Das Programm liest die empfangenen Funktelegramme aus. Sie können anschließend im Browser dekodiert und lokal weiterverarbeitet bzw. angezeigt werden.
-
+[Installation](docs/installation.md)
+[Security-Konzept](docs/security.md)
 ---
 
 ## Datenschutz & Philosophie
