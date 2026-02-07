@@ -36,21 +36,19 @@ Benutzer-Token erlauben den Zugriff auf Auswertungen.
 
 **Eigenschaften:**
 - Zugriff nur auf **aggregierte Verbrauchsdaten**, keine Live-Daten.
-- Dennoch personenbezogen, da sie individuelle Verbrauchsinformationen enthalten.
 - Token enthalten zusätzlich **Ein- und Auszugsdaten**, um den Zugriff zeitlich auf die Mietdauer zu begrenzen.
 - Token können bei Verlust **widerrufen und neu erstellt** werden.
 
 **Schutzbedarf: mittel**
 
 **Maßnahmen:**
-- Speicherung ausschließlich **verschlüsselt**.
 - Trennung von Token und AES-Schlüsseln.
 - Möglichkeit zum gezielten Widerruf einzelner Token.
 
 ---
 
 ### Auswertungen (z. B. UVI, Jahresübersichten)
-Auswertungen enthalten personenbezogene Verbrauchsdaten und sind daher schützenswert.
+Auswertungen enthalten wohnungsbezogene Verbrauchsdaten und sind daher schützenswert.
 
 **Eigenschaften:**
 - Auswertungen werden **nicht persistent gespeichert**.
