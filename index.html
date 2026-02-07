@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Selbst-Ableser – Verwaltung</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+	font-family: system-ui, sans-serif;
+	background: #f6f7f8;
+	margin: 0;
+	padding: 0;
+}
+
+header {
+	background: #2f3e46;
+	color: white;
+	padding: 1.5rem;
+}
+
+main {
+	max-width: 800px;
+	margin: 2rem auto;
+	padding: 0 1rem;
+}
+
+.card {
+	background: white;
+	border-radius: 8px;
+	padding: 1.5rem;
+	margin-bottom: 1.5rem;
+	box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.card h2 {
+	margin-top: 0;
+}
+
+.actions {
+	display: flex;
+	gap: 1rem;
+	flex-wrap: wrap;
+	margin-top: 1rem;
+}
+
+a.button {
+	display: inline-block;
+	padding: 0.7rem 1.2rem;
+	border-radius: 6px;
+	text-decoration: none;
+	background: #52796f;
+	color: white;
+	font-weight: 500;
+}
+
+a.button.secondary {
+	background: #84a98c;
+}
+
+footer {
+	text-align: center;
+	color: #777;
+	font-size: 0.9rem;
+	margin: 2rem 0;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+	<h1>Selbst-Ableser</h1>
+	<p>Zählerdaten · Import · Auswertung</p>
+</header>
+
+<main>
+
+	<div class="card">
+		<h2>Status</h2>
+		<p>
+			Diese Instanz dient zur Verwaltung von Zählerdaten,
+			Benutzern und Importen für die spätere Auswertung.
+		</p>
+		<p>
+			<strong>Hinweis:</strong> Im Setup-Modus haben alle Zugriffe
+			Administratorrechte, bis mindestens ein Benutzer angelegt wurde.
+		</p>
+	</div>
+
+	<div class="card">
+		<h2>Benutzerverwaltung</h2>
+		<p>
+			Anlegen und Verwalten von Benutzern und Wohnungen
+			(Zugriffssteuerung, Tokens, Admin-Rechte).
+		</p>
+		<div class="actions">
+			<a class="button" href="/users.html">User verwalten</a>
+		</div>
+	</div>
+
+	<div class="card">
+		<h2>Excel-Import</h2>
+		<p>
+			Import von Zähler- und Standortdaten aus einer Excel-Datei.
+			Die Daten werden serverseitig geprüft und verschlüsselt abgelegt.
+		</p>
+		<div class="actions">
+			<a class="button secondary" href="/import.html">Excel importieren</a>
+		</div>
+	</div>
+
+</main>
+
+<footer>
+	Selbst-Ableser · lokal betrieben · keine Cloud
+</footer>
+
+</body>
+</html>

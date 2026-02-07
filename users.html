@@ -33,22 +33,47 @@
 <button onclick="save()">💾 Speichern</button>
 <button onclick="exportUsers()">📤 Export</button>
 
+<div id="status" style="margin-top:1rem;"></div>
+
 <script>
 let users = {};
 // Extrahiere den Admin-Token aus der URL (erster Teil des Pfades)
-const pathParts = window.location.pathname.split("/").filter(p => p);
-const adminToken = pathParts[0]; 
+const adminToken = getAdminToken();
+const apiBase = adminToken
+	? `/${adminToken}`
+	: ""; // Setup-Mode
 
 // Initiales Laden der Daten
-fetch(`/${adminToken}/users/data`)
-	.then(r => r.ok ? r.json() : Promise.reject("Zugriff verweigert"))
-	.then(d => {
-		users = d;
-		render();
+fetch(`${apiBase}/users/data`)
+	.then(r => {
+		if (!r.ok) throw new Error("HTTP " + r.status);
+		return r.json();
 	})
-	.catch(err => alert(err));
+	.then(data => {
+		users = data;
+		renderUsers();
+	})
+	.catch(err => {
+		console.error("API error:", err);
+		alert("Fehler beim Laden der User-Daten");
+	});
 
-function render() {
+
+
+function getAdminToken() {
+	const parts = window.location.pathname.split("/").filter(Boolean);
+
+	// Erwartete URL im Normalbetrieb:
+	// /<token>/users.html
+	if (parts.length >= 2 && parts[1].endsWith(".html")) {
+		return parts[0];
+	}
+
+	return null; // Setup-Mode
+}
+
+
+function renderUsers() {
 	const tb = document.querySelector("#tbl tbody");
 	tb.innerHTML = "";
 	for (const token in users) {
@@ -75,7 +100,7 @@ function updateUser(token, key, val) {
 function del(token) {
 	if(confirm(`Nutzer ${token} wirklich löschen?`)) {
 		delete users[token];
-		render();
+		renderUsers();
 	}
 }
 
@@ -83,20 +108,65 @@ function addUser() {
 	const newToken = crypto.getRandomValues(new Uint8Array(8))
 		.reduce((s,b)=>s+b.toString(16).padStart(2,"0"),"");
 	users[newToken] = { flat: "", move_in: null, move_out: null };
-	render();
+	renderUsers();
+}
+
+function hasAdmin(users) {
+	return Object.values(users).some(u => !u || u.flat == null || u.flat === "");
+}
+
+function getAdminTokenFromUsers(users) {
+	for (const [token, u] of Object.entries(users)) {
+		if (!u || u.flat == null || u.flat === "") {
+			return token;
+		}
+	}
+	return null;
 }
 
 function save() {
-	fetch(`/${adminToken}/users/save`, {
+	const status = document.getElementById("status");
+	status.textContent = "";
+
+	if (!hasAdmin(users)) {
+		status.textContent = "❌ Es muss mindestens ein Admin-Nutzer existieren.";
+		status.style.color = "red";
+		return;
+	}
+
+	fetch(`${apiBase}/users/save`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(users)
 	})
-	.then(r => r.ok ? alert("Gespeichert") : alert("Fehler beim Speichern"));
+	.then(r => {
+		if (!r.ok) throw new Error("Speichern fehlgeschlagen");
+		return r.json();
+	})
+	.then(() => {
+		const adminToken = getAdminTokenFromUsers(users);
+
+		status.style.color = "green";
+		status.innerHTML = `
+			✅ Benutzer gespeichert.<br>
+			Admin-Token:<br>
+			<code style="font-size:1.1em;">${adminToken}</code><br><br>
+			Bitte unbedingt notieren/speichern!<br><br>
+			<a href="/${adminToken}/index.html">
+				👉 Jetzt zur Admin-Oberfläche wechseln
+			</a>
+		`;
+	})
+	.catch(err => {
+		status.style.color = "red";
+		status.textContent = "❌ Fehler beim Speichern";
+		console.error(err);
+	});
 }
 
+
 function exportUsers() {
-	window.location.href = `/${adminToken}/users/export`;
+	window.location.href = `/${apiBase}/users/export`;
 }
 
 function openUvi(token) {

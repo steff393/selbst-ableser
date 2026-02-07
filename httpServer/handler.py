@@ -33,10 +33,17 @@ class Handler(BaseHTTPRequestHandler):
 
 		users = self.load_users()
 		is_setup_mode = len(users) == 0
-		
+
 		if is_setup_mode:
-			# Im Setup-Modus ist jeder ein Admin
-			filter = None 
+			# Only users or setup page / no token -> use self.path
+			if self.path == "/users.html":
+				self.serve_file("users.html", "text/html")
+				return
+			if self.path == "/users/data":
+				self.send_json(users)
+				return
+			self.serve_file("index.html", "text/html")
+			return
 		else:
 			if token not in users:
 				self.send_error(403, "Ungültiger Token")
@@ -46,6 +53,8 @@ class Handler(BaseHTTPRequestHandler):
 			user_data = users.get(token)
 			# Der Filter ist der Wert von 'flat'. Wenn dieser None/null ist -> Admin
 			filter = user_data.get("flat")
+			if filter == "":
+				filter = None
 
 		# Routing
 		if subpath.startswith("eval"):
@@ -57,8 +66,12 @@ class Handler(BaseHTTPRequestHandler):
 			)
 			self.send_json(response)
 			return
+		
+		if subpath in ("", "index.html"):
+			self.serve_file("index.html", "text/html")
+			return
 
-		if subpath in ("", "uvi.html"):
+		if subpath in ("uvi.html"):
 			self.serve_file("uvi.html", "text/html")
 			return
 		
@@ -91,22 +104,22 @@ class Handler(BaseHTTPRequestHandler):
 
 	def do_POST(self):
 		token, subpath = self.get_token_and_subpath()
+		
 		users = self.load_users()
+		is_setup_mode = len(users) == 0
+		
+		if is_setup_mode:
+			if self.path == "/users/save":
+				self.handle_users_save()
+				return
 
 		# Nur Admins dürfen speichern
-		if users is not None and users.get(token).get("flat") is not None:
+		if users is not None and users.get(token).get("flat") not in (None, ""):
 			self.send_error(403, "Nur für Admins")
 			return
 
 		if subpath == "users/save":
-			length = int(self.headers.get("Content-Length", 0))
-			try:
-				data = json.loads(self.rfile.read(length))
-				with open(self.cfg['Userfile'], "w", encoding="utf-8") as f:
-					json.dump(data, f, indent=2)
-				self.send_json({"status": "ok"})
-			except Exception as e:
-				self.send_error(500, str(e))
+			self.handle_users_save()
 			return
 		
 		if subpath == "import/upload":
@@ -116,12 +129,27 @@ class Handler(BaseHTTPRequestHandler):
 		self.send_error(404)
 
 
+	def handle_users_save(self):
+		length = int(self.headers.get("Content-Length", 0))
+		try:
+			data = json.loads(self.rfile.read(length))
+			with open(self.cfg['Userfile'], "w", encoding="utf-8") as f:
+				json.dump(data, f, indent=2)
+			self.send_json({"status": "ok"})
+		except Exception as e:
+			self.send_error(500, str(e))
+
+
 	def load_users(self):
-		path = self.cfg.get('Userfile', 'users.json')
-		if os.path.isfile(path):
+		path = self.cfg.get("Userfile", "users.json")
+		if not os.path.isfile(path):
+			return {} # --> Setup-Mode
+
+		try:
 			with open(path, "r", encoding="utf-8") as f:
 				return json.load(f)
-		return None
+		except Exception:
+			return {} # --> Setup-Mode
 	
 	
 	def export_users(self, users):
