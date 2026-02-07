@@ -35,9 +35,9 @@ Das Projekt richtet sich an Eigentümer & Mieter, die ihre Verbrauchsdaten **sel
 ---
 
 ## Installation und erste Schritte
-
-[Installation](docs/installation.md)
+[Installation](docs/installation.md)  
 [Security-Konzept](docs/security.md)
+
 ---
 
 ## Datenschutz & Philosophie
