@@ -7,9 +7,11 @@
 	<style>
 		body {
 			font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-			margin: 2rem;
+			margin: 2rem auto;
 			background: #f6f7f9;
 			color: #222;
+			width: 60%;
+			align: center;
 		}
 		h1 { margin-bottom: 0.25rem; }
 		.sub { color: #555; margin-bottom: 2rem; }
@@ -17,6 +19,7 @@
 			background: #fff;
 			border-radius: 10px;
 			padding: 1.5rem;
+			margin: 2rem auto;
 			margin-bottom: 2rem;
 			box-shadow: 0 6px 20px rgba(0,0,0,0.08);
 		}
@@ -61,6 +64,12 @@
 	<button id="nextBtn">▶</button>
 </div>
 
+<div class="section" style="width:70%;max-width:100%">
+	<h2>Verbrauchsverlauf (Heizkostenverteiler)</h2>
+	<canvas id="chart" height="260" style="width:100%;max-width:100%"></canvas>
+</div>
+
+
 <div id="content"></div>
 
 <div class="footer">
@@ -77,6 +86,30 @@
 		HKV: 'Heizkostenverteiler',
 		WWZ: 'Warmwasserzähler',
 		KWZ: 'Kaltwasserzähler'
+	};
+
+	const TYPE_KWH_FAKTOR = {
+		HKV:  1.42,
+		WWZ:  124.3,
+		KWZ:  1
+	};
+
+	const TYPE_DEC_DIGITS = {
+		HKV:  0,
+		WWZ:  0,
+		KWZ:  3
+	};
+
+	const TYPE_SUM_UNITS = {
+		HKV: 'kWh',
+		WWZ: 'kWh',
+		KWZ: 'm³'
+	};
+
+	const TYPE_METER_UNITS = {
+		HKV: 'Einh.',
+		WWZ: 'm³',
+		KWZ: 'm³'
 	};
 
 	const TYPE_DIVIDER = {
@@ -117,6 +150,11 @@
 		return ((cur - prev) / prev * 100).toFixed(1) + ' %';
 	}
 
+	function format(val, type) {
+		if (val == null || val == 0) return 'k. A.';
+		return (val / TYPE_DIVIDER[type] * TYPE_KWH_FAKTOR[type]).toFixed(TYPE_DEC_DIGITS[type]);
+	}
+
 	function render() {
 		const currentMonth = ALL_MONTHS[MONTH_INDEX];
 		const currentDate = new Date(currentMonth + '-01');
@@ -153,9 +191,9 @@
 			table.innerHTML = `
 				<thead>
 					<tr>
-						<th>${currentMonth}</th>
-						<th>${prevMonth}</th>
-						<th>${prevYearMonth}</th>
+						<th>Aktuell<br>(${currentMonth})</th>
+						<th>Vormonat<br>(${prevMonth})</th>
+						<th>Vorjahr<br>(${prevYearMonth})</th>
 						<th>Δ Vorjahr</th>
 					</tr>
 				</thead>
@@ -179,9 +217,9 @@
 
 			const tr = document.createElement('tr');
 			tr.innerHTML = `
-				<td>${sumCur / TYPE_DIVIDER[type]}</td>
-				<td>${sumPrev ? sumPrev / TYPE_DIVIDER[type] : 'k. A.'}</td>
-				<td>${sumPrevYear ? sumPrevYear / TYPE_DIVIDER[type] : 'k. A.'}</td>
+				<td>${format(sumCur, type)     } ${TYPE_SUM_UNITS[type]}</td>
+				<td>${format(sumPrev, type)    } ${TYPE_SUM_UNITS[type]}</td>
+				<td>${format(sumPrevYear, type)} ${TYPE_SUM_UNITS[type]}</td>
 				<td>${pct(sumCur, sumPrevYear)}</td>
 			`;
 			table.appendChild(tr);
@@ -200,7 +238,7 @@
 			section.className = 'section';
 
 			section.innerHTML = `
-				<h2>${TYPE_LABELS[type] ?? type} – Aktuelle Zählerstände (${currentMonth})</h2>
+				<h4>${TYPE_LABELS[type] ?? type} – Aktuelle Zählerstände (${currentMonth})</h4>
 				<div class="hint">Rein informativ, ohne Einfluss auf die Abrechnung</div>
 			`;
 
@@ -223,7 +261,7 @@
 				tr.innerHTML = `
 					<td>${e.room}</td>
 					<td>${e.meter_id}</td>
-					<td>${e.meter_value / TYPE_DIVIDER[type]}</td>
+					<td style="text-align:right;padding-right:10%">${e.meter_value / TYPE_DIVIDER[type]} ${TYPE_METER_UNITS[type]}</td>
 					<td>${e.found_date}</td>
 				`;
 				table.appendChild(tr);
@@ -231,8 +269,165 @@
 
 			section.appendChild(table);
 			container.appendChild(section);
+			drawChart();
 		}
 	}
+
+	function niceStep(max, targetTicks = 5) {
+		const rawStep = max / targetTicks;
+		const pow10 = Math.pow(10, Math.floor(Math.log10(rawStep)));
+		const norm = rawStep / pow10;
+
+		let step;
+		if (norm < 1.5) step = 1;
+		else if (norm < 3) step = 2;
+		else if (norm < 7) step = 5;
+		else step = 10;
+
+		return step * pow10;
+	}
+
+	function drawChart() {
+		const canvas = document.getElementById('chart');
+		if (!canvas) return;
+		const ctx = canvas.getContext('2d');
+
+		// --- HiDPI / Schärfe ---
+		const dpr = window.devicePixelRatio || 1;
+		const cssWidth = canvas.clientWidth;
+		const cssHeight = canvas.height;
+		canvas.width  = cssWidth * dpr;
+		canvas.height = cssHeight * dpr;
+		ctx.scale(dpr, dpr);
+
+		const W = cssWidth;
+		const H = cssHeight;
+		const P = 60;
+
+		ctx.clearRect(0, 0, W, H);
+		ctx.font = '12px system-ui';
+
+		// --- Monatswerte aggregieren ---
+		const sums = {};
+		for (const e of DATA) {
+			if (e.type !== 'HKV') continue;  // only HKV
+			sums[e.month] ??= 0;
+			sums[e.month] += (e.consumption ?? 0) * TYPE_KWH_FAKTOR[e.type];
+		}
+
+		const months = ALL_MONTHS.slice(-24); // take last 24 months
+		const curMonths  = months.slice(12);  // this years' 12 months
+		const prevMonths = months.slice(0, 12); // last years' 12 months
+
+		const curVals  = curMonths.map(m => sums[m] ?? 0);
+		const prevVals = prevMonths.map(m => sums[m] ?? 0);
+
+		const max = Math.max(...curVals, ...prevVals, 1);
+
+		const x = i => P + i * (W - 2 * P) / 11;
+		const y = v => H - P - v / max * (H - 2 * P);
+
+		// --- Achsen ---
+		ctx.strokeStyle = '#bbb';
+		ctx.beginPath();
+		ctx.moveTo(P, P);
+		ctx.lineTo(P, H - P);
+		ctx.lineTo(W - P, H - P);
+		ctx.stroke();
+
+		// Y-Achse Labels
+		const step = niceStep(max, 4);
+		const maxTick = Math.ceil(max / step) * step;
+
+		for (let v = 0; v <= maxTick; v += step) {
+			const py = y(v);
+
+			ctx.fillStyle = '#666';
+			ctx.fillText(v + " " + TYPE_SUM_UNITS["HKV"], 5, py + 4);
+
+			ctx.strokeStyle = '#eee';
+			ctx.beginPath();
+			ctx.moveTo(P, py);
+			ctx.lineTo(W - P, py);
+			ctx.stroke();
+		}
+
+
+		// X-Achse Labels
+		curMonths.forEach((m, i) => {
+			const px = x(i);
+			ctx.fillStyle = '#666';
+			ctx.fillText(m.slice(5), px - 8, H - 15);
+		});
+
+		function smoothLine(values, color, width, alpha = 1) {
+			ctx.strokeStyle = color;
+			ctx.lineWidth = width;
+			ctx.globalAlpha = alpha;
+			ctx.beginPath();
+
+			values.forEach((v, i) => {
+				const px = x(i);
+				const py = y(v);
+				if (i === 0) {
+					ctx.moveTo(px, py);
+				} else {
+					const ppx = x(i - 1);
+					const ppy = y(values[i - 1]);
+					const cx = (ppx + px) / 2;
+					ctx.quadraticCurveTo(ppx, ppy, cx, (ppy + py) / 2);
+					ctx.quadraticCurveTo(cx, (ppy + py) / 2, px, py);
+				}
+			});
+			ctx.stroke();
+			ctx.globalAlpha = 1;
+		}
+
+		// --- Linien ---
+		smoothLine(prevVals, '#999', 2, 0.35);   // Vorjahr
+		smoothLine(curVals,  '#0074d9', 3);     // Aktuell
+
+		// --- Markierung aktuelles Monat ---
+		let idx = MONTH_INDEX;
+		let px, py;
+		if (idx >= 0 && idx < 24) {
+			if (idx < 12) {
+				px = x(idx);
+				py = y(prevVals[idx]);
+				ctx.strokeStyle = '#999';
+				ctx.fillStyle = '#999';
+			}	else {
+				px = x(idx - (ALL_MONTHS.length - 12));
+				py = y(curVals[idx - (ALL_MONTHS.length - 12)]);
+				ctx.strokeStyle = '#0074d9';
+				ctx.fillStyle = '#0074d9';
+			}
+
+			ctx.beginPath();
+			ctx.moveTo(px, py);
+			ctx.lineTo(px, H - P);
+			ctx.stroke();
+
+			ctx.beginPath();
+			ctx.arc(px, py, 4, 0, Math.PI * 2);
+			ctx.fill();
+		}
+
+		// --- Legende ---
+		ctx.fillStyle = '#0074d9';
+		ctx.fillRect(P, 10, 16, 3);
+		ctx.fillStyle = '#000';
+		ctx.fillText('Aktuell', P + 22, 14);
+
+		ctx.globalAlpha = 0.4;
+		ctx.fillStyle = '#666';
+		ctx.fillRect(P + 100, 10, 16, 3);
+		ctx.globalAlpha = 1;
+		ctx.fillStyle = '#000';
+		ctx.fillText('Vorjahr', P + 122, 14);
+	}
+
+
 
 	function changeMonth(diff) {
 		MONTH_INDEX = Math.max(0, Math.min(ALL_MONTHS.length - 1, MONTH_INDEX + diff));

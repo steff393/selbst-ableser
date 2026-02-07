@@ -59,7 +59,7 @@ class Handler(BaseHTTPRequestHandler):
 		# Routing
 		if subpath.startswith("eval"):
 			response = self.handle_uvi_request(
-				params.get("start", ["2024-02-01"])[0],
+				params.get("start", ["2024-01-31"])[0],
 				params.get("end",   ["2026-01-31"])[0],
 				params.get("path",  [self.cfg['SnapshotDir']])[0],
 				filter
