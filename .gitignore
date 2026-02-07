@@ -2,3 +2,6 @@ snapshots/
 __pycache__/
 venv/
 wmbusBlocklist.json
+locations.json.enc
+locations.xlsx
+users.json
