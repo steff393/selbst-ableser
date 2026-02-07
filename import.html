@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Excel importieren</title>
+<style>
+body {
+	font-family: system-ui, sans-serif;
+	padding: 2rem;
+	max-width: 600px;
+}
+label {
+	display: block;
+	margin-top: 1rem;
+}
+button {
+	margin-top: 1.5rem;
+}
+pre {
+	background: #eee;
+	padding: 1rem;
+}
+</style>
+</head>
+<body>
+
+<h1>Locations importieren</h1>
+
+<form id="form">
+	<label>
+		Excel-Datei:
+		<input type="file" name="file" accept=".xlsx" required>
+	</label>
+
+	<label>
+		Passwort:
+		<input type="password" name="password" minlength="6" required>
+	</label>
+
+	<button>Importieren</button>
+</form>
+
+<pre id="result"></pre>
+
+<script>
+document.getElementById("form").addEventListener("submit", async e => {
+	e.preventDefault();
+	const form = e.target;
+	const data = new FormData(form);
+
+	const res = await fetch("import/upload", {
+		method: "POST",
+		body: data
+	});
+
+	const text = await res.text();
+	document.getElementById("result").textContent = text;
+});
+</script>
+
+</body>
+</html>

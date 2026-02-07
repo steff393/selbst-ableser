@@ -1,9 +1,12 @@
 import os
 import json
 import datetime
+import cgi
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-from meterReader import evaluate_uvi, serialize_monthly_results, decrypt
+from meterReader import evaluate_uvi, serialize_monthly_results
+from .importer import import_and_encrypt
+import tempfile
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -45,10 +48,6 @@ class Handler(BaseHTTPRequestHandler):
 			filter = user_data.get("flat")
 
 		# Routing
-		if subpath in ("data", "data/"):
-			self.serve_data(self.frame_store, filter)
-			return
-
 		if subpath.startswith("eval"):
 			response = self.handle_uvi_request(
 				params.get("start", ["2024-01-01"])[0],
@@ -59,11 +58,7 @@ class Handler(BaseHTTPRequestHandler):
 			self.send_json(response)
 			return
 
-		if subpath in ("", "web.html"):
-			self.serve_file("web.html", "text/html")
-			return
-
-		if subpath == "uvi.html":
+		if subpath in ("", "uvi.html"):
 			self.serve_file("uvi.html", "text/html")
 			return
 		
@@ -74,19 +69,7 @@ class Handler(BaseHTTPRequestHandler):
 			return
 
 		# only for admins (no filter)
-		if filter is None:
-			if subpath == "list":
-				self.serve_snapshot_list()
-				return
-			
-			if subpath == "snapshot":
-				self.frame_store.make_snapshot(force=True)
-				self.send_json({
-					"status": "ok",
-					"snapshot": datetime.datetime.now().strftime("%Y-%m-%d")
-				})
-				return
-			
+		if filter is None:	
 			if subpath in ("users.html", "users"):
 				self.serve_file("users.html", "text/html")
 				return
@@ -97,6 +80,10 @@ class Handler(BaseHTTPRequestHandler):
 
 			if subpath == "users/export":
 				self.export_users(users)
+				return
+			
+			if subpath == "import.html":
+				self.serve_file("import.html", "text/html")
 				return
 
 		self.send_error(404, "Seite nicht gefunden")
@@ -121,8 +108,13 @@ class Handler(BaseHTTPRequestHandler):
 			except Exception as e:
 				self.send_error(500, str(e))
 			return
+		
+		if subpath == "import/upload":
+			self.handle_import_upload()
+			return
 
 		self.send_error(404)
+
 
 	def load_users(self):
 		path = self.cfg.get('Userfile', 'users.json')
@@ -151,6 +143,7 @@ class Handler(BaseHTTPRequestHandler):
 			data = json.dumps(data)
 		self.wfile.write(data.encode())
 
+
 	# get a static file
 	def serve_file(self, filename, content_type):
 		try:
@@ -166,65 +159,6 @@ class Handler(BaseHTTPRequestHandler):
 			self.send_error(404, f"{filename} nicht gefunden")
 
 
-	# get current data
-	def serve_data(self, store, filter):
-		self.send_response(200)
-		self.send_header("Content-Type", "application/json")
-		self.end_headers()
-
-		payload = {}
-		if store is None:
-			self.wfile.write(b"{}")
-			return
-
-		for meter_nr, data in store.get_all().items():
-			meter = self.registry.get_meter(meter_nr)
-
-			if filter is not None:
-				if meter is None or filter != meter.flat:
-					continue
-
-			wmbus = None
-			if meter and meter.aes_key:
-				wmbus = decrypt(data["wmbus"], meter.aes_key)
-			if wmbus is None:
-				wmbus = data["wmbus"] # no decryption possible, take original value
-
-			payload[meter_nr] = {
-				"timestamp": data["timestamp"],
-				"rssi": data["rssi"],
-				"wmbus": wmbus.hex(),
-				"raum": meter.room if meter else None
-			}
-		self.wfile.write(json.dumps(payload).encode())
-
-
-	# get snapshot by date
-	def load_snapshot(self, date):
-		filename = os.path.join(self.cfg['SnapshotDir'], f"{date}.json")
-		if not os.path.isfile(filename):
-			return None
-
-		with open(filename, "r", encoding="utf-8") as f:
-			data = json.load(f)
-
-		# convert wmbus from hex string to bytes (to match live data format)
-		for v in data.values():
-			if isinstance(v.get("wmbus"), str):
-				v["wmbus"] = bytes.fromhex(v["wmbus"])
-		return data
-
-
-	# get list of available snapshots
-	def serve_snapshot_list(self):
-		files = []
-		if os.path.isdir(self.cfg['SnapshotDir']):
-			for f in sorted(os.listdir(self.cfg['SnapshotDir'])):
-				if f.endswith(".json"):
-					files.append(f[:-5])
-		self.send_json(files)
-
-
 	# calculate data for UVI
 	def handle_uvi_request(self, start, end, path, filter=None):
 		print(f"[UVI] Anfrage: {start} bis {end}, Pfad: {path}")
@@ -237,3 +171,40 @@ class Handler(BaseHTTPRequestHandler):
 		)
 		return serialize_monthly_results(result)
 	
+
+	def handle_import_upload(self):
+		form = cgi.FieldStorage(
+			fp=self.rfile,
+			headers=self.headers,
+			environ={"REQUEST_METHOD": "POST"}
+		)
+
+		if "file" not in form or "password" not in form:
+			self.send_error(400, "Datei oder Passwort fehlt")
+			return
+
+		fileitem = form["file"]
+		password = form.getvalue("password")
+
+		filename = os.path.basename(fileitem.filename)
+
+		with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+			tmp.write(fileitem.file.read())
+			tmp_path = tmp.name
+
+		out_name = os.path.splitext(filename)[0] + ".json.enc"
+
+		try:
+			result = import_and_encrypt(tmp_path, password, out_name)
+			self.send_json({
+				"status": "ok",
+				"output": out_name,
+				**result
+			})
+		except Exception as e:
+			self.send_error(500, str(e))
+		finally:
+			try:
+				os.remove(tmp_path)
+			except OSError:
+				pass
