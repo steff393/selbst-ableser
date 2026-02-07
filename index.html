@@ -58,6 +58,18 @@ a.button.secondary {
 	background: #84a98c;
 }
 
+button, input {
+	font-size: 1rem;
+	padding: 0.5rem;
+	border-radius: 4px;
+	border: 1px solid #ccc;
+}
+
+input.token-field {
+	width: 250px;
+	font-family: monospace;
+}
+
 footer {
 	text-align: center;
 	color: #777;
@@ -88,25 +100,36 @@ footer {
 		</p>
 	</div>
 
-	<div class="card">
+	<div class="card" id="user-setup-card" style="display:none;">
+		<h2>Setup: Admin-Benutzer anlegen</h2>
+		<p>Gib einen Admin-Token ein oder generiere einen neuen Zufallswert:</p>
+		<div class="actions">
+			<input type="text" id="admin-token" class="token-field">
+			<button onclick="generateToken()">🔄 Zufallswert</button>
+			<button onclick="saveAdmin()">💾 Speichern</button>
+		</div>
+		<p id="setup-status" style="margin-top:1rem;"></p>
+	</div>
+
+	<div class="card" id="normal-card1" style="display:none;">
 		<h2>Benutzerverwaltung</h2>
 		<p>
 			Anlegen und Verwalten von Benutzern und Wohnungen
 			(Zugriffssteuerung, Tokens, Admin-Rechte).
 		</p>
 		<div class="actions">
-			<a class="button" href="/users.html">User verwalten</a>
+			<a class="button" href="users.html">User verwalten</a>
 		</div>
 	</div>
 
-	<div class="card">
+	<div class="card" id="normal-card2" style="display:none;">
 		<h2>Excel-Import</h2>
 		<p>
 			Import von Zähler- und Standortdaten aus einer Excel-Datei.
 			Die Daten werden serverseitig geprüft und verschlüsselt abgelegt.
 		</p>
 		<div class="actions">
-			<a class="button secondary" href="/import.html">Excel importieren</a>
+			<a class="button secondary" href="import.html">Excel importieren</a>
 		</div>
 	</div>
 
@@ -115,6 +138,78 @@ footer {
 <footer>
 	Selbst-Ableser · lokal betrieben · keine Cloud
 </footer>
+
+<script>
+// === Setup-Mode Check ===
+const apiBase = "";
+
+fetch(`${apiBase}/users/data`)
+.then(r => {
+	if (!r.ok) return null;
+	return r.json();
+})
+.then(data => {
+	if (data && Object.keys(data).length === 0) {
+		// Setup-Mode: empty {} → create admin-token
+		document.getElementById("user-setup-card").style.display = "block";
+		generateToken();
+	} else {
+		// everything else
+		document.getElementById("normal-card1").style.display = "block";
+		document.getElementById("normal-card2").style.display = "block";
+	}
+})
+.catch(err => {
+	console.warn("Fehler beim Laden von /users/data:", err);
+	document.getElementById("normal-card1").style.display = "block";
+	document.getElementById("normal-card2").style.display = "block";
+});
+
+
+// === Token Funktionen ===
+function generateToken() {
+	const token = crypto.getRandomValues(new Uint8Array(8))
+		.reduce((s,b)=>s+b.toString(16).padStart(2,"0"),"");
+	document.getElementById("admin-token").value = token;
+}
+
+function saveAdmin() {
+	const token = document.getElementById("admin-token").value.trim();
+	const status = document.getElementById("setup-status");
+
+	if (!token) {
+		status.textContent = "❌ Bitte einen gültigen Token eingeben.";
+		status.style.color = "red";
+		return;
+	}
+
+	const users = {};
+	users[token] = { flat: null, move_in: null, move_out: null };
+
+	fetch(`${apiBase}/users/save`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(users)
+	})
+	.then(r => {
+		if (!r.ok) throw new Error("Fehler beim Speichern");
+		return r.json();
+	})
+	.then(() => {
+		status.style.color = "green";
+		status.innerHTML = `
+			✅ Admin-Benutzer gespeichert.<br>
+			Admin-Token: <code>${token}</code><br>
+			<a class="button" href="/${token}/index.html">👉 Weiter</a>
+		`;
+	})
+	.catch(err => {
+		status.style.color = "red";
+		status.textContent = "❌ Fehler beim Speichern";
+		console.error(err);
+	});
+}
+</script>
 
 </body>
 </html>
