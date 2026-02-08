@@ -21,7 +21,7 @@
 		<tr>
 			<th>Token</th>
 			<th>Wohnung</th>
-			<th>Fläche</th>
+			<th>Fläche (m²)</th>
 			<th>Einzug</th>
 			<th>Auszug</th>
 			<th>Aktionen</th>
@@ -83,7 +83,11 @@ function renderUsers() {
 		<tr>
 			<td class="token">${token}</td>
 			<td><input value="${u?.flat ?? ""}" onchange="updateUser('${token}','flat',this.value)"></td>
-			<td><input value="${u?.area ?? 0}" onchange="updateUser('${token}','area',this.value)"></td>
+			<td>
+				<input type="number" step="0.1"
+					value="${u?.area ?? 0}"
+					onchange="updateUser('${token}','area',parseFloat(this.value) || 0)">
+			</td>
 			<td><input type="date" value="${u?.move_in ?? ""}" onchange="updateUser('${token}','move_in',this.value)"></td>
 			<td><input type="date" value="${u?.move_out ?? ""}" onchange="updateUser('${token}','move_out',this.value)"></td>
 			<td>

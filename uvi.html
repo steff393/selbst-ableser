@@ -141,7 +141,8 @@ WWZ: 'Der Warmwasserverbrauch wird in Verbrauchseinheiten gemäß Zählerstand e
 	async function loadData() {
 		const parts = location.pathname.split('/').filter(Boolean);
 		const token = parts[0];
-		const res = await fetch(`/${token}/eval`);
+		const res = await fetch(`/${token}/eval_combined`);
+		if (!res.ok) throw new Error("API error");
 		return await res.json();
 	}
 
@@ -452,10 +453,10 @@ WWZ: 'Der Warmwasserverbrauch wird in Verbrauchseinheiten gemäß Zählerstand e
 		if (!e.shiftKey && e.key === 'ArrowRight') changeMonth(1);
 	});
 
-	loadData().then(data => {
-		DATA = data;
-		ALL_MONTHS = [...new Set(data.map(e => e.month))].sort();
-		const flats = [...new Set(data.map(e => e.flat))].sort();
+	loadData().then(resp => {
+		DATA = resp.details;
+		ALL_MONTHS = [...new Set(DATA.map(e => e.month))].sort();
+		const flats = [...new Set(DATA.map(e => e.flat))].sort();
 		if (flats.length > 1) {
 			ALL_FLATS = ['ALL', ...flats];
 		} else {
