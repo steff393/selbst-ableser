@@ -57,6 +57,17 @@ class Handler(BaseHTTPRequestHandler):
 				filter = None
 
 		# Routing
+		if subpath.startswith("eval_combined"):
+			response = self.handle_uvi_combined_request(
+				params.get("start", ["2024-01-31"])[0],
+				params.get("end",   ["2026-01-31"])[0],
+				params.get("path",  [self.cfg['SnapshotDir']])[0],
+				user_data
+			)
+			self.send_json(response)
+			return
+		
+
 		if subpath.startswith("eval"):
 			response = self.handle_uvi_request(
 				params.get("start", ["2024-01-31"])[0],
@@ -219,6 +230,57 @@ class Handler(BaseHTTPRequestHandler):
 		)
 		return serialize_monthly_aggregates(result)
 	
+
+	def handle_uvi_combined_request(self, start, end, path, user_data):
+		all_results = self.evaluate_uvi(
+			json_path  = path,
+			registry   = self.registry,
+			start_date = start,
+			end_date   = end,
+			flat       = None
+		)
+
+		user_flat = user_data.get("flat")
+		user_area = user_data.get("area", 0)
+
+		# details for selected flat
+		details = [
+			r for r in all_results
+			if user_flat and r.flat == user_flat
+		]
+
+		# aggregated house values
+		from collections import defaultdict
+		sums = defaultdict(int)
+
+		for r in all_results:
+			sums[(r.month, r.type)] += r.consumption
+
+		users = self.load_users()
+		total_area = sum(
+			u.get("area", 0)
+			for u in users.values()
+			if u.get("flat")
+		)
+
+		house_norm = []
+		for (month, type_), consumption in sorted(sums.items()):
+			if total_area > 0:
+				consumption = consumption / total_area * user_area
+			else:
+				consumption = 0
+
+			house_norm.append({
+				"month": month,
+				"type": type_,
+				"consumption": round(consumption, 2)
+			})
+
+		return {
+			"details": serialize_monthly_results(details),
+			"house_norm": house_norm
+		}
+
 
 	def handle_import_upload(self):
 		form = cgi.FieldStorage(
