@@ -46,7 +46,7 @@
 		}
 		.small { color: #666; font-size: 0.85rem; }
 		.footer { font-size: 0.85rem; color: #555; margin-top: 3rem; }
-
+		
 		@media print {
 			body { background: #fff; margin: 1cm; }
 			.section { box-shadow: none; page-break-inside: avoid; }
@@ -59,16 +59,22 @@
 <div class="sub">gemäß §6 Heizkostenverordnung</div>
 
 <div class="section" style="display:flex;justify-content:space-between;align-items:center">
-	<button id="prevBtn">◀</button>
-	<strong id="monthLabel"></strong>
-	<button id="nextBtn">▶</button>
+	<div>
+		<button id="prevBtn">◀</button>
+		<strong id="monthLabel"></strong>
+		<button id="nextBtn">▶</button>
+	</div>
+	<div>
+		<button id="flatPrevBtn">◀</button>
+		<strong id="flatLabel"></strong>
+		<button id="flatNextBtn">▶</button>
+	</div>
 </div>
 
-<div class="section" style="width:70%;max-width:100%">
+<div class="section" style="width:70%">
 	<h2>Verbrauchsverlauf (Heizkostenverteiler)</h2>
-	<canvas id="chart" height="260" style="width:100%;max-width:100%"></canvas>
+	<canvas id="chart" height="260" style="width:100%"></canvas>
 </div>
-
 
 <div id="content"></div>
 
@@ -88,45 +94,28 @@
 		KWZ: 'Kaltwasserzähler'
 	};
 
-	const TYPE_KWH_FAKTOR = {
-		HKV:  1.42,
-		WWZ:  124.3,
-		KWZ:  1
-	};
-
-	const TYPE_DEC_DIGITS = {
-		HKV:  0,
-		WWZ:  0,
-		KWZ:  3
-	};
-
-	const TYPE_SUM_UNITS = {
-		HKV: 'kWh',
-		WWZ: 'kWh',
-		KWZ: 'm³'
-	};
-
-	const TYPE_METER_UNITS = {
-		HKV: 'Einh.',
-		WWZ: 'm³',
-		KWZ: 'm³'
-	};
-
-	const TYPE_DIVIDER = {
-		HKV: 1,
-		WWZ: 1000,
-		KWZ: 1000
-	};
+	const TYPE_KWH_FAKTOR = { HKV:1.42, WWZ:124.3, KWZ:1 };
+	const TYPE_DIVIDER    = { HKV:1, WWZ:1000, KWZ:1000 };
+	const TYPE_DEC_DIGITS = { HKV:0, WWZ:0, KWZ:3 };
+	const TYPE_SUM_UNITS  = { HKV:'kWh', WWZ:'kWh', KWZ:'m³' };
+	const TYPE_METER_UNITS= { HKV:'Einh.', WWZ:'m³', KWZ:'m³' };
 
 	const TYPE_HINTS = {
-		HKV: 'Die angezeigten Werte basieren auf den Heizkostenverteilern und dienen dem monatlichen Verbrauchsvergleich.',
-		WWZ: 'Der Warmwasserverbrauch wird in Verbrauchseinheiten gemäß Zählerstand erfasst.',
+HKV: 'Die angezeigten Werte basieren auf den Heizkostenverteilern und dienen dem monatlichen Verbrauchsvergleich.',
+WWZ: 'Der Warmwasserverbrauch wird in Verbrauchseinheiten gemäß Zählerstand erfasst.',
 		KWZ: 'Der Kaltwasserverbrauch dient ausschließlich der Information und ist nicht Bestandteil der Heizkostenabrechnung.'
-	};
+};
 
 	let DATA = [];
 	let ALL_MONTHS = [];
 	let MONTH_INDEX = 0;
+
+	let ALL_FLATS = [];
+	let FLAT_INDEX = 0;
+
+	function currentFlat() {
+		return ALL_FLATS[FLAT_INDEX];
+	}
 
 	function ym(date) {
 		return date.toISOString().slice(0,7);
@@ -138,21 +127,22 @@
 		return d;
 	}
 
-	async function loadData() {
-		const parts = window.location.pathname.split("/").filter(p => p); // ["A1b2C3d4E5f6G7", "uvi.html"]
-		const token = parts[0];
-		const res = await fetch(`/${token}/eval`);
-		return await res.json();
-	}
-
 	function pct(cur, prev) {
 		if (!prev) return '–';
 		return ((cur - prev) / prev * 100).toFixed(1) + ' %';
 	}
 
 	function format(val, type) {
-		if (val == null || val == 0) return 'k. A.';
-		return (val / TYPE_DIVIDER[type] * TYPE_KWH_FAKTOR[type]).toFixed(TYPE_DEC_DIGITS[type]);
+		if (!val) return 'k. A.';
+		return (val / TYPE_DIVIDER[type] * TYPE_KWH_FAKTOR[type])
+			.toFixed(TYPE_DEC_DIGITS[type]);
+	}
+
+	async function loadData() {
+		const parts = location.pathname.split('/').filter(Boolean);
+		const token = parts[0];
+		const res = await fetch(`/${token}/eval`);
+		return await res.json();
 	}
 
 	function render() {
@@ -162,9 +152,12 @@
 		const prevYearMonth = ym(addMonths(currentDate, -12));
 
 		document.getElementById('monthLabel').textContent = currentMonth;
+		document.getElementById('flatLabel').textContent = 'Wohnung ' + currentFlat();
+
+		const DATA_FLAT = DATA.filter(e => e.flat === currentFlat());
 
 		const byType = {};
-		for (const e of DATA) {
+		for (const e of DATA_FLAT) {
 			byType[e.type] ??= [];
 			byType[e.type].push(e);
 		}
@@ -269,7 +262,7 @@
 
 			section.appendChild(table);
 			container.appendChild(section);
-			drawChart();
+			drawChart(DATA_FLAT);
 		}
 	}
 
@@ -287,11 +280,13 @@
 		return step * pow10;
 	}
 
-	function drawChart() {
+
+	function drawChart(DATA_FLAT) {
 		const canvas = document.getElementById('chart');
 		if (!canvas) return;
 		const ctx = canvas.getContext('2d');
-
+		ctx.clearRect(0,0,canvas.width,canvas.height);
+		
 		// --- HiDPI / Schärfe ---
 		const dpr = window.devicePixelRatio || 1;
 		const cssWidth = canvas.clientWidth;
@@ -309,7 +304,7 @@
 
 		// --- Monatswerte aggregieren ---
 		const sums = {};
-		for (const e of DATA) {
+		for (const e of DATA_FLAT) {
 			if (e.type !== 'HKV') continue;  // only HKV
 			sums[e.month] ??= 0;
 			sums[e.month] += (e.consumption ?? 0) * TYPE_KWH_FAKTOR[e.type];
@@ -327,7 +322,7 @@
 		const x = i => P + i * (W - 2 * P) / 11;
 		const y = v => H - P - v / max * (H - 2 * P);
 
-		// --- Achsen ---
+// --- Achsen ---
 		ctx.strokeStyle = '#bbb';
 		ctx.beginPath();
 		ctx.moveTo(P, P);
@@ -428,25 +423,33 @@
 	}
 
 
-
 	function changeMonth(diff) {
 		MONTH_INDEX = Math.max(0, Math.min(ALL_MONTHS.length - 1, MONTH_INDEX + diff));
 		render();
 	}
 
-	// Buttons
+	function changeFlat(d) {
+		FLAT_INDEX = Math.max(0,Math.min(ALL_FLATS.length-1,FLAT_INDEX+d));
+		render();
+	}
+
 	document.getElementById('prevBtn').onclick = () => changeMonth(-1);
 	document.getElementById('nextBtn').onclick = () => changeMonth(1);
+	document.getElementById('flatPrevBtn').onclick = () => changeFlat(-1);
+	document.getElementById('flatNextBtn').onclick = () => changeFlat(1);
 
 	// Cursor-Tasten
 	document.addEventListener('keydown', e => {
-		if (e.key === 'ArrowLeft')  changeMonth(-1);
-		if (e.key === 'ArrowRight') changeMonth(1);
+		if (e.shiftKey && e.key === 'ArrowLeft')  changeFlat(-1);
+		if (e.shiftKey && e.key === 'ArrowRight') changeFlat(1);
+		if (!e.shiftKey && e.key === 'ArrowLeft')  changeMonth(-1);
+		if (!e.shiftKey && e.key === 'ArrowRight') changeMonth(1);
 	});
 
 	loadData().then(data => {
 		DATA = data;
 		ALL_MONTHS = [...new Set(data.map(e => e.month))].sort();
+		ALL_FLATS  = [...new Set(data.map(e => e.flat))].sort();
 		MONTH_INDEX = ALL_MONTHS.length - 1; // Start: letzter Monat
 		render();
 	}).catch(err => {
