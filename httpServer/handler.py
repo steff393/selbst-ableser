@@ -4,7 +4,7 @@ import datetime
 import cgi
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-from meterReader import evaluate_uvi, serialize_monthly_results
+from meterReader import evaluate_uvi, evaluate_uvi_aggregated, serialize_monthly_results, serialize_monthly_aggregates
 from .importer import import_and_encrypt
 import tempfile
 
@@ -63,6 +63,15 @@ class Handler(BaseHTTPRequestHandler):
 				params.get("end",   ["2026-01-31"])[0],
 				params.get("path",  [self.cfg['SnapshotDir']])[0],
 				filter
+			)
+			self.send_json(response)
+			return
+		
+		if subpath.startswith("aggregate"):
+			response = self.handle_uvi_aggregate_request(
+				params.get("start", ["2024-01-31"])[0],
+				params.get("end",   ["2026-01-31"])[0],
+				params.get("path",  [self.cfg['SnapshotDir']])[0]
 			)
 			self.send_json(response)
 			return
@@ -198,6 +207,17 @@ class Handler(BaseHTTPRequestHandler):
 			flat       = filter
 		)
 		return serialize_monthly_results(result)
+	
+
+	# calculate aggregates data for UVI
+	def handle_uvi_aggregate_request(self, start, end, path):
+		result = evaluate_uvi_aggregated(
+			json_path  = path,
+			registry   = self.registry,
+			start_date = start,
+			end_date   = end
+		)
+		return serialize_monthly_aggregates(result)
 	
 
 	def handle_import_upload(self):

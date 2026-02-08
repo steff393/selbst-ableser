@@ -2,9 +2,11 @@ import os
 import json
 import datetime
 from typing import Optional
-from .model import MeterConfig, MeterReading, MonthlyResult
+from .model import MeterConfig, MeterReading, MonthlyResult, MonthlyAggregateResult
 from .logger import dbg
 from meterRegistry import MeterRegistry
+from collections import defaultdict
+from typing import List
 
 
 _daily_cache = {}
@@ -159,6 +161,30 @@ def evaluate_uvi(json_path: str, registry: MeterRegistry, start_date=None, end_d
 					)
 				)
 	return results
+
+
+def evaluate_uvi_aggregated(json_path: str, registry: MeterRegistry,	start_date=None, end_date=None,	flat=None) -> List[MonthlyAggregateResult]:
+	"""
+	Aggregiert die Monatsverbräuche aus evaluate_uvi
+	→ Summe aller Zählerplätze pro Typ und Monatsende
+	"""
+	results = evaluate_uvi(json_path=json_path, registry=registry, start_date=start_date, end_date=end_date, flat=flat)
+
+	sums = defaultdict(int)
+	for r in results:
+		sums[(r.month, r.type)] += r.consumption
+
+	aggregated: List[MonthlyAggregateResult] = []
+
+	for (month, type_), consumption in sorted(sums.items()):
+		aggregated.append(
+			MonthlyAggregateResult(
+				month=month,
+				type=type_,
+				consumption=consumption
+			)
+		)
+	return aggregated
 
 
 # ============================================================

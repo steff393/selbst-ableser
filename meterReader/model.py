@@ -27,3 +27,9 @@ class MonthlyResult:
 	meter_id: str
 	meter_value: int
 	found_date: str
+
+@dataclass
+class MonthlyAggregateResult:
+	month: str
+	type: str
+	consumption: int
