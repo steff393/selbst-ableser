@@ -152,9 +152,15 @@ WWZ: 'Der Warmwasserverbrauch wird in Verbrauchseinheiten gemäß Zählerstand e
 		const prevYearMonth = ym(addMonths(currentDate, -12));
 
 		document.getElementById('monthLabel').textContent = currentMonth;
-		document.getElementById('flatLabel').textContent = 'Wohnung ' + currentFlat();
+		document.getElementById('flatLabel').textContent =
+			currentFlat() === 'ALL'
+				? 'Alle Wohnungen'
+				: 'Wohnung ' + currentFlat();
 
-		const DATA_FLAT = DATA.filter(e => e.flat === currentFlat());
+		const DATA_FLAT =
+			currentFlat() === 'ALL'
+				? DATA
+				: DATA.filter(e => e.flat === currentFlat());
 
 		const byType = {};
 		for (const e of DATA_FLAT) {
@@ -449,7 +455,13 @@ WWZ: 'Der Warmwasserverbrauch wird in Verbrauchseinheiten gemäß Zählerstand e
 	loadData().then(data => {
 		DATA = data;
 		ALL_MONTHS = [...new Set(data.map(e => e.month))].sort();
-		ALL_FLATS  = [...new Set(data.map(e => e.flat))].sort();
+		const flats = [...new Set(data.map(e => e.flat))].sort();
+		if (flats.length > 1) {
+			ALL_FLATS = ['ALL', ...flats];
+		} else {
+			ALL_FLATS = flats; 
+		}
+		FLAT_INDEX = 0;
 		MONTH_INDEX = ALL_MONTHS.length - 1; // Start: letzter Monat
 		render();
 	}).catch(err => {
