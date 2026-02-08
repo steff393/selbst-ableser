@@ -79,7 +79,7 @@
 <div id="content"></div>
 
 <div class="footer">
-	Diese Verbrauchsinformation dient der Transparenz über den bisherigen Verbrauch. Sie stellt keine Abrechnung dar und begründet keinen Zahlungsanspruch.
+	¹Diese Verbrauchsinformation dient der Transparenz über den bisherigen Verbrauch. Sie stellt keine Abrechnung dar und begründet keinen Zahlungsanspruch.
 	<br>
 	Der ausgewiesene Verbrauch in kWh basiert auf einer rechnerischen Umrechnung von Heizkostenverteiler-Einheiten und dient der Verbrauchsinformation. 
 	Maßgeblich für die Abrechnung ist die Jahresabrechnung.
@@ -101,12 +101,13 @@
 	const TYPE_METER_UNITS= { HKV:'Einh.', WWZ:'m³', KWZ:'m³' };
 
 	const TYPE_HINTS = {
-HKV: 'Die angezeigten Werte basieren auf den Heizkostenverteilern und dienen dem monatlichen Verbrauchsvergleich.',
-WWZ: 'Der Warmwasserverbrauch wird in Verbrauchseinheiten gemäß Zählerstand erfasst.',
+		HKV: 'Die Einheiten der Heizkostenverteiler werden rechnerisch als kWh angezeigt¹.',
+		WWZ: 'Der Warmwasserverbrauch wird in Kubikmetern erfasst und rechnerisch als kWh angezeigt¹.',
 		KWZ: 'Der Kaltwasserverbrauch dient ausschließlich der Information und ist nicht Bestandteil der Heizkostenabrechnung.'
 };
 
 	let DATA = [];
+	let HOUSE_NORM = [];
 	let ALL_MONTHS = [];
 	let MONTH_INDEX = 0;
 
@@ -132,16 +133,21 @@ WWZ: 'Der Warmwasserverbrauch wird in Verbrauchseinheiten gemäß Zählerstand e
 		return ((cur - prev) / prev * 100).toFixed(1) + ' %';
 	}
 
-	function format(val, type) {
+	function formatkWh(val, type) {
 		if (!val) return 'k. A.';
 		return (val / TYPE_DIVIDER[type] * TYPE_KWH_FAKTOR[type])
 			.toFixed(TYPE_DEC_DIGITS[type]);
 	}
 
+	function format(val, type) {
+		if (!val) return 'k. A.';
+		return (val / TYPE_DIVIDER[type]);
+	}
+
 	async function loadData() {
 		const parts = location.pathname.split('/').filter(Boolean);
 		const token = parts[0];
-		const res = await fetch(`/${token}/eval_combined`);
+		const res = await fetch(`/${token}/eval_combined?start=2023-12-31&end=2025-12-31`);
 		if (!res.ok) throw new Error("API error");
 		return await res.json();
 	}
@@ -217,12 +223,41 @@ WWZ: 'Der Warmwasserverbrauch wird in Verbrauchseinheiten gemäß Zählerstand e
 
 			const tr = document.createElement('tr');
 			tr.innerHTML = `
-				<td>${format(sumCur, type)     } ${TYPE_SUM_UNITS[type]}</td>
-				<td>${format(sumPrev, type)    } ${TYPE_SUM_UNITS[type]}</td>
-				<td>${format(sumPrevYear, type)} ${TYPE_SUM_UNITS[type]}</td>
+				<td>${format(sumCur, type)     } ${TYPE_METER_UNITS[type]}</td>
+				<td>${format(sumPrev, type)    } ${TYPE_METER_UNITS[type]}</td>
+				<td>${format(sumPrevYear, type)} ${TYPE_METER_UNITS[type]}</td>
 				<td>${pct(sumCur, sumPrevYear)}</td>
 			`;
 			table.appendChild(tr);
+
+			if (type == "HKV" || type == "WWZ") {   // show values in kWh
+				const trkWh = document.createElement('tr');
+				trkWh.innerHTML = `
+					<td>${formatkWh(sumCur, type)     } ${TYPE_SUM_UNITS[type]}</td>
+					<td>${formatkWh(sumPrev, type)    } ${TYPE_SUM_UNITS[type]}</td>
+					<td>${formatkWh(sumPrevYear, type)} ${TYPE_SUM_UNITS[type]}</td>
+					<td>${pct(sumCur, sumPrevYear)}</td>
+				`;
+				table.appendChild(trkWh);
+			}
+			
+			// normalized values
+			const houseByType = {};
+			for (const h of HOUSE_NORM) {
+				houseByType[h.type] ??= {};
+				houseByType[h.type][h.month] = h.consumption;
+			}
+			const normCur = houseByType[type][currentMonth] ?? 0;
+			const normText = normCur
+					? ((sumCur - normCur) / normCur * 100).toFixed(1)
+					: '–';
+			const comparison = normCur
+					? `Ihr aktueller Verbrauch von ${formatkWh(sumCur, type)} ${TYPE_SUM_UNITS[type]} liegt ${sumCur > normCur ? normText : -normText}% <b>${sumCur > normCur ? 'über' : 'unter'}</b> dem Verbrauch eines normierten Durchschnittsnutzers (${formatkWh(normCur, type)} ${TYPE_SUM_UNITS[type]}).`
+					: 'Keine Normdaten verfügbar.';
+
+			const trInfo = document.createElement('tr');
+			trInfo.innerHTML = `<td colspan="4" style="font-size:0.9em; color:#555;">${comparison}</td>`;
+			table.appendChild(trInfo);
 
 			section.appendChild(table);
 			container.appendChild(section);
@@ -455,6 +490,7 @@ WWZ: 'Der Warmwasserverbrauch wird in Verbrauchseinheiten gemäß Zählerstand e
 
 	loadData().then(resp => {
 		DATA = resp.details;
+		HOUSE_NORM = resp.house_norm ?? [];
 		ALL_MONTHS = [...new Set(DATA.map(e => e.month))].sort();
 		const flats = [...new Set(DATA.map(e => e.flat))].sort();
 		if (flats.length > 1) {
