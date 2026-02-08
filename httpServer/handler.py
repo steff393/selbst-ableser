@@ -232,7 +232,7 @@ class Handler(BaseHTTPRequestHandler):
 	
 
 	def handle_uvi_combined_request(self, start, end, path, user_data):
-		all_results = self.evaluate_uvi(
+		all_results = evaluate_uvi(
 			json_path  = path,
 			registry   = self.registry,
 			start_date = start,
@@ -244,10 +244,13 @@ class Handler(BaseHTTPRequestHandler):
 		user_area = user_data.get("area", 0)
 
 		# details for selected flat
-		details = [
-			r for r in all_results
-			if user_flat and r.flat == user_flat
-		]
+		if user_flat is None:
+			details = all_results # admin can see all values
+		else:
+			details = [           # normal user only his values
+				r for r in all_results
+				if r.flat == user_flat
+			]
 
 		# aggregated house values
 		from collections import defaultdict
@@ -265,10 +268,13 @@ class Handler(BaseHTTPRequestHandler):
 
 		house_norm = []
 		for (month, type_), consumption in sorted(sums.items()):
-			if total_area > 0:
-				consumption = consumption / total_area * user_area
+			if user_flat is None:
+				consumption = consumption # user is admin
 			else:
-				consumption = 0
+				if total_area > 0:        # normal user
+					consumption = consumption / total_area * user_area
+				else:
+					consumption = 0
 
 			house_norm.append({
 				"month": month,
