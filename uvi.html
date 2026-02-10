@@ -4,9 +4,6 @@
 	<meta charset="utf-8">
 	<title>Verbrauchsmitteilung – HeizkostenV §6</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 	<style>
 		:root {
 			--color-primary: #0d7377;
@@ -39,9 +36,9 @@
 			--radius-lg: 16px;
 			--radius-xl: 20px;
 			
-			--transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-			--transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-			--transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+			--transition-fast: 100ms cubic-bezier(0.4, 0, 0.2, 1);
+			--transition-base: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+			--transition-slow: 200ms cubic-bezier(0.4, 0, 0.2, 1);
 		}
 
 		* {
@@ -51,13 +48,13 @@
 		}
 
 		body {
-			font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 			background: linear-gradient(135deg, #f8f9fb 0%, #eef2f7 100%);
 			color: var(--color-text-primary);
 			line-height: 1.6;
 			min-height: 100vh;
 			padding: 1rem;
-			animation: fadeIn 0.6s ease-out;
+			animation: fadeIn 0.3s ease-out;
 		}
 
 		@keyframes fadeIn {
@@ -68,7 +65,7 @@
 		.container {
 			max-width: 1200px;
 			margin: 0 auto;
-			animation: slideUp 0.7s ease-out;
+			animation: slideUp 0.35s ease-out;
 		}
 
 		@keyframes slideUp {
@@ -85,8 +82,8 @@
 		/* Header */
 		.header {
 			text-align: center;
-			margin-bottom: 3rem;
-			padding: 2rem 1rem;
+			margin-bottom: 1.5rem;
+			padding: 1.5rem 1rem;
 			background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
 			border-radius: var(--radius-xl);
 			box-shadow: var(--shadow-lg);
@@ -107,7 +104,7 @@
 		}
 
 		.header h1 {
-			font-family: 'Crimson Pro', Georgia, serif;
+			font-family: Georgia, 'Times New Roman', serif;
 			font-size: clamp(1.75rem, 4vw, 2.5rem);
 			font-weight: 700;
 			margin-bottom: 0.5rem;
@@ -127,13 +124,13 @@
 		.nav-card {
 			background: var(--color-surface);
 			border-radius: var(--radius-lg);
-			padding: 1.5rem;
-			margin-bottom: 2rem;
+			padding: 1rem;
+			margin-bottom: 1.5rem;
 			box-shadow: var(--shadow-md);
 			display: grid;
 			grid-template-columns: 1fr 1fr;
 			gap: 1.5rem;
-			animation: slideUp 0.7s ease-out 0.1s backwards;
+			animation: slideUp 0.35s ease-out 0.05s backwards;
 		}
 
 		.nav-group {
@@ -199,10 +196,10 @@
 		.chart-card {
 			background: var(--color-surface);
 			border-radius: var(--radius-lg);
-			padding: 2rem;
-			margin-bottom: 2rem;
+			padding: 1.5rem;
+			margin-bottom: 1.5rem;
 			box-shadow: var(--shadow-md);
-			animation: slideUp 0.7s ease-out 0.2s backwards;
+			animation: slideUp 0.35s ease-out 0.1s backwards;
 		}
 
 		.chart-header {
@@ -213,7 +210,7 @@
 		}
 
 		.chart-title {
-			font-family: 'Crimson Pro', Georgia, serif;
+			font-family: Georgia, 'Times New Roman', serif;
 			font-size: 1.5rem;
 			font-weight: 600;
 			color: var(--color-text-primary);
@@ -235,19 +232,19 @@
 		.section-card {
 			background: var(--color-surface);
 			border-radius: var(--radius-lg);
-			margin-bottom: 1.5rem;
+			margin-bottom: 1rem;
 			box-shadow: var(--shadow-md);
 			overflow: hidden;
 			transition: all var(--transition-base);
 		}
 
-		.section-card:nth-child(1) { animation: slideUp 0.7s ease-out 0.3s backwards; }
-		.section-card:nth-child(2) { animation: slideUp 0.7s ease-out 0.4s backwards; }
-		.section-card:nth-child(3) { animation: slideUp 0.7s ease-out 0.5s backwards; }
-		.section-card:nth-child(4) { animation: slideUp 0.7s ease-out 0.6s backwards; }
+		.section-card:nth-child(1) { animation: slideUp 0.35s ease-out 0.15s backwards; }
+		.section-card:nth-child(2) { animation: slideUp 0.35s ease-out 0.2s backwards; }
+		.section-card:nth-child(3) { animation: slideUp 0.35s ease-out 0.25s backwards; }
+		.section-card:nth-child(4) { animation: slideUp 0.35s ease-out 0.3s backwards; }
 
 		.section-header {
-			padding: 1.5rem 2rem;
+			padding: 1rem 1.5rem;
 			background: linear-gradient(to right, var(--color-bg), var(--color-surface));
 			border-bottom: 2px solid var(--color-border-light);
 			cursor: pointer;
@@ -266,7 +263,7 @@
 		}
 
 		.section-title {
-			font-family: 'Crimson Pro', Georgia, serif;
+			font-family: Georgia, 'Times New Roman', serif;
 			font-size: 1.3rem;
 			font-weight: 600;
 			color: var(--color-text-primary);
@@ -300,7 +297,7 @@
 		}
 
 		.section-body {
-			padding: 2rem;
+			padding: 1.5rem;
 			max-height: 2000px;
 			overflow: hidden;
 			transition: max-height var(--transition-slow), opacity var(--transition-slow), padding var(--transition-slow);
@@ -317,15 +314,15 @@
 		.metrics-grid {
 			display: grid;
 			grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-			gap: 1.25rem;
-			margin-bottom: 2rem;
+			gap: 1rem;
+			margin-bottom: 1.5rem;
 		}
 
 		.metric-card {
 			background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-surface) 100%);
 			border: 1px solid var(--color-border-light);
 			border-radius: var(--radius-md);
-			padding: 1.25rem;
+			padding: 1rem;
 			transition: all var(--transition-fast);
 		}
 
@@ -357,6 +354,13 @@
 			font-weight: 400;
 		}
 
+		.metric-raw {
+			font-size: 0.75rem;
+			color: var(--color-text-muted);
+			margin-top: 0.25rem;
+			opacity: 0.8;
+		}
+
 		.metric-change {
 			font-size: 0.85rem;
 			font-weight: 600;
@@ -386,8 +390,8 @@
 			background: linear-gradient(135deg, rgba(13, 115, 119, 0.08) 0%, rgba(20, 163, 168, 0.05) 100%);
 			border-left: 4px solid var(--color-primary);
 			border-radius: var(--radius-md);
-			padding: 1.25rem;
-			margin-top: 1.5rem;
+			padding: 1rem;
+			margin-top: 1rem;
 			display: flex;
 			align-items: start;
 			gap: 1rem;
@@ -472,7 +476,7 @@
 		}
 
 		.subsection {
-			margin-top: 2.5rem;
+			margin-top: 1.5rem;
 		}
 
 		.subsection:first-child {
@@ -480,7 +484,7 @@
 		}
 
 		.subsection-title {
-			font-family: 'Crimson Pro', Georgia, serif;
+			font-family: Georgia, 'Times New Roman', serif;
 			font-size: 1.1rem;
 			font-weight: 600;
 			color: var(--color-text-primary);
@@ -491,15 +495,15 @@
 
 		/* Footer */
 		.footer {
-			margin-top: 3rem;
-			padding: 2rem;
+			margin-top: 2rem;
+			padding: 1.5rem;
 			background: var(--color-surface);
 			border-radius: var(--radius-lg);
 			box-shadow: var(--shadow-sm);
 			font-size: 0.85rem;
 			color: var(--color-text-muted);
 			line-height: 1.8;
-			animation: slideUp 0.7s ease-out 0.7s backwards;
+			animation: slideUp 0.35s ease-out 0.35s backwards;
 		}
 
 		.footer strong {
@@ -513,8 +517,8 @@
 			}
 
 			.header {
-				padding: 1.5rem 1rem;
-				margin-bottom: 2rem;
+				padding: 1rem;
+				margin-bottom: 1rem;
 			}
 
 			.header h1 {
@@ -523,8 +527,8 @@
 
 			.nav-card {
 				grid-template-columns: 1fr;
-				gap: 1rem;
-				padding: 1rem;
+				gap: 0.75rem;
+				padding: 0.75rem;
 			}
 
 			.chart-card,
@@ -533,7 +537,7 @@
 			}
 
 			.section-header {
-				padding: 1rem;
+				padding: 0.75rem 1rem;
 			}
 
 			.section-title {
@@ -673,23 +677,41 @@
 	function pct(cur, prev) {
 		if (!prev) return '–';
 		const change = ((cur - prev) / prev * 100);
-		return (change >= 0 ? '+' : '') + change.toFixed(1) + ' %';
+		return (change >= 0 ? '+' : '') + change.toFixed(0) + ' %';
 	}
 
 	function formatkWh(val, type) {
 		if (!val) return 'k. A.';
-		return (val / TYPE_DIVIDER[type] * TYPE_KWH_FAKTOR[type])
-			.toFixed(TYPE_DEC_DIGITS[type]);
+		const result = (val / TYPE_DIVIDER[type] * TYPE_KWH_FAKTOR[type]);
+		return formatNumberDE(result, TYPE_DEC_DIGITS[type]);
 	}
 
 	function format(val, type) {
 		if (!val) return 'k. A.';
-		return (val / TYPE_DIVIDER[type]).toFixed(TYPE_DEC_DIGITS[type]);
+		return formatNumberDE((val / TYPE_DIVIDER[type]), TYPE_DEC_DIGITS[type]);
 	}
 
 	function getChangeClass(cur, prev) {
 		if (!prev || !cur) return 'neutral';
 		return cur > prev ? 'positive' : cur < prev ? 'negative' : 'neutral';
+	}
+
+	function formatNumberDE(num, decimals = 0) {
+		if (num === null || num === undefined || isNaN(num)) return 'k. A.';
+		return num.toLocaleString('de-DE', { 
+			minimumFractionDigits: decimals, 
+			maximumFractionDigits: decimals 
+		});
+	}
+
+	function formatMonthDE(yearMonth) {
+		const date = new Date(yearMonth + '-01');
+		return date.toLocaleDateString('de-DE', { month: 'short', year: 'numeric' });
+	}
+
+	function formatDateDE(dateStr) {
+		const date = new Date(dateStr);
+		return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 	}
 
 	async function loadData() {
@@ -706,7 +728,7 @@
 		const prevMonth = ym(addMonths(currentDate, -1));
 		const prevYearMonth = ym(addMonths(currentDate, -12));
 
-		document.getElementById('monthLabel').textContent = currentMonth;
+		document.getElementById('monthLabel').textContent = formatMonthDE(currentMonth);
 		document.getElementById('flatLabel').textContent =
 			currentFlat() === 'ALL'
 				? 'Alle Wohnungen'
@@ -774,22 +796,28 @@
 
 			const metrics = [
 				{
-					label: `Aktuell (${currentMonth})`,
+					label: `Aktuell (${formatMonthDE(currentMonth)})`,
 					value: formatkWh(sumCur, type),
 					unit: TYPE_SUM_UNITS[type],
+					rawValue: format(sumCur, type),
+					rawUnit: TYPE_METER_UNITS[type],
 					change: null
 				},
 				{
-					label: `Vormonat (${prevMonth})`,
+					label: `Vormonat (${formatMonthDE(prevMonth)})`,
 					value: formatkWh(sumPrev, type),
 					unit: TYPE_SUM_UNITS[type],
+					rawValue: format(sumPrev, type),
+					rawUnit: TYPE_METER_UNITS[type],
 					change: pct(sumCur, sumPrev),
 					changeClass: getChangeClass(sumCur, sumPrev)
 				},
 				{
-					label: `Vorjahr (${prevYearMonth})`,
+					label: `Vorjahr (${formatMonthDE(prevYearMonth)})`,
 					value: formatkWh(sumPrevYear, type),
 					unit: TYPE_SUM_UNITS[type],
+					rawValue: format(sumPrevYear, type),
+					rawUnit: TYPE_METER_UNITS[type],
 					change: pct(sumCur, sumPrevYear),
 					changeClass: getChangeClass(sumCur, sumPrevYear)
 				}
@@ -798,9 +826,11 @@
 			metrics.forEach(metric => {
 				const card = document.createElement('div');
 				card.className = 'metric-card';
+				const showRaw = (type === 'HKV' || type === 'WWZ') && metric.rawValue;
 				card.innerHTML = `
 					<div class="metric-label">${metric.label}</div>
 					<div class="metric-value">${metric.value} <span class="metric-unit">${metric.unit}</span></div>
+					${showRaw ? `<div class="metric-raw">${metric.rawValue} ${metric.rawUnit}</div>` : ''}
 					${metric.change ? `<div class="metric-change ${metric.changeClass}">${metric.change}</div>` : ''}
 				`;
 				metricsGrid.appendChild(card);
@@ -825,7 +855,7 @@
 					<div class="comparison-content">
 						<div class="comparison-text">
 							Ihr aktueller Verbrauch von <strong>${formatkWh(sumCur, type)} ${TYPE_SUM_UNITS[type]}</strong> liegt 
-							<strong>${Math.abs(diff).toFixed(1)}%</strong> 
+							<strong>${formatNumberDE(Math.abs(diff), 0)}%</strong> 
 							<strong>${sumCur > normCur ? 'über' : 'unter'}</strong> 
 							dem Verbrauch eines normierten Durchschnittsnutzers (${formatkWh(normCur, type)} ${TYPE_SUM_UNITS[type]}).
 						</div>
@@ -837,7 +867,7 @@
 			// Details Tabelle (eingeklappt in neuem Subsection)
 			const subsection = document.createElement('div');
 			subsection.className = 'subsection';
-			subsection.innerHTML = `<div class="subsection-title">Zählerstände (${currentMonth})</div>`;
+			subsection.innerHTML = `<div class="subsection-title">Zählerstände (${formatMonthDE(currentMonth)})</div>`;
 
 			const table = document.createElement('table');
 			table.className = 'data-table';
@@ -861,7 +891,7 @@
 					<td>${e.room}</td>
 					<td>${e.meter_id}</td>
 					<td style="text-align: right;">${format(e.meter_value, type)} ${TYPE_METER_UNITS[type]}</td>
-					<td>${e.found_date}</td>
+					<td>${formatDateDE(e.found_date)}</td>
 				`;
 				tbody.appendChild(tr);
 			}
@@ -895,13 +925,12 @@
 		const dpr = window.devicePixelRatio || 1;
 		const cssWidth = canvas.parentElement.clientWidth;
 
-		canvas.style.width = '100%';
+		canvas.style.width = cssWidth + 'px';
 		canvas.style.height = height + 'px';
 
 		canvas.width  = cssWidth * dpr;
 		canvas.height = height * dpr;
 
-		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.scale(dpr, dpr);
 
 		return { W: cssWidth, H: height };
@@ -970,11 +999,11 @@
 
 		// Y-Labels
 		ctx.fillStyle = '#5a6a7f';
-		ctx.font = '600 12px Outfit';
+		ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
 		ctx.textAlign = 'right';
 		for (let v = 0; v <= maxTick; v += step) {
 			const py = y(v);
-			ctx.fillText(v + " kWh", P - 10, py + 4);
+			ctx.fillText(formatNumberDE(v, 0) + " kWh", P - 10, py + 4);
 		}
 
 		// X-Labels
@@ -1102,7 +1131,7 @@
 		ctx.stroke();
 		
 		ctx.fillStyle = '#1a2332';
-		ctx.font = '600 13px Outfit';
+		ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
 		ctx.textAlign = 'left';
 		ctx.fillText('Aktuell', P + 40, legendY + 4);
 
