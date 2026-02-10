@@ -2,136 +2,623 @@
 <html lang="de">
 <head>
 	<meta charset="utf-8">
-	<title>Unterjährige Verbrauchsmitteilung – HeizkostenV §6</title>
+	<title>Verbrauchsmitteilung – HeizkostenV §6</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 	<style>
+		:root {
+			--color-primary: #0d7377;
+			--color-primary-light: #14a3a8;
+			--color-primary-dark: #0a5254;
+			--color-accent: #f4a259;
+			--color-accent-warm: #ff8c42;
+			--color-success: #52b788;
+			--color-warning: #f4a259;
+			--color-danger: #e63946;
+			
+			--color-bg: #f8f9fb;
+			--color-bg-elevated: #ffffff;
+			--color-surface: #ffffff;
+			--color-surface-hover: #f5f7fa;
+			
+			--color-text-primary: #1a2332;
+			--color-text-secondary: #5a6a7f;
+			--color-text-muted: #8493a8;
+			--color-border: #e3e8ef;
+			--color-border-light: #f0f3f7;
+			
+			--shadow-sm: 0 1px 3px rgba(13, 115, 119, 0.04), 0 1px 2px rgba(13, 115, 119, 0.02);
+			--shadow-md: 0 4px 6px rgba(13, 115, 119, 0.06), 0 2px 4px rgba(13, 115, 119, 0.04);
+			--shadow-lg: 0 10px 15px rgba(13, 115, 119, 0.08), 0 4px 6px rgba(13, 115, 119, 0.04);
+			--shadow-xl: 0 20px 25px rgba(13, 115, 119, 0.1), 0 10px 10px rgba(13, 115, 119, 0.04);
+			
+			--radius-sm: 8px;
+			--radius-md: 12px;
+			--radius-lg: 16px;
+			--radius-xl: 20px;
+			
+			--transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+			--transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+			--transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+		}
+
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
+
 		body {
-			font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-			margin: 1rem auto;
-			background: #f6f7f9;
-			color: #222;
-			max-width: 900px;
-			width: 95%;
-		}
-		h1 { margin-bottom: 0.25rem; font-size: 1.6rem; text-align:center; }
-		.sub { color: #555; margin-bottom: 1.5rem; text-align:center; font-size:1rem; }
-		.section {
-			background: #fff;
-			border-radius: 10px;
+			font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+			background: linear-gradient(135deg, #f8f9fb 0%, #eef2f7 100%);
+			color: var(--color-text-primary);
+			line-height: 1.6;
+			min-height: 100vh;
 			padding: 1rem;
-			margin: 1.5rem 0;
-			box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+			animation: fadeIn 0.6s ease-out;
 		}
-		.section > div {
-			margin-top: 1rem;
+
+		@keyframes fadeIn {
+			from { opacity: 0; }
+			to { opacity: 1; }
 		}
-		h2 { margin-top: 0; font-size: 1.2rem; }
-		h4 { font-size: 1rem; margin-bottom: 0.5rem; }
-		.hint {
-			font-size: 0.9rem;
-			color: #555;
-			margin-bottom: 1rem;
+
+		.container {
+			max-width: 1200px;
+			margin: 0 auto;
+			animation: slideUp 0.7s ease-out;
 		}
-		table {
-			width: 100%;
-			border-collapse: collapse;
-			margin-top: 0.5rem;
+
+		@keyframes slideUp {
+			from {
+				opacity: 0;
+				transform: translateY(20px);
+			}
+			to {
+				opacity: 1;
+				transform: translateY(0);
+			}
+		}
+
+		/* Header */
+		.header {
+			text-align: center;
+			margin-bottom: 3rem;
+			padding: 2rem 1rem;
+			background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+			border-radius: var(--radius-xl);
+			box-shadow: var(--shadow-lg);
+			color: white;
+			position: relative;
+			overflow: hidden;
+		}
+
+		.header::before {
+			content: '';
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+			opacity: 0.4;
+		}
+
+		.header h1 {
+			font-family: 'Crimson Pro', Georgia, serif;
+			font-size: clamp(1.75rem, 4vw, 2.5rem);
+			font-weight: 700;
+			margin-bottom: 0.5rem;
+			position: relative;
+			letter-spacing: -0.5px;
+		}
+
+		.header .subtitle {
 			font-size: 0.95rem;
+			opacity: 0.95;
+			font-weight: 300;
+			position: relative;
+			letter-spacing: 0.3px;
 		}
-		th, td {
-			padding: 0.5rem 0.6rem;
-			text-align: left;
-			border-bottom: 1px solid #ddd;
-		}
-		th { background: #f0f2f5; font-weight: 600; }
-		tfoot td {
-			font-weight: 600;
-			background: #fafafa;
-		}
-		.small { color: #666; font-size: 0.85rem; }
-		.footer { font-size: 0.8rem; color: #555; margin-top: 2rem; }
 
-		button {
-			font-size: 1rem;
-			padding: 0.4rem 0.8rem;
-			margin: 0 0.2rem;
-			border-radius: 5px;
-			border: 1px solid #ccc;
-			background: #fff;
+		/* Navigation Card */
+		.nav-card {
+			background: var(--color-surface);
+			border-radius: var(--radius-lg);
+			padding: 1.5rem;
+			margin-bottom: 2rem;
+			box-shadow: var(--shadow-md);
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 1.5rem;
+			animation: slideUp 0.7s ease-out 0.1s backwards;
+		}
+
+		.nav-group {
+			display: flex;
+			align-items: center;
+			gap: 1rem;
+		}
+
+		.nav-group label {
+			font-size: 0.85rem;
+			color: var(--color-text-secondary);
+			font-weight: 500;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			min-width: 60px;
+		}
+
+		.nav-controls {
+			display: flex;
+			align-items: center;
+			gap: 0.75rem;
+			flex: 1;
+		}
+
+		.nav-button {
+			background: var(--color-bg);
+			border: 1px solid var(--color-border);
+			color: var(--color-primary);
+			width: 40px;
+			height: 40px;
+			border-radius: var(--radius-sm);
+			display: flex;
+			align-items: center;
+			justify-content: center;
 			cursor: pointer;
+			transition: all var(--transition-fast);
+			font-size: 1.1rem;
+			font-weight: 600;
 		}
-		button:hover { background: #f0f0f0; }
 
-		.nav-container {
+		.nav-button:hover {
+			background: var(--color-primary);
+			color: white;
+			border-color: var(--color-primary);
+			transform: translateY(-1px);
+			box-shadow: var(--shadow-sm);
+		}
+
+		.nav-button:active {
+			transform: translateY(0);
+		}
+
+		.nav-value {
+			font-weight: 600;
+			color: var(--color-text-primary);
+			font-size: 1rem;
+			flex: 1;
+			text-align: center;
+			min-width: 120px;
+		}
+
+		/* Chart Card */
+		.chart-card {
+			background: var(--color-surface);
+			border-radius: var(--radius-lg);
+			padding: 2rem;
+			margin-bottom: 2rem;
+			box-shadow: var(--shadow-md);
+			animation: slideUp 0.7s ease-out 0.2s backwards;
+		}
+
+		.chart-header {
 			display: flex;
 			justify-content: space-between;
 			align-items: center;
-			flex-wrap: wrap;
-			gap: 0.5rem;
+			margin-bottom: 1.5rem;
 		}
 
-		.canvas-container {
-			width: 100%;
+		.chart-title {
+			font-family: 'Crimson Pro', Georgia, serif;
+			font-size: 1.5rem;
+			font-weight: 600;
+			color: var(--color-text-primary);
 		}
 
-		.section.chart {
-			width: 100%;
-			max-width: 720px;
-			margin: 2rem auto;
+		.chart-subtitle {
+			font-size: 0.85rem;
+			color: var(--color-text-muted);
+			margin-top: 0.25rem;
 		}
 
-		.section.chart canvas {
-			width: 100%;
+		canvas {
+			width: 100% !important;
+			height: auto !important;
 			display: block;
 		}
 
-		@media (max-width: 600px) {
-			h1 { font-size: 1.1rem; }
-			h2 { font-size: 0.9rem; }
-			button { font-size: 0.75rem; padding: 0.35rem 0.6rem; }
-			table { font-size: 0.7rem; }
-			hint { font-size: 0.6rem; }
-			footer { font-size: 0.6rem; }
+		/* Section Cards */
+		.section-card {
+			background: var(--color-surface);
+			border-radius: var(--radius-lg);
+			margin-bottom: 1.5rem;
+			box-shadow: var(--shadow-md);
+			overflow: hidden;
+			transition: all var(--transition-base);
+		}
+
+		.section-card:nth-child(1) { animation: slideUp 0.7s ease-out 0.3s backwards; }
+		.section-card:nth-child(2) { animation: slideUp 0.7s ease-out 0.4s backwards; }
+		.section-card:nth-child(3) { animation: slideUp 0.7s ease-out 0.5s backwards; }
+		.section-card:nth-child(4) { animation: slideUp 0.7s ease-out 0.6s backwards; }
+
+		.section-header {
+			padding: 1.5rem 2rem;
+			background: linear-gradient(to right, var(--color-bg), var(--color-surface));
+			border-bottom: 2px solid var(--color-border-light);
+			cursor: pointer;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			transition: background var(--transition-fast);
+		}
+
+		.section-header:hover {
+			background: var(--color-surface-hover);
+		}
+
+		.section-header-content {
+			flex: 1;
+		}
+
+		.section-title {
+			font-family: 'Crimson Pro', Georgia, serif;
+			font-size: 1.3rem;
+			font-weight: 600;
+			color: var(--color-text-primary);
+			margin-bottom: 0.25rem;
+		}
+
+		.section-hint {
+			font-size: 0.85rem;
+			color: var(--color-text-muted);
+			margin-top: 0.5rem;
+			line-height: 1.5;
+		}
+
+		.section-toggle {
+			width: 32px;
+			height: 32px;
+			border-radius: 50%;
+			background: var(--color-primary);
+			color: white;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 1.2rem;
+			transition: all var(--transition-base);
+			flex-shrink: 0;
+			margin-left: 1rem;
+		}
+
+		.section-card.collapsed .section-toggle {
+			transform: rotate(-90deg);
+		}
+
+		.section-body {
+			padding: 2rem;
+			max-height: 2000px;
+			overflow: hidden;
+			transition: max-height var(--transition-slow), opacity var(--transition-slow), padding var(--transition-slow);
+		}
+
+		.section-card.collapsed .section-body {
+			max-height: 0;
+			padding-top: 0;
+			padding-bottom: 0;
+			opacity: 0;
+		}
+
+		/* Metrics Grid */
+		.metrics-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+			gap: 1.25rem;
+			margin-bottom: 2rem;
+		}
+
+		.metric-card {
+			background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-surface) 100%);
+			border: 1px solid var(--color-border-light);
+			border-radius: var(--radius-md);
+			padding: 1.25rem;
+			transition: all var(--transition-fast);
+		}
+
+		.metric-card:hover {
+			border-color: var(--color-primary-light);
+			box-shadow: var(--shadow-sm);
+			transform: translateY(-2px);
+		}
+
+		.metric-label {
+			font-size: 0.8rem;
+			color: var(--color-text-secondary);
+			font-weight: 500;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			margin-bottom: 0.5rem;
+		}
+
+		.metric-value {
+			font-size: 1.75rem;
+			font-weight: 700;
+			color: var(--color-text-primary);
+			margin-bottom: 0.25rem;
+		}
+
+		.metric-unit {
+			font-size: 0.9rem;
+			color: var(--color-text-muted);
+			font-weight: 400;
+		}
+
+		.metric-change {
+			font-size: 0.85rem;
+			font-weight: 600;
+			margin-top: 0.5rem;
+			padding: 0.25rem 0.75rem;
+			border-radius: 12px;
+			display: inline-block;
+		}
+
+		.metric-change.positive {
+			background: rgba(230, 57, 70, 0.1);
+			color: var(--color-danger);
+		}
+
+		.metric-change.negative {
+			background: rgba(82, 183, 136, 0.1);
+			color: var(--color-success);
+		}
+
+		.metric-change.neutral {
+			background: rgba(90, 106, 127, 0.1);
+			color: var(--color-text-secondary);
+		}
+
+		/* Comparison Box */
+		.comparison-box {
+			background: linear-gradient(135deg, rgba(13, 115, 119, 0.08) 0%, rgba(20, 163, 168, 0.05) 100%);
+			border-left: 4px solid var(--color-primary);
+			border-radius: var(--radius-md);
+			padding: 1.25rem;
+			margin-top: 1.5rem;
+			display: flex;
+			align-items: start;
+			gap: 1rem;
+		}
+
+		.comparison-icon {
+			width: 40px;
+			height: 40px;
+			border-radius: 50%;
+			background: var(--color-primary);
+			color: white;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 1.2rem;
+			flex-shrink: 0;
+		}
+
+		.comparison-content {
+			flex: 1;
+		}
+
+		.comparison-text {
+			font-size: 0.95rem;
+			line-height: 1.6;
+			color: var(--color-text-primary);
+		}
+
+		.comparison-text strong {
+			color: var(--color-primary);
+			font-weight: 600;
+		}
+
+		/* Tables */
+		.data-table {
+			width: 100%;
+			border-collapse: separate;
+			border-spacing: 0;
+			margin-top: 1rem;
+		}
+
+		.data-table thead {
+			background: var(--color-bg);
+		}
+
+		.data-table th {
+			padding: 1rem;
+			text-align: left;
+			font-size: 0.85rem;
+			font-weight: 600;
+			color: var(--color-text-secondary);
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			border-bottom: 2px solid var(--color-border);
+		}
+
+		.data-table th:first-child {
+			border-top-left-radius: var(--radius-sm);
+		}
+
+		.data-table th:last-child {
+			border-top-right-radius: var(--radius-sm);
+		}
+
+		.data-table td {
+			padding: 1rem;
+			border-bottom: 1px solid var(--color-border-light);
+			font-size: 0.95rem;
+			color: var(--color-text-primary);
+		}
+
+		.data-table tbody tr {
+			transition: background var(--transition-fast);
+		}
+
+		.data-table tbody tr:hover {
+			background: var(--color-surface-hover);
+		}
+
+		.data-table tbody tr:last-child td {
+			border-bottom: none;
+		}
+
+		.subsection {
+			margin-top: 2.5rem;
+		}
+
+		.subsection:first-child {
+			margin-top: 0;
+		}
+
+		.subsection-title {
+			font-family: 'Crimson Pro', Georgia, serif;
+			font-size: 1.1rem;
+			font-weight: 600;
+			color: var(--color-text-primary);
+			margin-bottom: 1rem;
+			padding-bottom: 0.5rem;
+			border-bottom: 2px solid var(--color-border-light);
+		}
+
+		/* Footer */
+		.footer {
+			margin-top: 3rem;
+			padding: 2rem;
+			background: var(--color-surface);
+			border-radius: var(--radius-lg);
+			box-shadow: var(--shadow-sm);
+			font-size: 0.85rem;
+			color: var(--color-text-muted);
+			line-height: 1.8;
+			animation: slideUp 0.7s ease-out 0.7s backwards;
+		}
+
+		.footer strong {
+			color: var(--color-text-secondary);
+		}
+
+		/* Responsive */
+		@media (max-width: 768px) {
+			body {
+				padding: 0.5rem;
+			}
+
+			.header {
+				padding: 1.5rem 1rem;
+				margin-bottom: 2rem;
+			}
+
+			.header h1 {
+				font-size: 1.5rem;
+			}
+
+			.nav-card {
+				grid-template-columns: 1fr;
+				gap: 1rem;
+				padding: 1rem;
+			}
+
+			.chart-card,
+			.section-body {
+				padding: 1rem;
+			}
+
+			.section-header {
+				padding: 1rem;
+			}
+
+			.section-title {
+				font-size: 1.1rem;
+			}
+
+			.metrics-grid {
+				grid-template-columns: 1fr;
+			}
+
+			.data-table {
+				font-size: 0.8rem;
+			}
+
+			.data-table th,
+			.data-table td {
+				padding: 0.75rem 0.5rem;
+			}
 		}
 
 		@media print {
-			body { background: #fff; margin: 1cm; }
-			.section { box-shadow: none; page-break-inside: avoid; }
+			body {
+				background: white;
+				padding: 0;
+			}
+
+			.section-card.collapsed .section-body {
+				max-height: none;
+				padding: 2rem;
+				opacity: 1;
+			}
+
+			.section-toggle,
+			.nav-card {
+				display: none;
+			}
 		}
 	</style>
 </head>
 <body>
 
-<h1>Unterjährige Verbrauchsmitteilung</h1>
-<div class="sub">gemäß §6 Heizkostenverordnung</div>
-
-<div class="section nav-container">
-	<div>
-		<button id="prevBtn">◀</button>
-		<strong id="monthLabel"></strong>
-		<button id="nextBtn">▶</button>
+<div class="container">
+	<div class="header">
+		<h1>Verbrauchsmitteilung</h1>
+		<div class="subtitle">gemäß §6 Heizkostenverordnung</div>
 	</div>
-	<div>
-		<button id="flatPrevBtn">◀</button>
-		<strong id="flatLabel"></strong>
-		<button id="flatNextBtn">▶</button>
+
+	<div class="nav-card">
+		<div class="nav-group">
+			<label>Zeitraum</label>
+			<div class="nav-controls">
+				<button class="nav-button" id="prevBtn">◀</button>
+				<div class="nav-value" id="monthLabel"></div>
+				<button class="nav-button" id="nextBtn">▶</button>
+			</div>
+		</div>
+		<div class="nav-group">
+			<label>Einheit</label>
+			<div class="nav-controls">
+				<button class="nav-button" id="flatPrevBtn">◀</button>
+				<div class="nav-value" id="flatLabel"></div>
+				<button class="nav-button" id="flatNextBtn">▶</button>
+			</div>
+		</div>
 	</div>
-</div>
 
-<div class="section chart">
-	<canvas id="chart"></canvas>
-</div>
+	<div class="chart-card">
+		<div class="chart-header">
+			<div>
+				<div class="chart-title">Verbrauchsverlauf</div>
+				<div class="chart-subtitle">Heizenergie über 12 Monate im Jahresvergleich</div>
+			</div>
+		</div>
+		<canvas id="chart"></canvas>
+	</div>
 
+	<div id="content"></div>
 
-<div id="content"></div>
-
-<div class="footer">
-	¹ Diese Verbrauchsinformation dient der Transparenz über den bisherigen Verbrauch. Sie stellt keine Abrechnung dar und begründet keinen Zahlungsanspruch.
-	<br>
-	Der ausgewiesene Verbrauch in kWh basiert auf einer rechnerischen Umrechnung von Heizkostenverteiler-Einheiten und dient der Verbrauchsinformation. 
-	Maßgeblich für die Abrechnung ist die Jahresabrechnung.
-	<br>
-	² Rein informativ, ohne Einfluss auf die Abrechnung
+	<div class="footer">
+		<strong>Hinweise zur Verbrauchsinformation:</strong><br>
+		¹ Diese Verbrauchsinformation dient der Transparenz über den bisherigen Verbrauch. Sie stellt keine Abrechnung dar und begründet keinen Zahlungsanspruch.
+		Der ausgewiesene Verbrauch in kWh basiert auf einer rechnerischen Umrechnung von Heizkostenverteiler-Einheiten und dient der Verbrauchsinformation. 
+		Maßgeblich für die Abrechnung ist die Jahresabrechnung.<br>
+		² Rein informativ, ohne Einfluss auf die Abrechnung
+	</div>
 </div>
 
 <script>
@@ -153,6 +640,12 @@
 		HKV: 'Die Einheiten der Heizkostenverteiler werden rechnerisch als kWh angezeigt¹.',
 		WWZ: 'Der Warmwasserverbrauch wird in Kubikmetern erfasst und rechnerisch als kWh angezeigt¹.',
 		KWZ: 'Der Kaltwasserverbrauch dient ausschließlich der Information und ist nicht Bestandteil der Heizkostenabrechnung.'
+	};
+
+	const TYPE_ICONS = {
+		HKV: '🔥',
+		WWZ: '💧',
+		KWZ: '🚰'
 	};
 
 	let DATA = [];
@@ -179,7 +672,8 @@
 
 	function pct(cur, prev) {
 		if (!prev) return '–';
-		return ((cur - prev) / prev * 100).toFixed(1) + ' %';
+		const change = ((cur - prev) / prev * 100);
+		return (change >= 0 ? '+' : '') + change.toFixed(1) + ' %';
 	}
 
 	function formatkWh(val, type) {
@@ -190,7 +684,12 @@
 
 	function format(val, type) {
 		if (!val) return 'k. A.';
-		return (val / TYPE_DIVIDER[type]);
+		return (val / TYPE_DIVIDER[type]).toFixed(TYPE_DEC_DIGITS[type]);
+	}
+
+	function getChangeClass(cur, prev) {
+		if (!prev || !cur) return 'neutral';
+		return cur > prev ? 'positive' : cur < prev ? 'negative' : 'neutral';
 	}
 
 	async function loadData() {
@@ -227,33 +726,32 @@
 		const container = document.getElementById('content');
 		container.innerHTML = '';
 
-		/* =====================
-		 * ÜBERSICHT (UVI)
-		 * Summen je Typ, gruppiert nach Location
-		 * ===================== */
+		// Übersicht für jeden Typ
 		for (const type of TYPE_ORDER) {
 			const entries = byType[type];
 			if (!entries) continue;
+
 			const section = document.createElement('div');
-			section.className = 'section';
+			section.className = 'section-card';
 
-			section.innerHTML = `
-				<h2>${TYPE_LABELS[type] ?? type} – Übersicht</h2>
-				<div class="hint">${TYPE_HINTS[type] ?? ''}</div>
+			const header = document.createElement('div');
+			header.className = 'section-header';
+			header.innerHTML = `
+				<div class="section-header-content">
+					<div class="section-title">${TYPE_ICONS[type]} ${TYPE_LABELS[type] ?? type}</div>
+					<div class="section-hint">${TYPE_HINTS[type] ?? ''}</div>
+				</div>
+				<div class="section-toggle">▼</div>
 			`;
 
-			const table = document.createElement('table');
-			table.innerHTML = `
-				<thead>
-					<tr>
-						<th>Aktuell<br>(${currentMonth})</th>
-						<th>Vormonat<br>(${prevMonth})</th>
-						<th>Vorjahr<br>(${prevYearMonth})</th>
-						<th>Δ Vorjahr</th>
-					</tr>
-				</thead>
-			`;
+			header.addEventListener('click', () => {
+				section.classList.toggle('collapsed');
+			});
 
+			const body = document.createElement('div');
+			body.className = 'section-body';
+
+			// Berechne Summen
 			const byLocation = {};
 			for (const e of entries) {
 				byLocation[e.location_id] ??= {};
@@ -270,98 +768,112 @@
 				sumPrevYear += loc[prevYearMonth]?.consumption ?? 0;
 			}
 
-			const tr = document.createElement('tr');
-			tr.innerHTML = `
-				<td>${format(sumCur, type)     } ${TYPE_METER_UNITS[type]}</td>
-				<td>${format(sumPrev, type)    } ${TYPE_METER_UNITS[type]}</td>
-				<td>${format(sumPrevYear, type)} ${TYPE_METER_UNITS[type]}</td>
-				<td>${pct(sumCur, sumPrevYear)}</td>
-			`;
-			table.appendChild(tr);
+			// Metrics Grid
+			const metricsGrid = document.createElement('div');
+			metricsGrid.className = 'metrics-grid';
 
-			if (type == "HKV" || type == "WWZ") {   // show values in kWh
-				const trkWh = document.createElement('tr');
-				trkWh.innerHTML = `
-					<td>${formatkWh(sumCur, type)     } ${TYPE_SUM_UNITS[type]}</td>
-					<td>${formatkWh(sumPrev, type)    } ${TYPE_SUM_UNITS[type]}</td>
-					<td>${formatkWh(sumPrevYear, type)} ${TYPE_SUM_UNITS[type]}</td>
-					<td>${pct(sumCur, sumPrevYear)}</td>
+			const metrics = [
+				{
+					label: `Aktuell (${currentMonth})`,
+					value: formatkWh(sumCur, type),
+					unit: TYPE_SUM_UNITS[type],
+					change: null
+				},
+				{
+					label: `Vormonat (${prevMonth})`,
+					value: formatkWh(sumPrev, type),
+					unit: TYPE_SUM_UNITS[type],
+					change: pct(sumCur, sumPrev),
+					changeClass: getChangeClass(sumCur, sumPrev)
+				},
+				{
+					label: `Vorjahr (${prevYearMonth})`,
+					value: formatkWh(sumPrevYear, type),
+					unit: TYPE_SUM_UNITS[type],
+					change: pct(sumCur, sumPrevYear),
+					changeClass: getChangeClass(sumCur, sumPrevYear)
+				}
+			];
+
+			metrics.forEach(metric => {
+				const card = document.createElement('div');
+				card.className = 'metric-card';
+				card.innerHTML = `
+					<div class="metric-label">${metric.label}</div>
+					<div class="metric-value">${metric.value} <span class="metric-unit">${metric.unit}</span></div>
+					${metric.change ? `<div class="metric-change ${metric.changeClass}">${metric.change}</div>` : ''}
 				`;
-				table.appendChild(trkWh);
-			}
-			
-			// normalized values
+				metricsGrid.appendChild(card);
+			});
+
+			body.appendChild(metricsGrid);
+
+			// Vergleich mit Norm
 			const houseByType = {};
 			for (const h of HOUSE_NORM) {
 				houseByType[h.type] ??= {};
 				houseByType[h.type][h.month] = h.consumption;
 			}
-			const normCur = houseByType[type][currentMonth] ?? 0;
-			const normText = normCur
-					? ((sumCur - normCur) / normCur * 100).toFixed(1)
-					: '–';
-			const comparison = normCur
-					? `Ihr aktueller Verbrauch von ${formatkWh(sumCur, type)} ${TYPE_SUM_UNITS[type]} liegt ${sumCur > normCur ? normText : -normText}% <b>${sumCur > normCur ? 'über' : 'unter'}</b> dem Verbrauch eines normierten Durchschnittsnutzers (${formatkWh(normCur, type)} ${TYPE_SUM_UNITS[type]}).`
-					: 'Keine Normdaten verfügbar.';
+			const normCur = houseByType[type]?.[currentMonth] ?? 0;
 
-			const trInfo = document.createElement('tr');
-			trInfo.innerHTML = `<td colspan="4" style="font-size:0.9em; color:#555;">${comparison}</td>`;
-			table.appendChild(trInfo);
+			if (normCur && (type === 'HKV' || type === 'WWZ')) {
+				const diff = ((sumCur - normCur) / normCur * 100);
+				const comparisonBox = document.createElement('div');
+				comparisonBox.className = 'comparison-box';
+				comparisonBox.innerHTML = `
+					<div class="comparison-icon">📊</div>
+					<div class="comparison-content">
+						<div class="comparison-text">
+							Ihr aktueller Verbrauch von <strong>${formatkWh(sumCur, type)} ${TYPE_SUM_UNITS[type]}</strong> liegt 
+							<strong>${Math.abs(diff).toFixed(1)}%</strong> 
+							<strong>${sumCur > normCur ? 'über' : 'unter'}</strong> 
+							dem Verbrauch eines normierten Durchschnittsnutzers (${formatkWh(normCur, type)} ${TYPE_SUM_UNITS[type]}).
+						</div>
+					</div>
+				`;
+				body.appendChild(comparisonBox);
+			}
 
-			section.appendChild(table);
-			container.appendChild(section);
-		}
-		
-		/* =====================
-		 * DETAIL: Aktuelle Zählerstände
-		 * ===================== */
-		const section = document.createElement('div');
-		section.className = 'section';
-
-		section.innerHTML = `
-			<h2>Aktuelle Zählerstände² (${currentMonth})</h2>
-		`;
-
-
-		for (const type of TYPE_ORDER) {
-			const entries = byType[type];
-			if (!entries) continue; 
-			const div = document.createElement('div');
-
-			div.innerHTML = `
-				<h4>${TYPE_LABELS[type] ?? type}</h4>
-			`;
+			// Details Tabelle (eingeklappt in neuem Subsection)
+			const subsection = document.createElement('div');
+			subsection.className = 'subsection';
+			subsection.innerHTML = `<div class="subsection-title">Zählerstände (${currentMonth})</div>`;
 
 			const table = document.createElement('table');
+			table.className = 'data-table';
 			table.innerHTML = `
 				<thead>
-				<tr>
-					<th>Raum</th>
-					<th>Zählernummer</th>
-					<th>Zählerstand</th>
-					<th>Ablesedatum</th>
-				</tr>
+					<tr>
+						<th>Raum</th>
+						<th>Zählernummer</th>
+						<th style="text-align: right;">Zählerstand</th>
+						<th>Ablesedatum</th>
+					</tr>
 				</thead>
+				<tbody></tbody>
 			`;
 
+			const tbody = table.querySelector('tbody');
 			for (const e of entries) {
 				if (e.month !== currentMonth) continue;
-
 				const tr = document.createElement('tr');
 				tr.innerHTML = `
 					<td>${e.room}</td>
 					<td>${e.meter_id}</td>
-					<td style="text-align:right;padding-right:10%">${e.meter_value / TYPE_DIVIDER[type]} ${TYPE_METER_UNITS[type]}</td>
+					<td style="text-align: right;">${format(e.meter_value, type)} ${TYPE_METER_UNITS[type]}</td>
 					<td>${e.found_date}</td>
 				`;
-				table.appendChild(tr);
+				tbody.appendChild(tr);
 			}
 
-			div.appendChild(table);
-			section.appendChild(div);
-			
+			subsection.appendChild(table);
+			body.appendChild(subsection);
+
+			section.appendChild(header);
+			section.appendChild(body);
+			container.appendChild(section);
 		}
-		container.appendChild(section);
+
 		drawChart(DATA_FLAT);
 	}
 
@@ -379,8 +891,7 @@
 		return step * pow10;
 	}
 
-
-	function resizeCanvas(canvas, ctx, height = 280) {
+	function resizeCanvas(canvas, ctx, height = 320) {
 		const dpr = window.devicePixelRatio || 1;
 		const cssWidth = canvas.parentElement.clientWidth;
 
@@ -396,29 +907,27 @@
 		return { W: cssWidth, H: height };
 	}
 
-
 	function drawChart(DATA_FLAT) {
 		const canvas = document.getElementById('chart');
 		if (!canvas) return;
 
 		const ctx = canvas.getContext('2d');
-		const { W, H } = resizeCanvas(canvas, ctx, 260);
-		const P = Math.min(50, W * 0.12); // mobile-freundlich
+		const { W, H } = resizeCanvas(canvas, ctx, 320);
+		const P = Math.min(60, W * 0.1);
 
 		ctx.clearRect(0, 0, W, H);
-		ctx.font = '12px system-ui';
 
-		// --- Monatswerte aggregieren ---
+		// Monatswerte aggregieren
 		const sums = {};
 		for (const e of DATA_FLAT) {
-			if (e.type !== 'HKV') continue;  // only HKV
+			if (e.type !== 'HKV') continue;
 			sums[e.month] ??= 0;
 			sums[e.month] += (e.consumption ?? 0) * TYPE_KWH_FAKTOR[e.type];
 		}
 
-		const months = ALL_MONTHS.slice(-24); // take last 24 months
-		const curMonths  = months.slice(12);  // this years' 12 months
-		const prevMonths = months.slice(0, 12); // last years' 12 months
+		const months = ALL_MONTHS.slice(-24);
+		const curMonths  = months.slice(12);
+		const prevMonths = months.slice(0, 12);
 
 		const curVals  = curMonths.map(m => sums[m] ?? 0);
 		const prevVals = prevMonths.map(m => sums[m] ?? 0);
@@ -428,43 +937,80 @@
 		const x = i => P + i * (W - 2 * P) / 11;
 		const y = v => H - P - v / max * (H - 2 * P);
 
-// --- Achsen ---
-		ctx.strokeStyle = '#bbb';
-		ctx.beginPath();
-		ctx.moveTo(P, P);
-		ctx.lineTo(P, H - P);
-		ctx.lineTo(W - P, H - P);
-		ctx.stroke();
+		// Hintergrund Gradient
+		const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+		bgGrad.addColorStop(0, '#f8f9fb');
+		bgGrad.addColorStop(1, '#ffffff');
+		ctx.fillStyle = bgGrad;
+		ctx.fillRect(0, 0, W, H);
 
-		// Y-Achse Labels
+		// Grid
+		ctx.strokeStyle = '#e3e8ef';
+		ctx.lineWidth = 1;
+
 		const step = niceStep(max, 4);
 		const maxTick = Math.ceil(max / step) * step;
 
 		for (let v = 0; v <= maxTick; v += step) {
 			const py = y(v);
-
-			ctx.fillStyle = '#666';
-			ctx.fillText(v + " " + TYPE_SUM_UNITS["HKV"], 5, py + 4);
-
-			ctx.strokeStyle = '#eee';
 			ctx.beginPath();
 			ctx.moveTo(P, py);
 			ctx.lineTo(W - P, py);
 			ctx.stroke();
 		}
 
+		// Achsen
+		ctx.strokeStyle = '#8493a8';
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.moveTo(P, P);
+		ctx.lineTo(P, H - P);
+		ctx.lineTo(W - P, H - P);
+		ctx.stroke();
 
-		// X-Achse Labels
+		// Y-Labels
+		ctx.fillStyle = '#5a6a7f';
+		ctx.font = '600 12px Outfit';
+		ctx.textAlign = 'right';
+		for (let v = 0; v <= maxTick; v += step) {
+			const py = y(v);
+			ctx.fillText(v + " kWh", P - 10, py + 4);
+		}
+
+		// X-Labels
+		ctx.textAlign = 'center';
 		curMonths.forEach((m, i) => {
 			const px = x(i);
-			ctx.fillStyle = '#666';
-			ctx.fillText(m.slice(5), px - 8, H - 15);
+			const label = new Date(m + '-01').toLocaleDateString('de-DE', { month: 'short' });
+			ctx.fillText(label, px, H - P + 20);
 		});
 
+		// Area fills
+		function drawArea(values, color, alpha) {
+			ctx.globalAlpha = alpha;
+			const gradient = ctx.createLinearGradient(0, P, 0, H - P);
+			gradient.addColorStop(0, color);
+			gradient.addColorStop(1, color.replace(')', ', 0)').replace('rgb', 'rgba'));
+			ctx.fillStyle = gradient;
+			
+			ctx.beginPath();
+			ctx.moveTo(x(0), H - P);
+			values.forEach((v, i) => {
+				ctx.lineTo(x(i), y(v));
+			});
+			ctx.lineTo(x(values.length - 1), H - P);
+			ctx.closePath();
+			ctx.fill();
+			ctx.globalAlpha = 1;
+		}
+
+		// Smooth lines
 		function smoothLine(values, color, width, alpha = 1) {
 			ctx.strokeStyle = color;
 			ctx.lineWidth = width;
 			ctx.globalAlpha = alpha;
+			ctx.lineCap = 'round';
+			ctx.lineJoin = 'round';
 			ctx.beginPath();
 
 			values.forEach((v, i) => {
@@ -484,53 +1030,93 @@
 			ctx.globalAlpha = 1;
 		}
 
-		// --- Linien ---
-		smoothLine(prevVals, '#999', 2, 0.35);   // Vorjahr
-		smoothLine(curVals,  '#0074d9', 3);     // Aktuell
+		// Draw areas
+		drawArea(prevVals, 'rgb(132, 147, 168)', 0.1);
+		drawArea(curVals, 'rgb(13, 115, 119)', 0.15);
 
-		// --- Markierung aktuelles Monat ---
+		// Draw lines
+		smoothLine(prevVals, '#8493a8', 2.5, 0.5);
+		smoothLine(curVals, '#0d7377', 3.5);
+
+		// Points
+		function drawPoints(values, color, alpha = 1) {
+			ctx.globalAlpha = alpha;
+			values.forEach((v, i) => {
+				const px = x(i);
+				const py = y(v);
+				ctx.fillStyle = '#ffffff';
+				ctx.beginPath();
+				ctx.arc(px, py, 5, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.strokeStyle = color;
+				ctx.lineWidth = 2.5;
+				ctx.stroke();
+			});
+			ctx.globalAlpha = 1;
+		}
+
+		drawPoints(prevVals, '#8493a8', 0.5);
+		drawPoints(curVals, '#0d7377');
+
+		// Highlight current month
 		let idx = MONTH_INDEX;
-		let px, py;
 		if (idx >= 0 && idx < 24) {
+			let px, py;
 			if (idx < 12) {
 				px = x(idx);
 				py = y(prevVals[idx]);
-				ctx.strokeStyle = '#999';
-				ctx.fillStyle = '#999';
-			}	else {
+			} else {
 				px = x(idx - (ALL_MONTHS.length - 12));
 				py = y(curVals[idx - (ALL_MONTHS.length - 12)]);
-				ctx.strokeStyle = '#0074d9';
-				ctx.fillStyle = '#0074d9';
 			}
 			
-			ctx.lineWidth = 1;  
-			ctx.setLineDash([5, 5]); // dashed
+			// Highlight line
+			ctx.strokeStyle = '#f4a259';
+			ctx.lineWidth = 2;
+			ctx.setLineDash([5, 5]);
 			ctx.beginPath();
 			ctx.moveTo(px, py);
 			ctx.lineTo(px, H - P);
 			ctx.stroke();
+			ctx.setLineDash([]);
 
-			ctx.setLineDash([]); // reset
+			// Highlight point
+			ctx.fillStyle = '#f4a259';
 			ctx.beginPath();
-			ctx.arc(px, py, 4, 0, Math.PI * 2);
+			ctx.arc(px, py, 7, 0, Math.PI * 2);
 			ctx.fill();
+			ctx.strokeStyle = '#ffffff';
+			ctx.lineWidth = 3;
+			ctx.stroke();
 		}
 
-		// --- Legende ---
-		ctx.fillStyle = '#0074d9';
-		ctx.fillRect(P, 10, 16, 3);
-		ctx.fillStyle = '#000';
-		ctx.fillText('Aktuell', P + 22, 14);
+		// Legend
+		const legendY = 30;
+		const legendSpacing = 100;
+		
+		ctx.strokeStyle = '#0d7377';
+		ctx.lineWidth = 3;
+		ctx.beginPath();
+		ctx.moveTo(P, legendY);
+		ctx.lineTo(P + 30, legendY);
+		ctx.stroke();
+		
+		ctx.fillStyle = '#1a2332';
+		ctx.font = '600 13px Outfit';
+		ctx.textAlign = 'left';
+		ctx.fillText('Aktuell', P + 40, legendY + 4);
 
-		ctx.globalAlpha = 0.4;
-		ctx.fillStyle = '#666';
-		ctx.fillRect(P + 100, 10, 16, 3);
+		ctx.strokeStyle = '#8493a8';
+		ctx.lineWidth = 2.5;
+		ctx.globalAlpha = 0.5;
+		ctx.beginPath();
+		ctx.moveTo(P + legendSpacing, legendY);
+		ctx.lineTo(P + legendSpacing + 30, legendY);
+		ctx.stroke();
 		ctx.globalAlpha = 1;
-		ctx.fillStyle = '#000';
-		ctx.fillText('Vorjahr', P + 122, 14);
+		
+		ctx.fillText('Vorjahr', P + legendSpacing + 40, legendY + 4);
 	}
-
 
 	function changeMonth(diff) {
 		MONTH_INDEX = Math.max(0, Math.min(ALL_MONTHS.length - 1, MONTH_INDEX + diff));
@@ -538,7 +1124,7 @@
 	}
 
 	function changeFlat(d) {
-		FLAT_INDEX = Math.max(0,Math.min(ALL_FLATS.length-1,FLAT_INDEX+d));
+		FLAT_INDEX = Math.max(0, Math.min(ALL_FLATS.length - 1, FLAT_INDEX + d));
 		render();
 	}
 
@@ -547,7 +1133,6 @@
 	document.getElementById('flatPrevBtn').onclick = () => changeFlat(-1);
 	document.getElementById('flatNextBtn').onclick = () => changeFlat(1);
 
-	// Cursor-Tasten
 	document.addEventListener('keydown', e => {
 		if (e.shiftKey && e.key === 'ArrowLeft')  changeFlat(-1);
 		if (e.shiftKey && e.key === 'ArrowRight') changeFlat(1);
@@ -567,7 +1152,6 @@
 		}, 150);
 	});
 
-
 	loadData().then(resp => {
 		DATA = resp.details;
 		HOUSE_NORM = resp.house_norm ?? [];
@@ -579,10 +1163,17 @@
 			ALL_FLATS = flats; 
 		}
 		FLAT_INDEX = 0;
-		MONTH_INDEX = ALL_MONTHS.length - 1; // Start: letzter Monat
+		MONTH_INDEX = ALL_MONTHS.length - 1;
 		render();
 	}).catch(err => {
-		document.getElementById('content').textContent = 'Fehler beim Laden der Daten';
+		document.getElementById('content').innerHTML = `
+			<div class="section-card">
+				<div class="section-body" style="text-align: center; color: var(--color-danger);">
+					<strong>Fehler beim Laden der Daten</strong><br>
+					Bitte versuchen Sie es später erneut.
+				</div>
+			</div>
+		`;
 		console.error(err);
 	});
 </script>
