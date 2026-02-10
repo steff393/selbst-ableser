@@ -279,37 +279,11 @@
 			line-height: 1.5;
 		}
 
-		.section-toggle {
-			width: 32px;
-			height: 32px;
-			border-radius: 50%;
-			background: var(--color-primary);
-			color: white;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			font-size: 1.2rem;
-			transition: all var(--transition-base);
-			flex-shrink: 0;
-			margin-left: 1rem;
-		}
-
-		.section-card.collapsed .section-toggle {
-			transform: rotate(-90deg);
-		}
-
 		.section-body {
 			padding: 1.25rem;
 			max-height: 2000px;
 			overflow: hidden;
 			transition: max-height var(--transition-slow), opacity var(--transition-slow), padding var(--transition-slow);
-		}
-
-		.section-card.collapsed .section-body {
-			max-height: 0;
-			padding-top: 0;
-			padding-bottom: 0;
-			opacity: 0;
 		}
 
 		/* Metrics Grid */
@@ -491,6 +465,37 @@
 			margin-top: 1rem;
 		}
 
+		.subsection-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 0.75rem;
+			margin-top: 1rem;
+		}
+
+		.subsection-header:hover {
+			background: var(--color-surface-hover);
+		}
+
+		.subsection-title {
+			font-weight: 600;
+			font-size: 0.95rem;
+		}
+
+		.subsection-body {
+			overflow: hidden;
+			max-height: 2000px;
+			opacity: 1;
+			transition:
+				max-height var(--transition-slow),
+				opacity var(--transition-fast);
+		}
+
+		.subsection.collapsed .subsection-body {
+			max-height: 0;
+			opacity: 0;
+		}
+
 		.subsection:first-child {
 			margin-top: 0;
 		}
@@ -500,9 +505,25 @@
 			font-size: 1.1rem;
 			font-weight: 600;
 			color: var(--color-text-primary);
-			margin-bottom: 0.75rem;
-			padding-bottom: 0.4rem;
-			border-bottom: 2px solid var(--color-border-light);
+		}
+
+		.subsection-toggle {
+			width: 32px;
+			height: 32px;
+			border-radius: 50%;
+			background: var(--color-primary);
+			color: white;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 1.2rem;
+			transition: all var(--transition-base);
+			flex-shrink: 0;
+			margin-left: 1rem;
+		}
+
+		.subsection.collapsed .subsection-toggle {
+			transform: rotate(-90deg);
 		}
 
 		/* Footer */
@@ -839,12 +860,7 @@
 					<div class="section-title">${TYPE_ICONS[type]} ${TYPE_LABELS[type] ?? type}</div>
 					<div class="section-hint">${TYPE_HINTS[type] ?? ''}</div>
 				</div>
-				<div class="section-toggle">▼</div>
 			`;
-
-			header.addEventListener('click', () => {
-				section.classList.toggle('collapsed');
-			});
 
 			const body = document.createElement('div');
 			body.className = 'section-body';
@@ -942,8 +958,22 @@
 
 			// Details Tabelle (eingeklappt in neuem Subsection)
 			const subsection = document.createElement('div');
-			subsection.className = 'subsection';
-			subsection.innerHTML = `<div class="subsection-title">Zählerstände (${formatMonthDE(currentMonth)})</div>`;
+			subsection.className = 'subsection collapsed';
+
+			subsection.innerHTML = `
+				<div class="subsection-header">
+					<div class="subsection-title">
+						Zählerstände (${formatMonthDE(currentMonth)})
+					</div>
+					<div class="subsection-toggle">▼</div>
+				</div>
+				<div class="subsection-body"></div>
+			`;
+
+			subsection.addEventListener('click', () => {
+				const collapsed = subsection.classList.toggle('collapsed');
+			});
+
 
 			const table = document.createElement('table');
 			table.className = 'data-table';
@@ -976,7 +1006,7 @@
 				tbody.appendChild(tr);
 			}
 
-			subsection.appendChild(table);
+			subsection.querySelector('.subsection-body').appendChild(table);
 			body.appendChild(subsection);
 
 			section.appendChild(header);
