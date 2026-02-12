@@ -1,6 +1,6 @@
 import os
 import json
-import datetime
+from datetime import datetime, date
 import cgi
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -48,13 +48,8 @@ class Handler(BaseHTTPRequestHandler):
 			if token not in users:
 				self.send_error(403, "Ungültiger Token")
 				return
-			
-			# Hole das Daten-Objekt des Nutzers (z.B. {"flat": "A1", ...})
+			# get data object of the user, eg. {"flat": "A1", ...}
 			user_data = users.get(token)
-			# Der Filter ist der Wert von 'flat'. Wenn dieser None/null ist -> Admin
-			filter = user_data.get("flat")
-			if filter == "":
-				filter = None
 
 		# Routing
 		if subpath.startswith("eval_combined"):
@@ -73,7 +68,7 @@ class Handler(BaseHTTPRequestHandler):
 				params.get("start", ["2024-01-31"])[0],
 				params.get("end",   ["2026-01-31"])[0],
 				params.get("path",  [self.cfg['SnapshotDir']])[0],
-				filter
+				user_data
 			)
 			self.send_json(response)
 			return
@@ -95,14 +90,12 @@ class Handler(BaseHTTPRequestHandler):
 			self.serve_file("uvi.html", "text/html")
 			return
 		
-		if subpath.startswith("data/"):
-			date = subpath.split("/")[-1]
-			snap = self.load_snapshot(date)
-			self.serve_data(snap, filter)
+		if subpath in ("uvialt.html"):
+			self.serve_file("uviAlt.html", "text/html")
 			return
 
 		# only for admins (no filter)
-		if filter is None:	
+		if users is not None and users.get(token).get("flat") in (None, ""):
 			if subpath in ("users.html", "users"):
 				self.serve_file("users.html", "text/html")
 				return
@@ -177,7 +170,7 @@ class Handler(BaseHTTPRequestHandler):
 		self.send_header("Content-Type", "application/json")
 		self.send_header(
 			"Content-Disposition",
-			f'attachment; filename="users-backup-{datetime.date.today()}.json"'
+			f'attachment; filename="users-backup-{date.today()}.json"'
 		)
 		self.end_headers()
 		self.wfile.write(json.dumps(users, indent=2).encode())
@@ -208,14 +201,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 	# calculate data for UVI
-	def handle_uvi_request(self, start, end, path, filter=None):
+	def handle_uvi_request(self, start, end, path, user_data):
 		print(f"[UVI] Anfrage: {start} bis {end}, Pfad: {path}")
 		result = evaluate_uvi(
 			json_path  = path,
 			registry   = self.registry,
 			start_date = start,
 			end_date   = end,
-			flat       = filter
+			flat       = user_data.get("flat")
 		)
 		return serialize_monthly_results(result)
 	
@@ -231,7 +224,35 @@ class Handler(BaseHTTPRequestHandler):
 		return serialize_monthly_aggregates(result)
 	
 
+	def restrict_period_by_user(self, start, end, user_data):
+		start_date = datetime.strptime(start, "%Y-%m-%d")
+		end_date   = datetime.strptime(end,   "%Y-%m-%d")
+
+		move_in  = user_data.get("move_in")
+		move_out = user_data.get("move_out")
+
+		if move_in:
+			move_in_date = datetime.strptime(move_in, "%Y-%m-%d")
+			start_date = max(start_date, move_in_date)
+
+		if move_out:
+			move_out_date = datetime.strptime(move_out, "%Y-%m-%d")
+			end_date = min(end_date, move_out_date)
+
+		if start_date > end_date:
+			return None, None
+
+		return (
+			start_date.strftime("%Y-%m-%d"),
+			end_date.strftime("%Y-%m-%d")
+		)
+
+
 	def handle_uvi_combined_request(self, start, end, path, user_data):
+		start, end = self.restrict_period_by_user(start, end, user_data)
+		if not start:
+			return {"details": [], "house_norm": []}
+		
 		all_results = evaluate_uvi(
 			json_path  = path,
 			registry   = self.registry,

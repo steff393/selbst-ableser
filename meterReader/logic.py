@@ -20,6 +20,12 @@ _JSON_PATH = "."  # default
 def month_ends(start_date, end_date):
 	# return list of last day of each month between start_date and end_date
 	result = []
+	# special case: if start_date is first of month, include last day of previous month
+	if start_date.day == 1:
+		prev_month_last = start_date - datetime.timedelta(days=1)
+		if prev_month_last <= end_date:
+			result.append(prev_month_last)
+	# normal cases
 	current = start_date.replace(day=1) # first day of start month
 	while current <= end_date:
 		next_month = (current.replace(day=28) + datetime.timedelta(days=4)).replace(day=1) # jump to day 28, add 4 days, go to first of next month
