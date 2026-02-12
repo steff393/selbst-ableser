@@ -1,190 +1,435 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="utf-8">
-<title>Selbst-Ableser – Verwaltung</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta charset="utf-8">
+	<title>Selbst-Ableser – Verwaltung</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<style>
+		:root {
+			--color-primary: #0d7377;
+			--color-primary-light: #14a3a8;
+			--color-primary-dark: #0a5254;
+			--color-accent: #f4a259;
+			--color-success: #52b788;
+			--color-danger: #e63946;
+			
+			--color-bg: #f8f9fb;
+			--color-surface: #ffffff;
+			--color-surface-hover: #f5f7fa;
+			
+			--color-text-primary: #1a2332;
+			--color-text-secondary: #5a6a7f;
+			--color-text-muted: #8493a8;
+			--color-border: #e3e8ef;
+			--color-border-light: #f0f3f7;
+			
+			--shadow-sm: 0 1px 3px rgba(13, 115, 119, 0.04), 0 1px 2px rgba(13, 115, 119, 0.02);
+			--shadow-md: 0 4px 6px rgba(13, 115, 119, 0.06), 0 2px 4px rgba(13, 115, 119, 0.04);
+			--shadow-lg: 0 10px 15px rgba(13, 115, 119, 0.08), 0 4px 6px rgba(13, 115, 119, 0.04);
+			
+			--radius-sm: 8px;
+			--radius-md: 12px;
+			--radius-lg: 16px;
+			
+			--transition-fast: 100ms cubic-bezier(0.4, 0, 0.2, 1);
+			--transition-base: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+		}
 
-<style>
-body {
-	font-family: system-ui, sans-serif;
-	background: #f6f7f8;
-	margin: 0;
-	padding: 0;
-}
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
 
-header {
-	background: #2f3e46;
-	color: white;
-	padding: 1.5rem;
-}
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+			background: linear-gradient(135deg, #f8f9fb 0%, #eef2f7 100%);
+			color: var(--color-text-primary);
+			line-height: 1.6;
+			min-height: 100vh;
+			padding: 1rem;
+		}
 
-main {
-	max-width: 800px;
-	margin: 2rem auto;
-	padding: 0 1rem;
-}
+		.container {
+			max-width: 900px;
+			margin: 0 auto;
+		}
 
-.card {
-	background: white;
-	border-radius: 8px;
-	padding: 1.5rem;
-	margin-bottom: 1.5rem;
-	box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-}
+		.header {
+			text-align: center;
+			margin-bottom: 1rem;
+			padding: 1.5rem 1rem;
+			background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+			border-radius: var(--radius-lg);
+			box-shadow: var(--shadow-lg);
+			color: white;
+			position: relative;
+			overflow: hidden;
+		}
 
-.card h2 {
-	margin-top: 0;
-}
+		.header::before {
+			content: '';
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+			opacity: 0.4;
+		}
 
-.actions {
-	display: flex;
-	gap: 1rem;
-	flex-wrap: wrap;
-	margin-top: 1rem;
-}
+		.header h1 {
+			font-family: Georgia, 'Times New Roman', serif;
+			font-size: clamp(1.75rem, 4vw, 2.25rem);
+			font-weight: 700;
+			position: relative;
+		}
 
-a.button {
-	display: inline-block;
-	padding: 0.7rem 1.2rem;
-	border-radius: 6px;
-	text-decoration: none;
-	background: #52796f;
-	color: white;
-	font-weight: 500;
-}
+		.header .subtitle {
+			font-size: 1rem;
+			opacity: 0.95;
+			font-weight: 300;
+			position: relative;
+			margin-top: 0.5rem;
+		}
 
-a.button.secondary {
-	background: #84a98c;
-}
+		.card {
+			background: var(--color-surface);
+			border-radius: var(--radius-lg);
+			padding: 1.25rem;
+			margin-bottom: 1rem;
+			box-shadow: var(--shadow-md);
+			transition: all var(--transition-base);
+		}
 
-button, input {
-	font-size: 1rem;
-	padding: 0.5rem;
-	border-radius: 4px;
-	border: 1px solid #ccc;
-}
+		.card:hover {
+			box-shadow: var(--shadow-lg);
+		}
 
-input.token-field {
-	width: 250px;
-	font-family: monospace;
-}
+		.card-header {
+			display: flex;
+			align-items: start;
+			gap: 1rem;
+			margin-bottom: 0.75rem;
+		}
 
-footer {
-	text-align: center;
-	color: #777;
-	font-size: 0.9rem;
-	margin: 2rem 0;
-}
-</style>
+		.card-icon {
+			font-size: 2rem;
+			flex-shrink: 0;
+		}
+
+		.card-title {
+			font-family: Georgia, 'Times New Roman', serif;
+			font-size: 1.3rem;
+			font-weight: 600;
+			color: var(--color-text-primary);
+			margin-bottom: 0.25rem;
+		}
+
+		.card-description {
+			color: var(--color-text-secondary);
+			font-size: 0.95rem;
+			line-height: 1.6;
+		}
+
+		.card-actions {
+			display: flex;
+			gap: 0.75rem;
+			flex-wrap: wrap;
+			margin-top: 1rem;
+		}
+
+		.btn {
+			padding: 0.5rem 1rem;
+			border: none;
+			border-radius: var(--radius-sm);
+			font-size: 0.95rem;
+			font-weight: 500;
+			cursor: pointer;
+			transition: all var(--transition-base);
+			display: inline-flex;
+			align-items: center;
+			gap: 0.5rem;
+			text-decoration: none;
+		}
+
+		.btn-primary {
+			background: var(--color-primary);
+			color: white;
+		}
+
+		.btn-primary:hover {
+			background: var(--color-primary-dark);
+			transform: translateY(-1px);
+			box-shadow: var(--shadow-sm);
+		}
+
+		.btn-secondary {
+			background: var(--color-accent);
+			color: white;
+		}
+
+		.btn-secondary:hover {
+			background: #e08f45;
+			transform: translateY(-1px);
+			box-shadow: var(--shadow-sm);
+		}
+
+		.btn-outline {
+			background: transparent;
+			border: 1px solid var(--color-primary);
+			color: var(--color-primary);
+		}
+
+		.btn-outline:hover {
+			background: var(--color-primary);
+			color: white;
+		}
+
+		.setup-form {
+			display: flex;
+			gap: 0.75rem;
+			flex-wrap: wrap;
+			align-items: center;
+		}
+
+		.token-field {
+			flex: 1;
+			min-width: 200px;
+			padding: 0.5rem 0.75rem;
+			border: 1px solid var(--color-border);
+			border-radius: var(--radius-sm);
+			font-family: 'Courier New', monospace;
+			font-size: 0.95rem;
+			transition: all var(--transition-fast);
+		}
+
+		.token-field:focus {
+			outline: none;
+			border-color: var(--color-primary);
+			box-shadow: 0 0 0 3px rgba(13, 115, 119, 0.1);
+		}
+
+		.status-box {
+			margin-top: 1rem;
+			padding: 1rem;
+			border-radius: var(--radius-md);
+			font-size: 0.95rem;
+		}
+
+		.status-box.success {
+			border-left: 4px solid var(--color-success);
+			background: linear-gradient(135deg, rgba(82, 183, 136, 0.08) 0%, rgba(82, 183, 136, 0.05) 100%);
+		}
+
+		.status-box.error {
+			border-left: 4px solid var(--color-danger);
+			background: linear-gradient(135deg, rgba(230, 57, 70, 0.08) 0%, rgba(230, 57, 70, 0.05) 100%);
+		}
+
+		.status-box code {
+			font-family: 'Courier New', monospace;
+			background: rgba(0, 0, 0, 0.05);
+			padding: 0.25rem 0.5rem;
+			border-radius: var(--radius-sm);
+			font-size: 1.05em;
+			font-weight: 600;
+		}
+
+		.status-box a {
+			color: var(--color-primary);
+			text-decoration: none;
+			font-weight: 600;
+		}
+
+		.status-box a:hover {
+			text-decoration: underline;
+		}
+
+		.alert {
+			padding: 1rem;
+			border-radius: var(--radius-md);
+			margin-bottom: 1rem;
+			border-left: 4px solid var(--color-accent);
+			background: linear-gradient(135deg, rgba(244, 162, 89, 0.08) 0%, rgba(244, 162, 89, 0.05) 100%);
+		}
+
+		.alert-title {
+			font-weight: 600;
+			margin-bottom: 0.25rem;
+		}
+
+		.footer {
+			text-align: center;
+			color: var(--color-text-muted);
+			font-size: 0.85rem;
+			margin-top: 2rem;
+			padding: 1rem;
+		}
+
+		@media (max-width: 768px) {
+			.card {
+				padding: 1rem;
+			}
+
+			.card-header {
+				flex-direction: column;
+				align-items: center;
+				text-align: center;
+			}
+
+			.card-actions {
+				flex-direction: column;
+			}
+
+			.btn {
+				width: 100%;
+				justify-content: center;
+			}
+
+			.setup-form {
+				flex-direction: column;
+			}
+
+			.token-field {
+				width: 100%;
+			}
+		}
+	</style>
 </head>
-
 <body>
 
-<header>
-	<h1>Selbst-Ableser</h1>
-	<p>Zählerdaten · Import · Auswertung</p>
-</header>
-
-<main>
-
-	<div class="card">
-		<h2>Status</h2>
-		<p>
-			Diese Instanz dient zur Verwaltung von Zählerdaten,
-			Benutzern und Importen für die spätere Auswertung.
-		</p>
-		<p>
-			<strong>Hinweis:</strong> Im Setup-Modus haben alle Zugriffe
-			Administratorrechte, bis mindestens ein Benutzer angelegt wurde.
-		</p>
+<div class="container">
+	<div class="header">
+		<h1>Selbst-Ableser</h1>
+		<div class="subtitle">Verwaltung · Zählerdaten · Auswertung</div>
 	</div>
 
-	<div class="card" id="user-setup-card" style="display:none;">
-		<h2>Setup: Admin-Benutzer anlegen</h2>
-		<p>Gib einen Admin-Token ein oder generiere einen neuen Zufallswert:</p>
-		<div class="actions">
-			<input type="text" id="admin-token" class="token-field">
-			<button onclick="generateToken()">🔄 Zufallswert</button>
-			<button onclick="saveAdmin()">💾 Speichern</button>
+	<!-- Setup Mode Card -->
+	<div class="card" id="setup-card" style="display:none;">
+		<div class="card-header">
+			<div class="card-icon">🔐</div>
+			<div>
+				<div class="card-title">Ersteinrichtung</div>
+				<div class="card-description">
+					Willkommen! Legen Sie zunächst einen Admin-Benutzer an. Dieser Token gewährt vollen Zugriff auf alle Verwaltungsfunktionen.
+				</div>
+			</div>
 		</div>
-		<p id="setup-status" style="margin-top:1rem;"></p>
-	</div>
-
-	<div class="card" id="normal-card1" style="display:none;">
-		<h2>Benutzerverwaltung</h2>
-		<p>
-			Anlegen und Verwalten von Benutzern und Wohnungen
-			(Zugriffssteuerung, Tokens, Admin-Rechte).
-		</p>
-		<div class="actions">
-			<a class="button" href="users.html">User verwalten</a>
+		<div class="alert">
+			<div class="alert-title">Wichtiger Hinweis</div>
+			<div>Im Setup-Modus haben alle Zugriffe Administratorrechte. Nach Anlegen des ersten Benutzers ist nur noch der Admin-Token gültig.</div>
 		</div>
-	</div>
-
-	<div class="card" id="normal-card2" style="display:none;">
-		<h2>Excel-Import</h2>
-		<p>
-			Import von Zähler- und Standortdaten aus einer Excel-Datei.
-			Die Daten werden serverseitig geprüft und verschlüsselt abgelegt.
-		</p>
-		<div class="actions">
-			<a class="button secondary" href="import.html">Excel importieren</a>
+		<div class="setup-form">
+			<input type="text" id="admin-token" class="token-field" placeholder="Admin-Token eingeben oder generieren">
+			<button class="btn btn-outline" onclick="generateToken()">🔄 Generieren</button>
+			<button class="btn btn-primary" onclick="saveAdmin()">💾 Speichern</button>
 		</div>
+		<div id="setup-status"></div>
 	</div>
 
-</main>
+	<!-- Normal Mode Cards -->
+	<div id="normal-cards" style="display:none;">
+		
+		<!-- Benutzerverwaltung -->
+		<div class="card">
+			<div class="card-header">
+				<div class="card-icon">👥</div>
+				<div>
+					<div class="card-title">Benutzerverwaltung</div>
+					<div class="card-description">
+						Verwalten Sie Benutzer, Wohnungen und Zugangsrechte. Erstellen Sie Tokens für Mieter und konfigurieren Sie Wohnungsdaten.
+					</div>
+				</div>
+			</div>
+			<div class="card-actions">
+				<a href="users.html" class="btn btn-primary">User verwalten</a>
+			</div>
+		</div>
 
-<footer>
-	Selbst-Ableser · lokal betrieben · keine Cloud
-</footer>
+		<!-- Excel Import -->
+		<div class="card">
+			<div class="card-header">
+				<div class="card-icon">📊</div>
+				<div>
+					<div class="card-title">Daten-Import</div>
+					<div class="card-description">
+						Importieren Sie Zähler- und Standortdaten aus Excel-Dateien. Die Daten werden automatisch validiert und verschlüsselt gespeichert.
+					</div>
+				</div>
+			</div>
+			<div class="card-actions">
+				<a href="import.html" class="btn btn-secondary">Excel importieren</a>
+				<a href="https://github.com/steff393/selbst-ableser/releases/download/v0.0.1/locations.xlsx" class="btn btn-outline">Vorlage herunterladen</a>
+			</div>
+		</div>
+
+		<!-- Status & Statistiken -->
+		<div class="card">
+			<div class="card-header">
+				<div class="card-icon">📈</div>
+				<div>
+					<div class="card-title">Status & Übersicht</div>
+					<div class="card-description">
+						Systemstatus, Statistiken und Übersicht über gespeicherte Daten. (In Entwicklung)
+					</div>
+				</div>
+			</div>
+			<div class="card-actions">
+				<button class="btn btn-outline" disabled style="opacity: 0.5; cursor: not-allowed;">Bald verfügbar</button>
+			</div>
+		</div>
+
+	</div>
+</div>
+
+<div class="footer">
+	Selbst-Ableser · Lokal betrieben · Datenschutz durch Design
+</div>
 
 <script>
-// === Setup-Mode Check ===
 const apiBase = "";
 
+// Setup-Mode Check
 fetch(`${apiBase}/users/data`)
-.then(r => {
-	if (!r.ok) return null;
-	return r.json();
-})
-.then(data => {
-	if (data && Object.keys(data).length === 0) {
-		// Setup-Mode: empty {} → create admin-token
-		document.getElementById("user-setup-card").style.display = "block";
-		generateToken();
-	} else {
-		// everything else
-		document.getElementById("normal-card1").style.display = "block";
-		document.getElementById("normal-card2").style.display = "block";
-	}
-})
-.catch(err => {
-	console.warn("Fehler beim Laden von /users/data:", err);
-	document.getElementById("normal-card1").style.display = "block";
-	document.getElementById("normal-card2").style.display = "block";
-});
+	.then(r => {
+		if (!r.ok) return null;
+		return r.json();
+	})
+	.then(data => {
+		if (data && Object.keys(data).length === 0) {
+			// Setup-Mode: leeres {} → Admin-Token erstellen
+			document.getElementById("setup-card").style.display = "block";
+			generateToken();
+		} else {
+			// Normalbetrieb
+			document.getElementById("normal-cards").style.display = "block";
+		}
+	})
+	.catch(err => {
+		console.warn("Fehler beim Laden von /users/data:", err);
+		// Im Fehlerfall: Normalbetrieb anzeigen
+		document.getElementById("normal-cards").style.display = "block";
+	});
 
-
-// === Token Funktionen ===
+// Token-Funktionen
 function generateToken() {
 	const token = crypto.getRandomValues(new Uint8Array(8))
-		.reduce((s,b)=>s+b.toString(16).padStart(2,"0"),"");
+		.reduce((s, b) => s + b.toString(16).padStart(2, "0"), "");
 	document.getElementById("admin-token").value = token;
 }
 
 function saveAdmin() {
 	const token = document.getElementById("admin-token").value.trim();
-	const status = document.getElementById("setup-status");
+	const statusEl = document.getElementById("setup-status");
 
 	if (!token) {
-		status.textContent = "❌ Bitte einen gültigen Token eingeben.";
-		status.style.color = "red";
+		showStatus("error", "Bitte einen gültigen Token eingeben.");
 		return;
 	}
 
 	const users = {};
-	users[token] = { flat: null, move_in: null, move_out: null };
+	users[token] = { flat: null, area: 0, move_in: null, move_out: null };
 
 	fetch(`${apiBase}/users/save`, {
 		method: "POST",
@@ -196,18 +441,23 @@ function saveAdmin() {
 		return r.json();
 	})
 	.then(() => {
-		status.style.color = "green";
-		status.innerHTML = `
-			✅ Admin-Benutzer gespeichert.<br>
-			Admin-Token: <code>${token}</code><br>
-			<a class="button" href="/${token}/index.html">👉 Weiter</a>
-		`;
+		showStatus("success", `
+			✅ Admin-Benutzer erfolgreich erstellt!<br><br>
+			<strong>Ihr Admin-Token:</strong><br>
+			<code>${token}</code><br><br>
+			<small>Bitte notieren und sicher aufbewahren!</small><br><br>
+			<a href="/${token}/index.html" class="btn btn-primary" style="display: inline-flex;">👉 Zur Verwaltung</a>
+		`);
 	})
 	.catch(err => {
-		status.style.color = "red";
-		status.textContent = "❌ Fehler beim Speichern";
+		showStatus("error", "Fehler beim Speichern des Admin-Benutzers.");
 		console.error(err);
 	});
+}
+
+function showStatus(type, message) {
+	const statusEl = document.getElementById("setup-status");
+	statusEl.innerHTML = `<div class="status-box ${type}">${message}</div>`;
 }
 </script>
 
