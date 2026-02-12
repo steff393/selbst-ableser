@@ -543,6 +543,28 @@
 			color: var(--color-text-secondary);
 		}
 
+		/* Legal */
+		.legal-footer {
+			text-align: center;
+			padding: 1.5rem 1rem;
+			margin-top: 2rem;
+			color: #8493a8;
+			font-size: 0.85rem;
+			border-top: 1px solid #f0f3f7;
+		}
+
+		.legal-footer a {
+			color: #5a6a7f;
+			text-decoration: none;
+			margin: 0 0.75rem;
+			transition: color 150ms;
+		}
+
+		.legal-footer a:hover {
+			color: #0d7377;
+			text-decoration: underline;
+		}
+
 		/* Responsive */
 		@media (max-width: 768px) {
 			body {
@@ -598,6 +620,15 @@
 			.footer {
 				padding: 0.75rem;
 				font-size: 0.75rem;
+			}
+
+			.legal-footer {
+				font-size: 0.75rem;
+			}
+			
+			.legal-footer a {
+				display: inline-block;
+				margin: 0.25rem 0.5rem;
 			}
 		}
 
@@ -719,6 +750,14 @@
 		Der ausgewiesene Verbrauch in kWh basiert auf einer rechnerischen Umrechnung von Heizkostenverteiler-Einheiten und dient der Verbrauchsinformation. 
 		Maßgeblich für die Abrechnung ist die Jahresabrechnung.<br>
 		² Rein informativ, ohne Einfluss auf die Abrechnung
+	</div>
+
+	<div class="legal-footer">
+		Selbst-Ableser · weil deine Daten dir gehören
+		<br>
+		<a href="index.html">Startseite</a>
+		<a href="impressum.html">Impressum</a>
+		<a href="datenschutz.html">Datenschutz</a>
 	</div>
 </div>
 

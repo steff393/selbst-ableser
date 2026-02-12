@@ -298,6 +298,32 @@
 				padding: 0.6rem;
 				font-size: 0.9rem;
 			}
+
+			.footer a {
+				display: inline-block;
+				margin: 0.25rem 0.5rem;
+			}
+		}
+
+		.footer {
+			text-align: center;
+			color: var(--color-text-muted);
+			font-size: 0.85rem;
+			margin-top: 2rem;
+			padding: 1.5rem 1rem;
+			border-top: 1px solid var(--color-border-light);
+		}
+
+		.footer a {
+			color: var(--color-text-secondary);
+			margin: 0 0.75rem;
+			text-decoration: none;
+			transition: color var(--transition-base);
+		}
+
+		.footer a:hover {
+			color: var(--color-primary);
+			text-decoration: underline;
 		}
 	</style>
 </head>
@@ -339,6 +365,14 @@
 	</div>
 
 	<div id="result" class="result-box"></div>
+</div>
+
+<div class="footer">
+	Selbst-Ableser · weil deine Daten dir gehören
+	<br>
+	<a href="index.html">Startseite</a>
+	<a href="impressum.html">Impressum</a>
+	<a href="datenschutz.html">Datenschutz</a>
 </div>
 
 <script>
