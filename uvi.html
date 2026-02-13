@@ -103,7 +103,6 @@
 		}
 
 		.header h1 {
-			font-family: Georgia, 'Times New Roman', serif;
 			font-size: clamp(1.75rem, 4vw, 2.5rem);
 			font-weight: 700;
 			margin-bottom: 0.5rem;
@@ -207,7 +206,6 @@
 		}
 
 		.chart-title {
-			font-family: Georgia, 'Times New Roman', serif;
 			font-size: 1.5rem;
 			font-weight: 600;
 			color: var(--color-text-primary);
@@ -276,7 +274,6 @@
 		}
 
 		.section-title {
-			font-family: Georgia, 'Times New Roman', serif;
 			font-size: 1.3rem;
 			font-weight: 600;
 			color: var(--color-text-primary);
@@ -516,7 +513,6 @@
 		}
 
 		.subsection-title {
-			font-family: Georgia, 'Times New Roman', serif;
 			font-size: 1.1rem;
 			font-weight: 600;
 			color: var(--color-text-primary);
@@ -839,7 +835,7 @@
 	function formatkWh(val, type) {
 		if (val === null) return 'k. A.';
 		const result = (val / TYPE_DIVIDER[type] * TYPE_KWH_FAKTOR[type]);
-		return formatNumberDE(result, TYPE_DEC_DIGITS[type]);
+		return formatNumberDE(result, 0);
 	}
 
 	function format(val, type) {
@@ -917,7 +913,6 @@
 			header.innerHTML = `
 				<div class="section-header-content">
 					<div class="section-title">${TYPE_ICONS[type]} ${TYPE_LABELS[type] ?? type}</div>
-					<div class="section-hint">${TYPE_HINTS[type] ?? ''}</div>
 				</div>
 			`;
 
@@ -977,11 +972,11 @@
 			metrics.forEach(metric => {
 				const card = document.createElement('div');
 				card.className = 'metric-card';
-				const showRaw = (type === 'HKV' || type === 'WWZ') && metric.rawValue;
+				const showkWh = (type === 'HKV' || type === 'WWZ') && metric.value;
 				card.innerHTML = `
 					<div class="metric-label">${metric.label}</div>
-					<div class="metric-value">${metric.value} <span class="metric-unit">${metric.unit}</span></div>
-					${showRaw ? `<div class="metric-raw">${metric.rawValue} ${metric.rawUnit}</div>` : ''}
+					${showkWh ? `<div class="metric-value">${metric.value} <span class="metric-unit">${metric.unit}</span></div>` : ''}
+					<div class="metric-raw">${metric.rawValue} ${metric.rawUnit}</div>
 					${metric.change ? `<div class="metric-change ${metric.changeClass}">${metric.change}</div>` : ''}
 				`;
 				metricsGrid.appendChild(card);
@@ -997,7 +992,7 @@
 			}
 			const normCur = houseByType[type]?.[currentMonth] ?? 0;
 
-			if (normCur && (type === 'HKV' || type === 'WWZ')) {
+			if (normCur) {
 				const diff = ((sumCur - normCur) / normCur * 100);
 				const comparisonBox = document.createElement('div');
 				comparisonBox.className = 'comparison-box';
