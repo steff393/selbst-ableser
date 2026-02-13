@@ -65,7 +65,6 @@
 		.container {
 			max-width: 1200px;
 			margin: 0 auto;
-			animation: slideUp 0.35s ease-out;
 		}
 
 		@keyframes slideUp {
@@ -130,7 +129,6 @@
 			display: grid;
 			grid-template-columns: 1fr 1fr;
 			gap: 1rem;
-			animation: slideUp 0.35s ease-out 0.05s backwards;
 		}
 
 		.nav-group {
@@ -199,7 +197,6 @@
 			padding: 1rem;
 			margin-bottom: 1rem;
 			box-shadow: var(--shadow-md);
-			animation: slideUp 0.35s ease-out 0.1s backwards;
 		}
 
 		.chart-header {
@@ -232,10 +229,32 @@
 			transition: all var(--transition-base);
 		}
 
-		.section-card:nth-child(1) { animation: slideUp 0.35s ease-out 0.15s backwards; }
-		.section-card:nth-child(2) { animation: slideUp 0.35s ease-out 0.2s backwards; }
-		.section-card:nth-child(3) { animation: slideUp 0.35s ease-out 0.25s backwards; }
-		.section-card:nth-child(4) { animation: slideUp 0.35s ease-out 0.3s backwards; }
+		.section-card:nth-child(1) { animation: none; }
+		.section-card:nth-child(2) { animation: none; }
+		.section-card:nth-child(3) { animation: none; }
+		.section-card:nth-child(4) { animation: none; }
+
+		/* Animationen nur beim ersten Laden */
+		body.first-load .container {
+			animation: slideUp 0.35s ease-out;
+		}
+
+		body.first-load .nav-card {
+			animation: slideUp 0.35s ease-out 0.05s backwards;
+		}
+
+		body.first-load .chart-card {
+			animation: slideUp 0.35s ease-out 0.1s backwards;
+		}
+
+		body.first-load .section-card:nth-child(1) { animation: slideUp 0.35s ease-out 0.15s backwards; }
+		body.first-load .section-card:nth-child(2) { animation: slideUp 0.35s ease-out 0.2s backwards; }
+		body.first-load .section-card:nth-child(3) { animation: slideUp 0.35s ease-out 0.25s backwards; }
+		body.first-load .section-card:nth-child(4) { animation: slideUp 0.35s ease-out 0.3s backwards; }
+
+		body.first-load .footer {
+			animation: slideUp 0.35s ease-out 0.35s backwards;
+		}
 
 		.section-header {
 			padding: 0.75rem 1.25rem;
@@ -532,7 +551,6 @@
 			font-size: 0.85rem;
 			color: var(--color-text-muted);
 			line-height: 1.8;
-			animation: slideUp 0.35s ease-out 0.35s backwards;
 		}
 
 		.footer strong {
@@ -701,7 +719,7 @@
 		}
 	</style>
 </head>
-<body>
+<body class="first-load">
 
 <div class="container">
 	<div class="header">
@@ -759,7 +777,7 @@
 	</div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="chart.umd.min.js"></script>
 <script>
 	const TYPE_ORDER = ['HKV', 'WWZ', 'KWZ'];
 
@@ -794,6 +812,9 @@
 
 	let ALL_FLATS = [];
 	let FLAT_INDEX = 0;
+
+	let isFirstRender = true;
+	let chartInstance = null;
 
 	function currentFlat() {
 		return ALL_FLATS[FLAT_INDEX];
@@ -1052,6 +1073,14 @@
 		}
 
 		drawChart(DATA_FLAT);
+
+		// Nach dem ersten Render die Animationen deaktivieren
+		if (isFirstRender) {
+			isFirstRender = false;
+			setTimeout(() => {
+				document.body.classList.remove('first-load');
+			}, 400); // Nach den Animationen
+		}
 	}
 
 	function drawChart(DATA_FLAT) {
@@ -1060,8 +1089,22 @@
 
 		// Bestimme aktuelles Jahr und Vorjahr basierend auf dem ausgewählten Monat
 		const currentMonth = ALL_MONTHS[MONTH_INDEX];
-		const currentYear = parseInt(currentMonth.split('-')[0]);
+
+		const YEARS = [...new Set(DATA.map(e => e.month.split('-')[0]))]
+			.map(y => parseInt(y, 10))
+			.sort((a, b) => b - a);
+
+		const currentYear = YEARS[0];
 		const previousYear = currentYear - 1;
+		const selectedYear = parseInt(currentMonth.split('-')[0], 10);
+		const selectedMonthIndex = parseInt(currentMonth.split('-')[1], 10) - 1;
+
+		let highlightDatasetIndex = null;
+		if (selectedYear === currentYear) {
+			highlightDatasetIndex = 0;
+		} else if (selectedYear === previousYear) {
+			highlightDatasetIndex = 1;
+		}
 
 		// Monatsnamen für X-Achse
 		const monthLabels = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
@@ -1100,14 +1143,27 @@
 		// Bestimme den Monat-Index für Highlighting (0-11)
 		const highlightMonthIndex = currentMonth ? parseInt(currentMonth.split('-')[1]) - 1 : null;
 
-		// Zerstöre altes Chart falls vorhanden
-		if (window.chartInstance) {
-			window.chartInstance.destroy();
+		// Falls Chart bereits existiert, nur Daten aktualisieren
+		if (chartInstance) {
+			// Update der Labels
+			chartInstance.data.datasets[0].label = `Aktuell (${currentYear})`;
+			chartInstance.data.datasets[1].label = `Vorjahr (${previousYear})`;
+			
+			// Update der Daten
+			chartInstance.data.datasets[0].data = currentYearData;
+			chartInstance.data.datasets[1].data = previousYearData;
+			
+			// Update highlight index in custom plugin
+			chartInstance.options.plugins.customHighlight = { highlightMonthIndex, highlightDatasetIndex };
+			
+			// Chart mit Animation updaten (smooth)
+			chartInstance.update('active');
+			return;
 		}
 
-		// Erstelle Chart
+		// Erstelle Chart nur beim ersten Mal
 		const ctx = canvas.getContext('2d');
-		window.chartInstance = new Chart(ctx, {
+		chartInstance = new Chart(ctx, {
 			type: 'line',
 			data: {
 				labels: monthLabels,
@@ -1125,7 +1181,7 @@
 						pointHoverRadius: 7,
 						tension: 0.4,
 						fill: true,
-						spanGaps: false // Lücken nicht verbinden
+						spanGaps: false
 					},
 					{
 						label: `Vorjahr (${previousYear})`,
@@ -1147,11 +1203,19 @@
 			options: {
 				responsive: true,
 				maintainAspectRatio: false,
+				animation: {
+					duration: 300, // Schnelle Animation
+					easing: 'easeOutQuart'
+				},
 				interaction: {
 					mode: 'index',
 					intersect: false
 				},
 				plugins: {
+					customHighlight: {
+						highlightMonthIndex: selectedMonthIndex,
+						highlightDatasetIndex: highlightDatasetIndex
+					},
 					legend: {
 						display: true,
 						position: 'top',
@@ -1224,12 +1288,15 @@
 				}
 			},
 			plugins: [{
-				// Highlight für aktuellen Monat
-				afterDatasetsDraw: function(chart) {
-					if (highlightMonthIndex === null) return;
+				id: 'customHighlight',
+				afterDatasetsDraw: function(chart, args, options) {
+					const highlightIdx = options?.highlightMonthIndex;
+					const highlightDatasetIndex = options?.highlightDatasetIndex;
+					if (highlightIdx === null || highlightIdx === undefined ||
+							highlightDatasetIndex === null || highlightDatasetIndex === undefined) return;
 					
-					const meta = chart.getDatasetMeta(0);
-					const point = meta.data[highlightMonthIndex];
+					const meta = chart.getDatasetMeta(options.highlightDatasetIndex)
+					const point = meta.data[highlightIdx];
 					
 					if (point && !point.skip) {
 						const ctx = chart.ctx;

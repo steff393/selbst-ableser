@@ -86,6 +86,10 @@ class Handler(BaseHTTPRequestHandler):
 			self.serve_file("index.html", "text/html")
 			return
 
+		if subpath in ("chart.umd.min.js"):
+			self.serve_file(subpath, "text/javascript")
+			return
+		
 		if subpath in ("uvi.html", "impressum.html", "datenschutz.html"):
 			self.serve_file(subpath, "text/html")
 			return
