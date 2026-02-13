@@ -783,11 +783,13 @@
 		KWZ: 'Kaltwasserzähler'
 	};
 
-	const TYPE_KWH_FAKTOR = { HKV:1.42, WWZ:124.3, KWZ:1 };
-	const TYPE_DIVIDER    = { HKV:1, WWZ:1000, KWZ:1000 };
-	const TYPE_DEC_DIGITS = { HKV:0, WWZ:3, KWZ:3 };
-	const TYPE_SUM_UNITS  = { HKV:'kWh', WWZ:'kWh', KWZ:'m³' };
-	const TYPE_METER_UNITS= { HKV:'Einh.', WWZ:'m³', KWZ:'m³' };
+	const TYPE_KWH_FAKTOR   = { HKV:1.42, WWZ:124.3, KWZ:1 };
+	const TYPE_DIVIDER      = { HKV:1, WWZ:1000, KWZ:1000 };
+	const TYPE_NORM_DIVIDER = { HKV:1, WWZ:1000, KWZ:1 };
+	const TYPE_DEC_DIGITS   = { HKV:0, WWZ:3, KWZ:3 };
+	const TYPE_SUM_UNITS    = { HKV:'kWh', WWZ:'kWh', KWZ:'m³' };
+	const TYPE_NORM_UNITS   = { HKV:'kWh/m²', WWZ:'kWh/m²', KWZ:'l/m²' };
+	const TYPE_METER_UNITS  = { HKV:'Einh.', WWZ:'m³', KWZ:'m³' };
 
 	const TYPE_HINTS = {
 		HKV: 'Die Einheiten der Heizkostenverteiler werden rechnerisch als kWh angezeigt¹.',
@@ -803,6 +805,7 @@
 
 	let DATA = [];
 	let HOUSE_NORM = [];
+	let AREA = {};
 	let ALL_MONTHS = [];
 	let MONTH_INDEX = 0;
 
@@ -843,6 +846,11 @@
 		return formatNumberDE((val / TYPE_DIVIDER[type]), TYPE_DEC_DIGITS[type]);
 	}
 
+	function formatNorm(val, type) {
+		if (val === null) return 'k. A.';
+		return formatNumberDE((val / TYPE_NORM_DIVIDER[type] * TYPE_KWH_FAKTOR[type]), 1);
+	}
+
 	function getChangeClass(cur, prev) {
 		if (!prev || !cur) return 'neutral';
 		return cur > prev ? 'positive' : cur < prev ? 'negative' : 'neutral';
@@ -866,12 +874,10 @@
 		return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 	}
 
-	async function loadData() {
-		const parts = location.pathname.split('/').filter(Boolean);
-		const token = parts[0];
-		const res = await fetch(`/${token}/eval_combined?start=2023-12-31&end=2025-12-31`);
-		if (!res.ok) throw new Error("API error");
-		return await res.json();
+	function getConsumptionPerArea(sumCur, flat) {
+		const area = AREA[flat] ?? 0;
+		if (area <= 0) return 0;
+		return sumCur / area;
 	}
 
 	function render() {
@@ -985,29 +991,33 @@
 			body.appendChild(metricsGrid);
 
 			// Vergleich mit Norm
-			const houseByType = {};
-			for (const h of HOUSE_NORM) {
-				houseByType[h.type] ??= {};
-				houseByType[h.type][h.month] = h.consumption;
-			}
-			const normCur = houseByType[type]?.[currentMonth] ?? 0;
+			if (currentFlat() !== 'ALL') {
+				const houseByType = {};
+				for (const h of HOUSE_NORM) {
+					houseByType[h.type] ??= {};
+					houseByType[h.type][h.month] = h.consumption;
+				}
+				const normCur = houseByType[type]?.[currentMonth] ?? 0;
+				const normedCur = getConsumptionPerArea(sumCur, currentFlat());
 
-			if (normCur) {
-				const diff = ((sumCur - normCur) / normCur * 100);
-				const comparisonBox = document.createElement('div');
-				comparisonBox.className = 'comparison-box';
-				comparisonBox.innerHTML = `
-					<div class="comparison-icon">📊</div>
-					<div class="comparison-content">
-						<div class="comparison-text">
-							Ihr aktueller Verbrauch von <strong>${formatkWh(sumCur, type)} ${TYPE_SUM_UNITS[type]}</strong> liegt 
-							<strong>${formatNumberDE(Math.abs(diff), 0)}%</strong> 
-							<strong>${sumCur > normCur ? 'über' : 'unter'}</strong> 
-							dem Verbrauch eines normierten Durchschnittsnutzers (${formatkWh(normCur, type)} ${TYPE_SUM_UNITS[type]}).
+				if (normCur) {
+					const diff = ((normedCur - normCur) / normCur * 100);
+					const comparisonBox = document.createElement('div');
+					comparisonBox.className = 'comparison-box';
+					comparisonBox.innerHTML = `
+						<div class="comparison-icon">📊</div>
+						<div class="comparison-content">
+							<div class="comparison-text">
+								Ihr aktueller Verbrauch von 
+								<strong>${formatNorm(normedCur, type)} ${TYPE_NORM_UNITS[type]}</strong> liegt 
+								<strong>${formatNumberDE(Math.abs(diff), 0)}%</strong> 
+								<strong>${normedCur  > normCur ? 'über' : 'unter'}</strong> 
+								dem Verbrauch eines normierten Durchschnittsnutzers (${formatNorm(normCur, type)} ${TYPE_NORM_UNITS[type]}).
+							</div>
 						</div>
-					</div>
-				`;
-				body.appendChild(comparisonBox);
+					`;
+					body.appendChild(comparisonBox);
+				}
 			}
 
 			// Details Tabelle (eingeklappt in neuem Subsection)
@@ -1335,6 +1345,14 @@
 		render();
 	}
 
+	async function loadData() {
+		const parts = location.pathname.split('/').filter(Boolean);
+		const token = parts[0];
+		const res = await fetch(`/${token}/eval_combined?start=2023-12-31&end=2025-12-31`);
+		if (!res.ok) throw new Error("API error");
+		return await res.json();
+	}
+
 	document.getElementById('prevBtn').onclick = () => changeMonth(-1);
 	document.getElementById('nextBtn').onclick = () => changeMonth(1);
 	document.getElementById('flatPrevBtn').onclick = () => changeFlat(-1);
@@ -1350,6 +1368,7 @@
 	loadData().then(resp => {
 		DATA = resp.details;
 		HOUSE_NORM = resp.house_norm ?? [];
+		AREA = resp.area ?? {};
 		ALL_MONTHS = [...new Set(DATA.map(e => e.month))].sort();
 		const flats = [...new Set(DATA.map(e => e.flat))].sort();
 		if (flats.length > 1) {

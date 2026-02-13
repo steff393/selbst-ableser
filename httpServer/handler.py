@@ -255,7 +255,7 @@ class Handler(BaseHTTPRequestHandler):
 	def handle_uvi_combined_request(self, start, end, path, user_data):
 		start, end = self.restrict_period_by_user(start, end, user_data)
 		if not start:
-			return {"details": [], "house_norm": []}
+			return {"details": [], "house_norm": [], "area": {}	}
 		
 		all_results = evaluate_uvi(
 			json_path  = path,
@@ -266,9 +266,7 @@ class Handler(BaseHTTPRequestHandler):
 		)
 
 		user_flat = user_data.get("flat")
-		user_area = user_data.get("area", 0)
 
-		# details for selected flat
 		if user_flat is None:
 			details = all_results # admin can see all values
 		else:
@@ -284,22 +282,23 @@ class Handler(BaseHTTPRequestHandler):
 		for r in all_results:
 			sums[(r.month, r.type)] += r.consumption
 
+		# areas
 		users = self.load_users()
-		total_area = sum(
-			u.get("area", 0)
+
+		# Build flat → area dictionary
+		all_areas = {
+			u.get("flat"): u.get("area", 0)
 			for u in users.values()
 			if u.get("flat")
-		)
+		}
+		total_area = sum(all_areas.values())
 
 		house_norm = []
 		for (month, type_), consumption in sorted(sums.items()):
-			if user_flat is None:
-				consumption = consumption # user is admin
+			if total_area > 0:
+				consumption = consumption / total_area
 			else:
-				if total_area > 0:        # normal user
-					consumption = consumption / total_area * user_area
-				else:
-					consumption = 0
+				consumption = 0
 
 			house_norm.append({
 				"month": month,
@@ -307,9 +306,17 @@ class Handler(BaseHTTPRequestHandler):
 				"consumption": round(consumption, 2)
 			})
 
+		if user_flat is None:
+			area = all_areas # Admin → all flats
+		else:
+			area = {         # Normal user → only his flat
+				user_flat: user_data.get("area", 0)
+			}
+
 		return {
 			"details": serialize_monthly_results(details),
-			"house_norm": house_norm
+			"house_norm": house_norm,
+			"area": area
 		}
 
 
