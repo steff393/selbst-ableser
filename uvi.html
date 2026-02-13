@@ -222,14 +222,6 @@
 			margin-top: 0.25rem;
 		}
 
-		canvas {
-			width: 100% !important;
-			height: auto !important;
-			display: block;
-			image-rendering: -webkit-optimize-contrast;
-			image-rendering: crisp-edges;
-		}
-
 		/* Section Cards */
 		.section-card {
 			background: var(--color-surface);
@@ -471,6 +463,10 @@
 			justify-content: space-between;
 			gap: 0.75rem;
 			margin-top: 1rem;
+			cursor: pointer;
+			padding: 0.5rem;
+			border-radius: var(--radius-sm);
+			transition: background var(--transition-fast);
 		}
 
 		.subsection-header:hover {
@@ -739,7 +735,9 @@
 				<div class="chart-subtitle">Heizenergie über 12 Monate im Jahresvergleich</div>
 			</div>
 		</div>
-		<canvas id="chart"></canvas>
+		<div style="position: relative; height: 320px;">
+			<canvas id="chart"></canvas>
+		</div>
 	</div>
 
 	<div id="content"></div>
@@ -761,6 +759,7 @@
 	</div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 	const TYPE_ORDER = ['HKV', 'WWZ', 'KWZ'];
 
@@ -1009,10 +1008,9 @@
 				<div class="subsection-body"></div>
 			`;
 
-			subsection.addEventListener('click', () => {
-				const collapsed = subsection.classList.toggle('collapsed');
+			subsection.querySelector('.subsection-header').addEventListener('click', () => {
+				subsection.classList.toggle('collapsed');
 			});
-
 
 			const table = document.createElement('table');
 			table.className = 'data-table';
@@ -1056,249 +1054,213 @@
 		drawChart(DATA_FLAT);
 	}
 
-	function niceStep(max, targetTicks = 5) {
-		const rawStep = max / targetTicks;
-		const pow10 = Math.pow(10, Math.floor(Math.log10(rawStep)));
-		const norm = rawStep / pow10;
-
-		let step;
-		if (norm < 1.5) step = 1;
-		else if (norm < 3) step = 2;
-		else if (norm < 7) step = 5;
-		else step = 10;
-
-		return step * pow10;
-	}
-
-	function resizeCanvas(canvas, ctx, height = 320) {
-		const dpr = window.devicePixelRatio || 1;
-		const cssWidth = canvas.parentElement.clientWidth;
-
-		// Set CSS size
-		canvas.style.width = cssWidth + 'px';
-		canvas.style.height = height + 'px';
-
-		// Set actual size in memory (scaled for retina)
-		canvas.width  = Math.floor(cssWidth * dpr);
-		canvas.height = Math.floor(height * dpr);
-
-		// Reset transform and scale for retina
-		//ctx.setTransform(1, 0, 0, 1, 0, 0);
-		ctx.scale(dpr, dpr);
-
-		return { W: cssWidth, H: height };
-	}
-
 	function drawChart(DATA_FLAT) {
 		const canvas = document.getElementById('chart');
 		if (!canvas) return;
 
-		const ctx = canvas.getContext('2d');
-		const { W, H } = resizeCanvas(canvas, ctx, 320);
-		// Mehr Platz für Y-Achse links - responsive
-		const P = W < 600 ? 70 : Math.min(75, W * 0.12);
-		
-		ctx.clearRect(0, 0, W, H);
+		// Bestimme aktuelles Jahr und Vorjahr basierend auf dem ausgewählten Monat
+		const currentMonth = ALL_MONTHS[MONTH_INDEX];
+		const currentYear = parseInt(currentMonth.split('-')[0]);
+		const previousYear = currentYear - 1;
 
-		// Monatswerte aggregieren
-		const sums = {};
+		// Monatsnamen für X-Achse
+		const monthLabels = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+
+		// Aggregiere Verbrauchsdaten nach Jahr und Monat
+		const consumptionByYearMonth = {};
 		for (const e of DATA_FLAT) {
 			if (e.type !== 'HKV') continue;
-			sums[e.month] ??= 0;
-			sums[e.month] += (e.consumption ?? 0) * TYPE_KWH_FAKTOR[e.type];
-		}
-
-		const months = ALL_MONTHS.slice(-24);
-		const curMonths  = months.slice(12);
-		const prevMonths = months.slice(0, 12);
-
-		const curVals  = curMonths.map(m => sums[m] ?? 0);
-		const prevVals = prevMonths.map(m => sums[m] ?? 0);
-
-		const max = Math.max(...curVals, ...prevVals, 1);
-
-		const x = i => P + i * (W - 2 * P) / 11;
-		const y = v => H - P - v / max * (H - 2 * P);
-
-		// Hintergrund Gradient
-		const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-		bgGrad.addColorStop(0, '#f8f9fb');
-		bgGrad.addColorStop(1, '#ffffff');
-		ctx.fillStyle = bgGrad;
-		ctx.fillRect(0, 0, W, H);
-
-		// Grid
-		ctx.strokeStyle = '#e3e8ef';
-		ctx.lineWidth = 1;
-
-		const step = niceStep(max, 4);
-		const maxTick = Math.ceil(max / step) * step;
-
-		for (let v = 0; v <= maxTick; v += step) {
-			const py = y(v);
-			ctx.beginPath();
-			ctx.moveTo(P, py);
-			ctx.lineTo(W - P, py);
-			ctx.stroke();
-		}
-
-		// Achsen
-		ctx.strokeStyle = '#8493a8';
-		ctx.lineWidth = 2;
-		ctx.beginPath();
-		ctx.moveTo(P, P);
-		ctx.lineTo(P, H - P);
-		ctx.lineTo(W - P, H - P);
-		ctx.stroke();
-
-		// Y-Labels
-		ctx.fillStyle = '#5a6a7f';
-		ctx.font = '600 12px -apple-system, BlinkMacSystemFont, sans-serif';
-		ctx.textAlign = 'right';
-		for (let v = 0; v <= maxTick; v += step) {
-			const py = y(v);
-			ctx.fillText(formatNumberDE(v, 0) + " kWh", P - 10, py + 4);
-		}
-
-		// X-Labels
-		ctx.textAlign = 'center';
-		curMonths.forEach((m, i) => {
-			const px = x(i);
-			const label = new Date(m + '-01').toLocaleDateString('de-DE', { month: 'short' });
-			ctx.fillText(label, px, H - P + 20);
-		});
-
-		// Area fills
-		function drawArea(values, color, alpha) {
-			ctx.globalAlpha = alpha;
-			const gradient = ctx.createLinearGradient(0, P, 0, H - P);
-			gradient.addColorStop(0, color);
-			gradient.addColorStop(1, color.replace(')', ', 0)').replace('rgb', 'rgba'));
-			ctx.fillStyle = gradient;
+			const [year, month] = e.month.split('-');
+			const monthIndex = parseInt(month) - 1; // 0-basiert
+			const consumption = (e.consumption ?? 0) * TYPE_KWH_FAKTOR[e.type];
 			
-			ctx.beginPath();
-			ctx.moveTo(x(0), H - P);
-			values.forEach((v, i) => {
-				ctx.lineTo(x(i), y(v));
-			});
-			ctx.lineTo(x(values.length - 1), H - P);
-			ctx.closePath();
-			ctx.fill();
-			ctx.globalAlpha = 1;
-		}
-
-		// Smooth lines
-		function smoothLine(values, color, width, alpha = 1) {
-			ctx.strokeStyle = color;
-			ctx.lineWidth = width;
-			ctx.globalAlpha = alpha;
-			ctx.lineCap = 'round';
-			ctx.lineJoin = 'round';
-			ctx.beginPath();
-
-			values.forEach((v, i) => {
-				const px = x(i);
-				const py = y(v);
-				if (i === 0) {
-					ctx.moveTo(px, py);
-				} else {
-					const ppx = x(i - 1);
-					const ppy = y(values[i - 1]);
-					const cx = (ppx + px) / 2;
-					ctx.quadraticCurveTo(ppx, ppy, cx, (ppy + py) / 2);
-					ctx.quadraticCurveTo(cx, (ppy + py) / 2, px, py);
-				}
-			});
-			ctx.stroke();
-			ctx.globalAlpha = 1;
-		}
-
-		// Draw areas
-		drawArea(prevVals, 'rgb(132, 147, 168)', 0.1);
-		drawArea(curVals, 'rgb(13, 115, 119)', 0.15);
-
-		// Draw lines
-		smoothLine(prevVals, '#8493a8', 2.5, 0.5);
-		smoothLine(curVals, '#0d7377', 3.5);
-
-		// Points
-		function drawPoints(values, color, alpha = 1) {
-			ctx.globalAlpha = alpha;
-			values.forEach((v, i) => {
-				const px = x(i);
-				const py = y(v);
-				ctx.fillStyle = '#ffffff';
-				ctx.beginPath();
-				ctx.arc(px, py, 5, 0, Math.PI * 2);
-				ctx.fill();
-				ctx.strokeStyle = color;
-				ctx.lineWidth = 2.5;
-				ctx.stroke();
-			});
-			ctx.globalAlpha = 1;
-		}
-
-		drawPoints(prevVals, '#8493a8', 0.5);
-		drawPoints(curVals, '#0d7377');
-
-		// Highlight current month
-		let idx = MONTH_INDEX;
-		if (idx >= 0 && idx < 24) {
-			let px, py;
-			if (idx < 12) {
-				px = x(idx);
-				py = y(prevVals[idx]);
-			} else {
-				px = x(idx - (ALL_MONTHS.length - 12));
-				py = y(curVals[idx - (ALL_MONTHS.length - 12)]);
+			if (!consumptionByYearMonth[year]) {
+				consumptionByYearMonth[year] = {};
 			}
-			
-			// Highlight line
-			ctx.strokeStyle = '#f4a259';
-			ctx.lineWidth = 2;
-			ctx.setLineDash([5, 5]);
-			ctx.beginPath();
-			ctx.moveTo(px, py);
-			ctx.lineTo(px, H - P);
-			ctx.stroke();
-			ctx.setLineDash([]);
-
-			// Highlight point
-			ctx.fillStyle = '#f4a259';
-			ctx.beginPath();
-			ctx.arc(px, py, 7, 0, Math.PI * 2);
-			ctx.fill();
-			ctx.strokeStyle = '#ffffff';
-			ctx.lineWidth = 3;
-			ctx.stroke();
+			if (!consumptionByYearMonth[year][monthIndex]) {
+				consumptionByYearMonth[year][monthIndex] = 0;
+			}
+			consumptionByYearMonth[year][monthIndex] += consumption;
 		}
 
-		// Legend
-		const legendY = 30;
-		const legendSpacing = 100;
+		// Erstelle Daten-Arrays für aktuelles Jahr und Vorjahr (Jan-Dez)
+		const currentYearData = [];
+		const previousYearData = [];
 		
-		ctx.strokeStyle = '#0d7377';
-		ctx.lineWidth = 3;
-		ctx.beginPath();
-		ctx.moveTo(P, legendY);
-		ctx.lineTo(P + 30, legendY);
-		ctx.stroke();
-		
-		ctx.fillStyle = '#1a2332';
-		ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
-		ctx.textAlign = 'left';
-		ctx.fillText('Aktuell', P + 40, legendY + 4);
+		for (let monthIdx = 0; monthIdx < 12; monthIdx++) {
+			// Aktuelles Jahr
+			const currentValue = consumptionByYearMonth[currentYear]?.[monthIdx] ?? null;
+			currentYearData.push(currentValue);
+			
+			// Vorjahr
+			const previousValue = consumptionByYearMonth[previousYear]?.[monthIdx] ?? null;
+			previousYearData.push(previousValue);
+		}
 
-		ctx.strokeStyle = '#8493a8';
-		ctx.lineWidth = 2.5;
-		ctx.globalAlpha = 0.5;
-		ctx.beginPath();
-		ctx.moveTo(P + legendSpacing, legendY);
-		ctx.lineTo(P + legendSpacing + 30, legendY);
-		ctx.stroke();
-		ctx.globalAlpha = 1;
-		
-		ctx.fillText('Vorjahr', P + legendSpacing + 40, legendY + 4);
+		// Bestimme den Monat-Index für Highlighting (0-11)
+		const highlightMonthIndex = currentMonth ? parseInt(currentMonth.split('-')[1]) - 1 : null;
+
+		// Zerstöre altes Chart falls vorhanden
+		if (window.chartInstance) {
+			window.chartInstance.destroy();
+		}
+
+		// Erstelle Chart
+		const ctx = canvas.getContext('2d');
+		window.chartInstance = new Chart(ctx, {
+			type: 'line',
+			data: {
+				labels: monthLabels,
+				datasets: [
+					{
+						label: `Aktuell (${currentYear})`,
+						data: currentYearData,
+						borderColor: '#0d7377',
+						backgroundColor: 'rgba(13, 115, 119, 0.1)',
+						borderWidth: 3,
+						pointRadius: 5,
+						pointBackgroundColor: '#ffffff',
+						pointBorderColor: '#0d7377',
+						pointBorderWidth: 2.5,
+						pointHoverRadius: 7,
+						tension: 0.4,
+						fill: true,
+						spanGaps: false // Lücken nicht verbinden
+					},
+					{
+						label: `Vorjahr (${previousYear})`,
+						data: previousYearData,
+						borderColor: '#8493a8',
+						backgroundColor: 'rgba(132, 147, 168, 0.1)',
+						borderWidth: 2.5,
+						pointRadius: 5,
+						pointBackgroundColor: '#ffffff',
+						pointBorderColor: '#8493a8',
+						pointBorderWidth: 2.5,
+						pointHoverRadius: 7,
+						tension: 0.4,
+						fill: true,
+						spanGaps: false
+					}
+				]
+			},
+			options: {
+				responsive: true,
+				maintainAspectRatio: false,
+				interaction: {
+					mode: 'index',
+					intersect: false
+				},
+				plugins: {
+					legend: {
+						display: true,
+						position: 'top',
+						align: 'start',
+						labels: {
+							usePointStyle: true,
+							padding: 15,
+							font: {
+								size: 13,
+								weight: '600',
+								family: '-apple-system, BlinkMacSystemFont, sans-serif'
+							},
+							color: '#1a2332'
+						}
+					},
+					tooltip: {
+						backgroundColor: 'rgba(255, 255, 255, 0.95)',
+						titleColor: '#1a2332',
+						bodyColor: '#5a6a7f',
+						borderColor: '#e3e8ef',
+						borderWidth: 1,
+						padding: 12,
+						displayColors: true,
+						callbacks: {
+							label: function(context) {
+								let label = context.dataset.label || '';
+								if (label) {
+									label += ': ';
+								}
+								if (context.parsed.y !== null) {
+									label += formatNumberDE(context.parsed.y, 0) + ' kWh';
+								}
+								return label;
+							}
+						}
+					}
+				},
+				scales: {
+					x: {
+						grid: {
+							display: false
+						},
+						ticks: {
+							font: {
+								size: 12,
+								weight: '600',
+								family: '-apple-system, BlinkMacSystemFont, sans-serif'
+							},
+							color: '#5a6a7f'
+						}
+					},
+					y: {
+						beginAtZero: true,
+						grid: {
+							color: '#f0f3f7',
+							drawBorder: false
+						},
+						ticks: {
+							font: {
+								size: 12,
+								weight: '600',
+								family: '-apple-system, BlinkMacSystemFont, sans-serif'
+							},
+							color: '#5a6a7f',
+							callback: function(value) {
+								return formatNumberDE(value, 0) + ' kWh';
+							}
+						}
+					}
+				}
+			},
+			plugins: [{
+				// Highlight für aktuellen Monat
+				afterDatasetsDraw: function(chart) {
+					if (highlightMonthIndex === null) return;
+					
+					const meta = chart.getDatasetMeta(0);
+					const point = meta.data[highlightMonthIndex];
+					
+					if (point && !point.skip) {
+						const ctx = chart.ctx;
+						const x = point.x;
+						const yAxis = chart.scales.y;
+						
+						// Gestrichelte vertikale Linie
+						ctx.save();
+						ctx.setLineDash([5, 5]);
+						ctx.strokeStyle = '#f4a259';
+						ctx.lineWidth = 2;
+						ctx.beginPath();
+						ctx.moveTo(x, point.y);
+						ctx.lineTo(x, yAxis.bottom);
+						ctx.stroke();
+						ctx.restore();
+						
+						// Highlight-Punkt
+						ctx.save();
+						ctx.fillStyle = '#f4a259';
+						ctx.strokeStyle = '#ffffff';
+						ctx.lineWidth = 3;
+						ctx.beginPath();
+						ctx.arc(point.x, point.y, 7, 0, Math.PI * 2);
+						ctx.fill();
+						ctx.stroke();
+						ctx.restore();
+					}
+				}
+			}]
+		});
 	}
 
 	function changeMonth(diff) {
@@ -1321,18 +1283,6 @@
 		if (e.shiftKey && e.key === 'ArrowRight') changeFlat(1);
 		if (!e.shiftKey && e.key === 'ArrowLeft')  changeMonth(-1);
 		if (!e.shiftKey && e.key === 'ArrowRight') changeMonth(1);
-	});
-
-	let resizeTimer;
-	window.addEventListener('resize', () => {
-		clearTimeout(resizeTimer);
-		resizeTimer = setTimeout(() => {
-			drawChart(
-				currentFlat() === 'ALL'
-					? DATA
-					: DATA.filter(e => e.flat === currentFlat())
-			);
-		}, 150);
 	});
 
 	loadData().then(resp => {
