@@ -12,6 +12,7 @@
 			--color-accent: #f4a259;
 			--color-success: #52b788;
 			--color-danger: #e63946;
+			--color-admin: #9b59b6;
 			
 			--color-bg: #f8f9fb;
 			--color-surface: #ffffff;
@@ -241,6 +242,13 @@
 			border: 1px solid rgba(13, 115, 119, 0.15);
 		}
 
+		.token.admin {
+			background: linear-gradient(135deg, rgba(155, 89, 182, 0.15) 0%, rgba(155, 89, 182, 0.08) 100%);
+			color: var(--color-admin);
+			border: 1px solid rgba(155, 89, 182, 0.25);
+			font-weight: 600;
+		}
+
 		input[type="text"],
 		input[type="number"],
 		input[type="date"] {
@@ -257,6 +265,16 @@
 			outline: none;
 			border-color: var(--color-primary);
 			box-shadow: 0 0 0 3px rgba(13, 115, 119, 0.1);
+		}
+
+		input.error {
+			background: rgba(230, 57, 70, 0.08);
+			border-color: rgba(230, 57, 70, 0.3);
+		}
+
+		.flat-input.error {
+			background: rgba(230, 57, 70, 0.08);
+			border-color: rgba(230, 57, 70, 0.3);
 		}
 
 		.actions-cell {
@@ -312,6 +330,24 @@
 			margin-bottom: 1rem;
 		}
 
+		.total-area {
+			background: var(--color-surface);
+			border-radius: var(--radius-lg);
+			padding: 1rem;
+			box-shadow: var(--shadow-md);
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			font-size: 1.1rem;
+			font-weight: 600;
+			color: var(--color-text-primary);
+		}
+
+		.total-area .value {
+			color: var(--color-primary);
+			font-size: 1.3rem;
+		}
+
 		@media (max-width: 768px) {
 			.actions-bar {
 				flex-direction: column;
@@ -336,6 +372,12 @@
 
 			.actions-cell {
 				flex-direction: column;
+			}
+
+			.total-area {
+				flex-direction: column;
+				gap: 0.5rem;
+				text-align: center;
 			}
 		}
 
@@ -413,6 +455,11 @@
 		</div>
 	</div>
 
+	<div class="total-area">
+		<span>Gesamtfläche:</span>
+		<span class="value" id="totalArea">0 m²</span>
+	</div>
+
 	<div id="status"></div>
 </div>
 
@@ -454,6 +501,90 @@ function getAdminToken() {
 	return null; // Setup-Mode
 }
 
+function isAdmin(user) {
+	return !user || !user.flat || user.flat.trim() === "";
+}
+
+function isCurrentResident(user) {
+	if (!user) return false;
+	const today = new Date().toISOString().split('T')[0];
+	const moveIn = user.move_in || "";
+	const moveOut = user.move_out || "";
+	
+	const hasMovedIn = !moveIn || moveIn <= today;
+	const hasNotMovedOut = !moveOut || moveOut > today;
+	
+	return hasMovedIn && hasNotMovedOut;
+}
+
+function getSortedTokens() {
+	return Object.keys(users).sort((a, b) => {
+		const userA = users[a];
+		const userB = users[b];
+		
+		// Admins zuerst
+		const isAdminA = isAdmin(userA);
+		const isAdminB = isAdmin(userB);
+		
+		if (isAdminA && !isAdminB) return -1;
+		if (!isAdminA && isAdminB) return 1;
+		
+		// Dann nach Wohnung sortieren
+		const flatA = (userA?.flat || "").toLowerCase();
+		const flatB = (userB?.flat || "").toLowerCase();
+		
+		return flatA.localeCompare(flatB);
+	});
+}
+
+function hasDateOverlap(token, flat, moveIn, moveOut) {
+	if (!flat || flat.trim() === "") return false;
+	
+	for (const [otherToken, otherUser] of Object.entries(users)) {
+		if (otherToken === token) continue;
+		if (!otherUser || !otherUser.flat || otherUser.flat !== flat) continue;
+		
+		const otherMoveIn = otherUser.move_in || "";
+		const otherMoveOut = otherUser.move_out || "";
+		
+		// Prüfe Überschneidungen
+		// Fall 1: Dieser Einzug liegt vor dem Auszug des anderen
+		// Fall 2: Dieser Auszug liegt nach dem Einzug des anderen
+		if (moveIn && otherMoveOut && moveIn < otherMoveOut && (!moveOut || moveOut > otherMoveIn || !otherMoveIn)) {
+			return true;
+		}
+		if (moveOut && otherMoveIn && moveOut > otherMoveIn && (!moveIn || moveIn < otherMoveOut || !otherMoveOut)) {
+			return true;
+		}
+		// Wenn beide Zeiträume sich überschneiden
+		if (moveIn && moveOut && otherMoveIn && otherMoveOut) {
+			if (!(moveOut <= otherMoveIn || moveIn >= otherMoveOut)) {
+				return true;
+			}
+		}
+		// Wenn einer keinen Auszug hat (unbegrenzt)
+		if (!moveOut && otherMoveIn && (!moveIn || moveIn <= otherMoveIn)) {
+			return true;
+		}
+		if (!otherMoveOut && moveIn && (!otherMoveIn || otherMoveIn <= moveIn)) {
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+function flatHasNoArea(flat) {
+	if (!flat || flat.trim() === "") return false;
+	
+	for (const [token, user] of Object.entries(users)) {
+		if (user && user.flat === flat && user.area && user.area > 0) {
+			return false;
+		}
+	}
+	return true;
+}
+
 function renderUsers() {
 	const tb = document.querySelector("#tbl tbody");
 	
@@ -469,23 +600,50 @@ function renderUsers() {
 				</td>
 			</tr>
 		`;
+		updateTotalArea();
 		return;
 	}
 
 	tb.innerHTML = "";
-	for (const token in users) {
+	const sortedTokens = getSortedTokens();
+	
+	for (const token of sortedTokens) {
 		const u = users[token];
 		const tr = document.createElement('tr');
+		const admin = isAdmin(u);
+		const currentResident = isCurrentResident(u);
+		
+		// Validierung
+		const areaHasError = !admin && !currentResident && u.area && u.area > 0;
+		const moveOutBeforeMoveIn = u.move_in && u.move_out && u.move_out <= u.move_in;
+		const datesHaveOverlap = !admin && hasDateOverlap(token, u.flat, u.move_in, u.move_out);
+		const flatMissingArea = !admin && u.flat && u.flat.trim() !== "" && flatHasNoArea(u.flat);
+		
 		tr.innerHTML = `
-			<td><span class="token">${token}</span></td>
-			<td><input type="text" value="${u?.flat ?? ""}" onchange="updateUser('${token}','flat',this.value)"></td>
+			<td><span class="token ${admin ? 'admin' : ''}">${token}${admin ? ' 👑' : ''}</span></td>
+			<td><input type="text" 
+				class="flat-input ${flatMissingArea ? 'error' : ''}"
+				value="${u?.flat ?? ""}" 
+				onchange="updateUser('${token}','flat',this.value)"
+				onblur="renderUsers()"></td>
 			<td>
 				<input type="number" step="0.1" min="0"
-					value="${u?.area ?? 0}"
-					onchange="updateUser('${token}','area',parseFloat(this.value) || 0)">
+					class="${areaHasError ? 'error' : ''}"
+					value="${admin ? '' : (u?.area ?? '')}"
+					${admin ? 'disabled' : ''}
+					onchange="updateUser('${token}','area',this.value === '' ? null : parseFloat(this.value))"
+					onblur="renderUsers()">
 			</td>
-			<td><input type="date" value="${u?.move_in ?? ""}" onchange="updateUser('${token}','move_in',this.value)"></td>
-			<td><input type="date" value="${u?.move_out ?? ""}" onchange="updateUser('${token}','move_out',this.value)"></td>
+			<td><input type="date" 
+				class="${(moveOutBeforeMoveIn || datesHaveOverlap) ? 'error' : ''}"
+				value="${u?.move_in ?? ""}" 
+				onchange="updateUser('${token}','move_in',this.value)"
+				onblur="renderUsers()"></td>
+			<td><input type="date" 
+				class="${(moveOutBeforeMoveIn || datesHaveOverlap) ? 'error' : ''}"
+				value="${u?.move_out ?? ""}" 
+				onchange="updateUser('${token}','move_out',this.value)"
+				onblur="renderUsers()"></td>
 			<td>
 				<div class="actions-cell">
 					<button class="btn btn-link" onclick="openUvi('${token}')">🔗 UVI</button>
@@ -495,11 +653,39 @@ function renderUsers() {
 		`;
 		tb.appendChild(tr);
 	}
+	
+	updateTotalArea();
+}
+
+function updateTotalArea() {
+	let total = 0;
+	for (const [token, user] of Object.entries(users)) {
+		if (!isAdmin(user) && isCurrentResident(user) && user.area) {
+			total += parseFloat(user.area) || 0;
+		}
+	}
+	document.getElementById('totalArea').textContent = total.toFixed(2) + ' m²';
 }
 
 function updateUser(token, key, val) {
 	if (!users[token]) users[token] = {};
-	users[token][key] = val || null;
+	
+	if (key === 'flat') {
+		users[token][key] = val || null;
+		// Wenn Wohnung geleert wird (Admin), Fläche auf null setzen
+		if (!val || val.trim() === "") {
+			users[token].area = null;
+		}
+	} else if (key === 'area') {
+		// Fläche nur setzen wenn kein Admin
+		if (!isAdmin(users[token])) {
+			users[token][key] = val;
+		} else {
+			users[token][key] = null;
+		}
+	} else {
+		users[token][key] = val || null;
+	}
 }
 
 function del(token) {
@@ -512,7 +698,7 @@ function del(token) {
 function addUser() {
 	const newToken = crypto.getRandomValues(new Uint8Array(8))
 		.reduce((s,b)=>s+b.toString(16).padStart(2,"0"),"");
-	users[newToken] = { flat: "", area: 0, move_in: null, move_out: null };
+	users[newToken] = { flat: "", area: null, move_in: null, move_out: null };
 	renderUsers();
 }
 
@@ -538,10 +724,19 @@ function save() {
 		return;
 	}
 
+	// Fläche bei Admins auf null setzen vor dem Speichern
+	const cleanedUsers = {};
+	for (const [token, user] of Object.entries(users)) {
+		cleanedUsers[token] = { ...user };
+		if (isAdmin(cleanedUsers[token])) {
+			cleanedUsers[token].area = null;
+		}
+	}
+
 	fetch(`${apiBase}/users/save`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(users)
+		body: JSON.stringify(cleanedUsers)
 	})
 	.then(r => {
 		if (!r.ok) throw new Error("Speichern fehlgeschlagen");
