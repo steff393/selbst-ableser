@@ -7,29 +7,49 @@ from urllib.parse import urlparse, parse_qs
 from meterReader import evaluate_uvi, serialize_monthly_results
 from .importer import import_and_encrypt
 import tempfile
+import secrets
+
+
+session_store = {}
 
 
 class Handler(BaseHTTPRequestHandler):
 	def __init__(self, *args, cfg=None, registry=None, **kwargs):
 		self.cfg = cfg
 		self.registry = registry
+		self.sessions = session_store
 		super().__init__(*args, **kwargs)
 
-	def get_token_and_subpath(self):
-		parts = self.path.strip("/").split("/", 1)
-		token = parts[0] if parts else None
-		subpath = parts[1] if len(parts) > 1 else ""
-		return token, subpath
+	
+	def get_token_from_cookie(self):
+		cookie_header = self.headers.get("Cookie")
+		if not cookie_header:
+				return None
+		cookies = {}
+		for part in cookie_header.split(";"):
+				if "=" in part:
+						k, v = part.strip().split("=", 1)
+						cookies[k] = v
+		return cookies.get("session_token")
+
 
 	def do_GET(self):
 		parsed = urlparse(self.path)
 		params = parse_qs(parsed.query)
-		token, subpath = self.get_token_and_subpath()
+		subpath = parsed.path.lstrip("/")
 
-		if self.path == "/favicon.ico":
+		# serve public files
+		if subpath in ("favicon.ico"):
 			self.serve_file("favicon.ico", "image/svg+xml")
 			return
+		if subpath in ("login.html", "impressum.html", "datenschutz.html"):
+			self.serve_file(subpath, "text/html")
+			return
+		if subpath in ("chart.umd.min.js"):
+			self.serve_file(subpath, "text/javascript")
+			return
 
+		session_token = self.get_token_from_cookie()
 		users = self.load_users()
 		is_setup_mode = len(users) == 0
 
@@ -44,10 +64,11 @@ class Handler(BaseHTTPRequestHandler):
 			self.serve_file("index.html", "text/html")
 			return
 		else:
-			if token not in users:
-				self.send_error(403, "Ungültiger Token")
+			if not session_token or session_token not in self.sessions:
+				self.serve_file("login.html", "text/html")
 				return
 			# get data object of the user, eg. {"flat": "A1", ...}
+			token = self.sessions[session_token]["user"]
 			user_data = users.get(token)
 
 		# Routing
@@ -64,18 +85,11 @@ class Handler(BaseHTTPRequestHandler):
 		if subpath in ("", "index.html"):
 			self.serve_file("index.html", "text/html")
 			return
-
-		if subpath in ("chart.umd.min.js"):
-			self.serve_file(subpath, "text/javascript")
-			return
 		
-		if subpath in ("uvi.html", "impressum.html", "datenschutz.html"):
+		if subpath in ("uvi.html"):
 			self.serve_file(subpath, "text/html")
 			return
 		
-		if subpath in ("uvialt.html"):
-			self.serve_file("uviAlt.html", "text/html")
-			return
 
 		# only for admins (no filter)
 		if users is not None and users.get(token).get("flat") in (None, ""):
@@ -99,7 +113,12 @@ class Handler(BaseHTTPRequestHandler):
 
 
 	def do_POST(self):
-		token, subpath = self.get_token_and_subpath()
+		parsed = urlparse(self.path)
+		subpath = parsed.path.lstrip("/")
+
+		if subpath == "login":
+			self.handle_login()
+			return
 		
 		users = self.load_users()
 		is_setup_mode = len(users) == 0
@@ -110,6 +129,12 @@ class Handler(BaseHTTPRequestHandler):
 				return
 
 		# only for admins
+		session_token = self.get_token_from_cookie()
+		if not session_token or session_token not in self.sessions:
+			self.send_error(403, "Nicht angemeldet")
+			return
+
+		token = self.sessions[session_token]["user"]
 		if users is not None and users.get(token).get("flat") not in (None, ""):
 			self.send_error(403, "Nur für Admins")
 			return
@@ -123,6 +148,35 @@ class Handler(BaseHTTPRequestHandler):
 			return
 
 		self.send_error(404)
+
+
+	def handle_login(self):
+		length = int(self.headers.get("Content-Length", 0))
+		data = json.loads(self.rfile.read(length))
+		token = data.get("token")
+
+		users = self.load_users()
+		if token not in users:
+			self.send_error(403, "Ungültiger Token")
+			return
+
+		# Session-Token generieren
+		session_token = secrets.token_urlsafe(32)
+		self.sessions[session_token] = {
+			"user": token,
+			"created": datetime.utcnow().isoformat()
+		}
+		print(f"Sessions: {self.sessions}")
+
+		# HttpOnly-Cookie setzen
+		self.send_response(200)
+		self.send_header("Content-Type", "application/json")
+		self.send_header(
+				"Set-Cookie",
+				f"session_token={session_token}; HttpOnly; Path=/; SameSite=Lax"
+		)
+		self.end_headers()
+		self.wfile.write(json.dumps({"status": "ok"}).encode())
 
 
 	def handle_users_save(self):

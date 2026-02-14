@@ -406,7 +406,7 @@
 const apiBase = "";
 
 // Setup-Mode Check
-fetch(`${apiBase}/users/data`)
+fetch(`/users/data`, {credentials: "same-origin"})
 	.then(r => {
 		if (!r.ok) return null;
 		return r.json();
@@ -446,9 +446,10 @@ function saveAdmin() {
 	const users = {};
 	users[token] = { flat: null, area: 0, move_in: null, move_out: null };
 
-	fetch(`${apiBase}/users/save`, {
+	fetch(`/users/save`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
+		credentials: "same-origin",
 		body: JSON.stringify(users)
 	})
 	.then(r => {

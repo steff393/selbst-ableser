@@ -473,33 +473,23 @@
 
 <script>
 let users = {};
-// Extrahiere den Admin-Token aus der URL (erster Teil des Pfades)
-const adminToken = getAdminToken();
-const apiBase = adminToken ? `/${adminToken}` : ""; // Setup-Mode
 
 // Initiales Laden der Daten
-fetch(`${apiBase}/users/data`)
-	.then(r => {
-		if (!r.ok) throw new Error("HTTP " + r.status);
-		return r.json();
-	})
-	.then(data => {
-		users = data;
-		renderUsers();
-	})
-	.catch(err => {
-		console.error("API error:", err);
-		showError("Fehler beim Laden der Benutzerdaten");
-	});
-
-function getAdminToken() {
-	const parts = window.location.pathname.split("/").filter(Boolean);
-	// Erwartete URL im Normalbetrieb: /<token>/users.html
-	if (parts.length >= 2 && parts[1].endsWith(".html")) {
-		return parts[0];
-	}
-	return null; // Setup-Mode
-}
+fetch(`/users/data`, {
+	credentials: "same-origin"
+})
+.then(r => {
+	if (!r.ok) throw new Error("HTTP " + r.status);
+	return r.json();
+})
+.then(data => {
+	users = data;
+	renderUsers();
+})
+.catch(err => {
+	console.error("API error:", err);
+	showError("Fehler beim Laden der Benutzerdaten");
+});
 
 function isAdmin(user) {
 	return !user || !user.flat || user.flat.trim() === "";
@@ -733,9 +723,10 @@ function save() {
 		}
 	}
 
-	fetch(`${apiBase}/users/save`, {
+	fetch(`/users/save`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
+		credentials: "same-origin",
 		body: JSON.stringify(cleanedUsers)
 	})
 	.then(r => {
@@ -759,11 +750,33 @@ function save() {
 }
 
 function exportUsers() {
-	window.location.href = `${apiBase}/users/export`;
+	fetch("/users/export", {
+		credentials: "same-origin"
+	})
+	.then(r => {
+		if (!r.ok) throw new Error("Export fehlgeschlagen");
+		return r.blob(); // Datei als Blob
+	})
+	.then(blob => {
+		// Download starten
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = "users.json";
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		URL.revokeObjectURL(url);
+	})
+	.catch(err => {
+		showError("Fehler beim Export der Benutzerdaten");
+		console.error(err);
+	});
 }
 
+
 function openUvi(token) {
-	window.open("/" + token + "/uvi.html", "_blank");
+	window.open("/uvi.html", "_blank");
 }
 
 function showError(message) {

@@ -138,7 +138,7 @@
 		}
 
 		input[type="file"]:hover,
-		input[type="password]:hover {
+		input[type="password"]:hover {
 			border-color: var(--color-primary-light);
 			background: white;
 		}
@@ -407,6 +407,7 @@ document.getElementById("form").addEventListener("submit", async e => {
 		const data = new FormData(form);
 		const res = await fetch("import/upload", {
 			method: "POST",
+			credentials: "same-origin",
 			body: data
 		});
 		
