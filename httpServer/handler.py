@@ -4,15 +4,14 @@ from datetime import datetime, date
 import cgi
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-from meterReader import evaluate_uvi, evaluate_uvi_aggregated, serialize_monthly_results, serialize_monthly_aggregates
+from meterReader import evaluate_uvi, serialize_monthly_results
 from .importer import import_and_encrypt
 import tempfile
 
 
 class Handler(BaseHTTPRequestHandler):
-	def __init__(self, *args, cfg=None, frame_store=None, registry=None, **kwargs):
+	def __init__(self, *args, cfg=None, registry=None, **kwargs):
 		self.cfg = cfg
-		self.frame_store = frame_store
 		self.registry = registry
 		super().__init__(*args, **kwargs)
 

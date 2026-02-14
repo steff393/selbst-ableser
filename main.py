@@ -1,6 +1,5 @@
 import configparser
 import argparse
-from frame_store import FrameStore
 from meterRegistry import MeterRegistry
 from httpServer.http_server import start_http
 
@@ -12,7 +11,6 @@ config = configparser.ConfigParser(inline_comment_prefixes='#')
 config.read('cfg.ini')
 cfg = config['Configuration']
 
-frame_store = FrameStore(cfg)
 registry    = MeterRegistry(
 	cfg['Locationfile'], 
 	password = args.pw if not "" else None, 
@@ -23,7 +21,7 @@ registry    = MeterRegistry(
 def main():
 	try:
 		# HTTP-Server setup
-		start_http(cfg, frame_store, registry)
+		start_http(cfg, registry)
 	except KeyboardInterrupt:
 		print("Server beendet.")
 

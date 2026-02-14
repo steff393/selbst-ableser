@@ -15,11 +15,10 @@ def get_local_ip():
 	return ip
 
 
-def start_http(cfg, frame_store, registry):
+def start_http(cfg, registry):
 	handler_factory = partial(
 		Handler,
 		cfg=cfg,
-		frame_store=frame_store,
 		registry=registry
 	)
 

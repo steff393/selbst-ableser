@@ -13,14 +13,3 @@ def serialize_monthly_results(results):
 			}
 			for r in results
 		]
-
-
-def serialize_monthly_aggregates(results):
-		return [
-			{
-				"month": r.month,
-				"type": r.type,
-				"consumption": r.consumption
-			}
-			for r in results
-		]
