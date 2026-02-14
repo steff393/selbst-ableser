@@ -52,32 +52,12 @@ class Handler(BaseHTTPRequestHandler):
 			user_data = users.get(token)
 
 		# Routing
-		if subpath.startswith("eval_combined"):
+		if subpath.startswith("eval"):
 			response = self.handle_uvi_combined_request(
 				params.get("start", ["2024-01-31"])[0],
 				params.get("end",   ["2026-01-31"])[0],
 				params.get("path",  [self.cfg['SnapshotDir']])[0],
 				user_data
-			)
-			self.send_json(response)
-			return
-		
-
-		if subpath.startswith("eval"):
-			response = self.handle_uvi_request(
-				params.get("start", ["2024-01-31"])[0],
-				params.get("end",   ["2026-01-31"])[0],
-				params.get("path",  [self.cfg['SnapshotDir']])[0],
-				user_data
-			)
-			self.send_json(response)
-			return
-		
-		if subpath.startswith("aggregate"):
-			response = self.handle_uvi_aggregate_request(
-				params.get("start", ["2024-01-31"])[0],
-				params.get("end",   ["2026-01-31"])[0],
-				params.get("path",  [self.cfg['SnapshotDir']])[0]
 			)
 			self.send_json(response)
 			return
@@ -130,7 +110,7 @@ class Handler(BaseHTTPRequestHandler):
 				self.handle_users_save()
 				return
 
-		# Nur Admins dürfen speichern
+		# only for admins
 		if users is not None and users.get(token).get("flat") not in (None, ""):
 			self.send_error(403, "Nur für Admins")
 			return
@@ -204,30 +184,6 @@ class Handler(BaseHTTPRequestHandler):
 			self.send_error(404, f"{filename} nicht gefunden")
 
 
-	# calculate data for UVI
-	def handle_uvi_request(self, start, end, path, user_data):
-		print(f"[UVI] Anfrage: {start} bis {end}, Pfad: {path}")
-		result = evaluate_uvi(
-			json_path  = path,
-			registry   = self.registry,
-			start_date = start,
-			end_date   = end,
-			flat       = user_data.get("flat")
-		)
-		return serialize_monthly_results(result)
-	
-
-	# calculate aggregates data for UVI
-	def handle_uvi_aggregate_request(self, start, end, path):
-		result = evaluate_uvi_aggregated(
-			json_path  = path,
-			registry   = self.registry,
-			start_date = start,
-			end_date   = end
-		)
-		return serialize_monthly_aggregates(result)
-	
-
 	def restrict_period_by_user(self, start, end, user_data):
 		start_date = datetime.strptime(start, "%Y-%m-%d")
 		end_date   = datetime.strptime(end,   "%Y-%m-%d")
@@ -252,6 +208,7 @@ class Handler(BaseHTTPRequestHandler):
 		)
 
 
+	# calculate data for UVI
 	def handle_uvi_combined_request(self, start, end, path, user_data):
 		start, end = self.restrict_period_by_user(start, end, user_data)
 		if not start:

@@ -1348,7 +1348,7 @@
 	async function loadData() {
 		const parts = location.pathname.split('/').filter(Boolean);
 		const token = parts[0];
-		const res = await fetch(`/${token}/eval_combined?start=2023-12-31&end=2025-12-31`);
+		const res = await fetch(`/${token}/eval?start=2023-12-31&end=2025-12-31`);
 		if (!res.ok) throw new Error("API error");
 		return await res.json();
 	}
