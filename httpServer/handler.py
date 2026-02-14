@@ -6,8 +6,8 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from meterReader import evaluate_uvi, serialize_monthly_results
 from .importer import import_and_encrypt
-import tempfile
 import secrets
+from .users_service import UsersService
 
 
 session_store = {}
@@ -18,6 +18,7 @@ class Handler(BaseHTTPRequestHandler):
 		self.cfg = cfg
 		self.registry = registry
 		self.sessions = session_store
+		self.users_service = UsersService(cfg['Userfile'])
 		super().__init__(*args, **kwargs)
 
 	
@@ -50,10 +51,9 @@ class Handler(BaseHTTPRequestHandler):
 			return
 
 		session_token = self.get_token_from_cookie()
-		users = self.load_users()
-		is_setup_mode = len(users) == 0
+		users = self.users_service.load_users()
 
-		if is_setup_mode:
+		if self.users_service.is_setup_mode():
 			# Only users or setup page / no token -> use self.path
 			if self.path == "/users.html":
 				self.serve_file("users.html", "text/html")
@@ -63,13 +63,13 @@ class Handler(BaseHTTPRequestHandler):
 				return
 			self.serve_file("index.html", "text/html")
 			return
-		else:
-			if not session_token or session_token not in self.sessions:
-				self.serve_file("login.html", "text/html")
-				return
-			# get data object of the user, eg. {"flat": "A1", ...}
-			token = self.sessions[session_token]["user"]
-			user_data = users.get(token)
+
+		if not session_token or session_token not in self.sessions:
+			self.serve_file("login.html", "text/html")
+			return
+		# get data object of the user, eg. {"flat": "A1", ...}
+		token = self.sessions[session_token]["user"]
+		user_data = users.get(token)
 
 		# Routing
 		if subpath.startswith("eval"):
@@ -92,7 +92,7 @@ class Handler(BaseHTTPRequestHandler):
 		
 
 		# only for admins (no filter)
-		if users is not None and users.get(token).get("flat") in (None, ""):
+		if self.users_service.is_admin(token):
 			if subpath in ("users.html", "users"):
 				self.serve_file("users.html", "text/html")
 				return
@@ -102,7 +102,7 @@ class Handler(BaseHTTPRequestHandler):
 				return
 
 			if subpath == "users/export":
-				self.export_users(users)
+				self.export_users()
 				return
 			
 			if subpath == "import.html":
@@ -120,10 +120,7 @@ class Handler(BaseHTTPRequestHandler):
 			self.handle_login()
 			return
 		
-		users = self.load_users()
-		is_setup_mode = len(users) == 0
-		
-		if is_setup_mode:
+		if self.users_service.is_setup_mode():
 			if self.path == "/users/save":
 				self.handle_users_save()
 				return
@@ -135,7 +132,8 @@ class Handler(BaseHTTPRequestHandler):
 			return
 
 		token = self.sessions[session_token]["user"]
-		if users is not None and users.get(token).get("flat") not in (None, ""):
+
+		if not self.users_service.is_admin(token):
 			self.send_error(403, "Nur für Admins")
 			return
 
@@ -155,7 +153,7 @@ class Handler(BaseHTTPRequestHandler):
 		data = json.loads(self.rfile.read(length))
 		token = data.get("token")
 
-		users = self.load_users()
+		users = self.users_service.load_users()
 		if token not in users:
 			self.send_error(403, "Ungültiger Token")
 			return
@@ -166,7 +164,6 @@ class Handler(BaseHTTPRequestHandler):
 			"user": token,
 			"created": datetime.utcnow().isoformat()
 		}
-		print(f"Sessions: {self.sessions}")
 
 		# HttpOnly-Cookie setzen
 		self.send_response(200)
@@ -183,34 +180,19 @@ class Handler(BaseHTTPRequestHandler):
 		length = int(self.headers.get("Content-Length", 0))
 		try:
 			data = json.loads(self.rfile.read(length))
-			with open(self.cfg['Userfile'], "w", encoding="utf-8") as f:
-				json.dump(data, f, indent=2)
+			self.users_service.save_users(data)
 			self.send_json({"status": "ok"})
 		except Exception as e:
 			self.send_error(500, str(e))
 
-
-	def load_users(self):
-		path = self.cfg.get("Userfile", "users.json")
-		if not os.path.isfile(path):
-			return {} # --> Setup-Mode
-
-		try:
-			with open(path, "r", encoding="utf-8") as f:
-				return json.load(f)
-		except Exception:
-			return {} # --> Setup-Mode
 	
-	
-	def export_users(self, users):
+	def export_users(self):
+		filename, content = self.users_service.get_export_data()
 		self.send_response(200)
 		self.send_header("Content-Type", "application/json")
-		self.send_header(
-			"Content-Disposition",
-			f'attachment; filename="users-backup-{date.today()}.json"'
-		)
+		self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
 		self.end_headers()
-		self.wfile.write(json.dumps(users, indent=2).encode())
+		self.wfile.write(content)
 
 
 	def send_json(self, data, status=200):
@@ -293,7 +275,7 @@ class Handler(BaseHTTPRequestHandler):
 			sums[(r.month, r.type)] += r.consumption
 
 		# areas
-		users = self.load_users()
+		users = self.users_service.load_users()
 
 		# Build flat → area dictionary
 		all_areas = {
@@ -343,26 +325,14 @@ class Handler(BaseHTTPRequestHandler):
 
 		fileitem = form["file"]
 		password = form.getvalue("password")
-
 		filename = os.path.basename(fileitem.filename)
 
-		with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-			tmp.write(fileitem.file.read())
-			tmp_path = tmp.name
-
-		out_name = os.path.splitext(filename)[0] + ".json.enc"
-
 		try:
-			result = import_and_encrypt(tmp_path, password, out_name)
+			result = import_and_encrypt(fileitem.file.read(), password, filename + ".enc")
 			self.send_json({
 				"status": "ok",
-				"output": out_name,
+				"output": filename + ".enc",
 				**result
 			})
 		except Exception as e:
 			self.send_error(500, str(e))
-		finally:
-			try:
-				os.remove(tmp_path)
-			except OSError:
-				pass

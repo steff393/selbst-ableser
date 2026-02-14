@@ -7,6 +7,7 @@ from datetime import datetime
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from openpyxl import load_workbook
+from io import BytesIO
 
 FIXED_COLS = ["Platz", "Wohnung", "Raum", "Typ"]
 
@@ -42,8 +43,8 @@ def encrypt(data: bytes, password: str) -> bytes:
 	return salt + nonce + ciphertext
 
 
-def read_excel(file_path):
-	wb = load_workbook(file_path, data_only=True)
+def read_excel(excel_bytes: bytes):
+	wb = load_workbook(BytesIO(excel_bytes), data_only=True)
 	ws = wb.active
 
 	header = [cell.value for cell in next(ws.iter_rows(min_row=2, max_row=2))]
@@ -53,11 +54,11 @@ def read_excel(file_path):
 	return header, rows
 
 
-def import_and_encrypt(excel_path: str, password: str, output_path: str) -> dict:
+def import_and_encrypt(excel_bytes: bytes, password: str, output_path: str) -> dict:
 	if len(password) < 6:
 		raise ValueError("Passwort muss mindestens 6 Zeichen lang sein")
 
-	header, rows = read_excel(excel_path)
+	header, rows = read_excel(excel_bytes)
 
 	fixed_idx = [header.index(col) for col in FIXED_COLS]
 
