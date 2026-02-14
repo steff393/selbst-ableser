@@ -193,7 +193,7 @@ class Handler(BaseHTTPRequestHandler):
 	def serve_file(self, filename, content_type):
 		try:
 			base = os.path.dirname(os.path.abspath(__file__))
-			path = os.path.join(base, "..", filename)
+			path = os.path.join(base, "..", "web", filename)
 			with open(path, "rb") as f:
 				data = f.read()
 			self.send_response(200)
