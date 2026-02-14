@@ -325,13 +325,13 @@ class Handler(BaseHTTPRequestHandler):
 
 		fileitem = form["file"]
 		password = form.getvalue("password")
-		filename = os.path.basename(fileitem.filename)
+		filename = os.path.splitext(os.path.basename(fileitem.filename))[0]
 
 		try:
-			result = import_and_encrypt(fileitem.file.read(), password, filename + ".enc")
+			result = import_and_encrypt(fileitem.file.read(), password, filename + ".json.enc")
 			self.send_json({
 				"status": "ok",
-				"output": filename + ".enc",
+				"output": filename + ".json.enc",
 				**result
 			})
 		except Exception as e:
