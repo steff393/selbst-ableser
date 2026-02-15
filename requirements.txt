@@ -17,3 +17,4 @@ openpyxl==3.1.5
 fastapi
 uvicorn[standard]
 python-multipart
+slowapi

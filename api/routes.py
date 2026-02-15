@@ -14,7 +14,7 @@ session_store = {}
 SESSION_LIFETIME = timedelta(hours=2)
 
 
-def get_router(cfg, registry):
+def get_router(cfg, registry, limiter):
 	router = APIRouter()
 	User.set_userfile(cfg["Userfile"])
 
@@ -78,14 +78,17 @@ def get_router(cfg, registry):
 	# -----------------------------------------------------------------------------
 
 	@router.get("/favicon.ico")
+	@limiter.limit("20/minute")
 	def favicon():
 		return serve_file("favicon.ico", "image/svg+xml")
 
 	@router.get("/chart.umd.min.js")
+	@limiter.limit("20/minute")
 	def chart_js():
 		return serve_file("chart.umd.min.js", "text/javascript")
 	
 	@router.get("/")
+	@limiter.limit("60/minute")
 	def root(request: Request):
 		require_admin(request)
 		return serve_file("index.html", "text/html")
@@ -98,6 +101,7 @@ def get_router(cfg, registry):
 	}
 
 	@router.get("/{page_name}.html")
+	@limiter.limit("60/minute")
 	def serve_html_page(
 		page_name: str,
 		request: Request
@@ -122,7 +126,8 @@ def get_router(cfg, registry):
 	# -----------------------------------------------------------------------------
 
 	@router.post("/login")
-	async def login(request: Request):
+	@limiter.limit("10/minute")
+	async def login(request: Request, response: Response):
 		data = await request.json()
 		token = data.get("token")
 
@@ -173,11 +178,13 @@ def get_router(cfg, registry):
 	# -----------------------------------------------------------------------------
 
 	@router.get("/users/data")
+	@limiter.limit("20/minute")
 	def users_data(user: User = Depends(require_admin)):
 		return User.load_from_file()
 	
 
 	@router.post("/users/save")
+	@limiter.limit("10/minute")
 	async def users_save(request: Request, user: User = Depends(require_admin)):
 		require_csrf(request)
 		data = await request.json()
@@ -186,6 +193,7 @@ def get_router(cfg, registry):
 	
 
 	@router.get("/users/export")
+	@limiter.limit("5/hour")
 	def users_export(user: User = Depends(require_admin)):
 		filename, content = User.export()
 		
@@ -202,6 +210,7 @@ def get_router(cfg, registry):
 	# -----------------------------------------------------------------------------
 
 	@router.get("/eval")
+	@limiter.limit("20/minute")
 	def eval_uvi(
 		start: str = "2024-01-31",
 		end: str = "2026-01-31",
@@ -214,6 +223,7 @@ def get_router(cfg, registry):
 	# -----------------------------------------------------------------------------
 
 	@router.post("/import/upload")
+	@limiter.limit("5/minute")
 	async def import_upload(
 		request: Request,
 		file: UploadFile = File(...),

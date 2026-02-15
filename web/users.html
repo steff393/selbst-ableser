@@ -636,7 +636,7 @@ function renderUsers() {
 				onblur="renderUsers()"></td>
 			<td>
 				<div class="actions-cell">
-					<button class="btn btn-link" onclick="openUvi('${token}')">🔗 UVI</button>
+					<button class="btn btn-link" onclick="openUvi()">🔗 UVI</button>
 					<button class="btn btn-danger" onclick="del('${token}')">❌</button>
 				</div>
 			</td>
@@ -780,7 +780,7 @@ function exportUsers() {
 }
 
 
-function openUvi(token) {
+function openUvi() {
 	window.open("/uvi.html", "_blank");
 }
 
