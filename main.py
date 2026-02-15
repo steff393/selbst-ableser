@@ -9,9 +9,10 @@ config = configparser.ConfigParser(inline_comment_prefixes='#')
 config.read('cfg.ini')
 cfg = config['Configuration']
 
+# Setup
 if not os.path.exists(cfg['Userfile']):
 	print("Userfile nicht gefunden – erstelle neue Datei...")
-	token = secrets.token_hex(8)  # 16 Zeichen wie dein Beispiel
+	token = secrets.token_hex(8)
 
 	initial_data = {
 		token: {

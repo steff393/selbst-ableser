@@ -734,13 +734,9 @@ function save() {
 		return r.json();
 	})
 	.then(() => {
-		const adminToken = getAdminTokenFromUsers(users);
 		showSuccess(`
 			✅ Benutzer erfolgreich gespeichert.<br><br>
-			<strong>Admin-Token:</strong><br>
-			<code>${adminToken}</code><br><br>
-			<small>Bitte unbedingt notieren und sicher aufbewahren!</small><br><br>
-			<a href="/${adminToken}/index.html">👉 Zur Admin-Oberfläche wechseln</a>
+			<a href="/index.html">👉 Zurück zur Admin-Oberfläche</a>
 		`);
 	})
 	.catch(err => {
