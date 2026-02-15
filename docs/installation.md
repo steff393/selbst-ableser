@@ -70,7 +70,7 @@ Eine Beispiel-Datei findet sich unter Releases.
 Über http://192.168.178.76:8080/import.html kann eine Excel-Datei importiert und mit einem Passwort verschlüsselt gespeichert werden. Das Passwort kann dem Auswertungsserver als Umgebungsvariable beim Aufruf übergeben werden.  
 
 Windows Eingabeaufforderung:  
-`set LOCATION_PW=geheim`
+`set LOCATION_PW=geheim`  
 `uvicorn main:app --port 8080`  
 
 Linux / macOS:  
@@ -88,8 +88,12 @@ Sobald zusätzlich zum Admin ein Nutzer mit Wohnung = 1 angelegt ist und in der 
 #SnapshotDir = snapshots
 SnapshotDir = tests\snapshots
 ```
-kann nun auch über die Benutzerverwaltung eine UVI mit den Testdaten erzeugt werden:  
-http://192.168.178.76:8080/uvi.html
+kann nun auch über die Benutzerverwaltung eine UVI mit den Testdaten erzeugt und angezeigt werden.  
+
+
+#### Freigabe für andere Geräte im gleichen Netzwerk  
+Mit den oben genannten Befehlen ist der Server nur von dem Gerät erreichbar, auf dem er läuft. Durch Anfügen von `--host 0.0.0.0` wird er für alle Geräte im gleichen Netzwerk erreichbar:  
+`uvicorn main:app --host 0.0.0.0 --port 8080`  
 
 ---
 
