@@ -5,7 +5,18 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
 from .routes import get_router
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+	async def dispatch(self, request, call_next):
+		response = await call_next(request)
+		response.headers["X-Content-Type-Options"] = "nosniff"
+		response.headers["X-Frame-Options"] = "DENY"
+		response.headers["X-XSS-Protection"] = "1; mode=block"
+		response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+		return response
 
 
 def create_app(cfg, registry):
@@ -24,6 +35,9 @@ def create_app(cfg, registry):
 				"www.selbst-ableser.de",
 			]
 		) # else: don't use TrustedHost during development
+
+	# Security Headers Middleware
+	app.add_middleware(SecurityHeadersMiddleware)
 
 	# SlowAPI Limiter
 	limiter = Limiter(key_func=get_remote_address)
