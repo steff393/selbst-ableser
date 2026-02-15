@@ -1,6 +1,6 @@
 import os
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Request, UploadFile, File, Form, Depends, HTTPException
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, Response
@@ -11,6 +11,7 @@ from .importer import import_and_encrypt
 
 
 session_store = {}
+SESSION_LIFETIME = timedelta(hours=2)
 
 def get_router(cfg, registry):
 	router = APIRouter()
@@ -22,11 +23,21 @@ def get_router(cfg, registry):
 		token = request.cookies.get("session_token")
 		if not token or token not in session_store:
 			raise HTTPException(status_code=401)
-		user_token = session_store[token]["user"]
+
+		session = session_store[token]
+
+		created = datetime.fromisoformat(session["created"]) # check for expiry
+		if datetime.utcnow() - created > SESSION_LIFETIME:
+			del session_store[token]
+			raise HTTPException(status_code=401)
+
+		user_token = session["user"]
 		user = User.get(user_token)
 		if not user:
 			raise HTTPException(status_code=401)
+
 		return user
+
 	
 	def require_admin(request: Request) -> User:
 		user = require_login(request)
@@ -112,6 +123,7 @@ def get_router(cfg, registry):
 			value=session_token,
 			httponly=True,
 			samesite="lax",
+			max_age=7200,         # 2 hours
 			path="/"
 		)
 		return response
