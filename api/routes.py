@@ -13,6 +13,7 @@ from .importer import import_and_encrypt
 session_store = {}
 SESSION_LIFETIME = timedelta(hours=2)
 
+
 def get_router(cfg, registry):
 	router = APIRouter()
 	User.set_userfile(cfg["Userfile"])
@@ -44,6 +45,22 @@ def get_router(cfg, registry):
 		if not user.is_admin:
 			raise HTTPException(status_code=403)
 		return user
+	
+
+	def require_csrf(request: Request):
+		session_token = request.cookies.get("session_token")
+		if not session_token or session_token not in session_store:
+			raise HTTPException(status_code=401)
+
+		session = session_store[session_token]
+		csrf_session = session.get("csrf")
+		csrf_header = request.headers.get("X-CSRF-Token")
+
+		if not csrf_session or not csrf_header:
+			raise HTTPException(status_code=403)
+
+		if csrf_session != csrf_header:
+			raise HTTPException(status_code=403)
 
 
 	def serve_file(filename: str, content_type: str):
@@ -113,9 +130,11 @@ def get_router(cfg, registry):
 			raise HTTPException(status_code=403, detail="Ungültiger Token")
 
 		session_token = secrets.token_urlsafe(32)
+		csrf_token = secrets.token_urlsafe(32)
 		session_store[session_token] = {
 			"user": token,
-			"created": datetime.utcnow().isoformat()
+			"created": datetime.utcnow().isoformat(),
+			"csrf": csrf_token
 		}
 		response = JSONResponse({"status": "ok"})
 		response.set_cookie(
@@ -124,6 +143,13 @@ def get_router(cfg, registry):
 			httponly=True,
 			samesite="lax",
 			max_age=7200,         # 2 hours
+			path="/"
+		)
+		response.set_cookie(
+			key="csrf_token",
+			value=csrf_token,
+			secure=True,
+			samesite="lax",
 			path="/"
 		)
 		return response
@@ -153,6 +179,7 @@ def get_router(cfg, registry):
 
 	@router.post("/users/save")
 	async def users_save(request: Request, user: User = Depends(require_admin)):
+		require_csrf(request)
 		data = await request.json()
 		User.save_to_file(data)
 		return {"status": "ok"}
@@ -188,10 +215,12 @@ def get_router(cfg, registry):
 
 	@router.post("/import/upload")
 	async def import_upload(
+		request: Request,
 		file: UploadFile = File(...),
 		password: str = Form(...),
 		user=Depends(require_admin)
 	):
+		require_csrf(request)
 		filename = os.path.splitext(os.path.basename(file.filename))[0]
 
 		content = await file.read()

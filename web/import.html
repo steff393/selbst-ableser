@@ -407,6 +407,9 @@ document.getElementById("form").addEventListener("submit", async e => {
 		const data = new FormData(form);
 		const res = await fetch("import/upload", {
 			method: "POST",
+			headers: {
+				"X-CSRF-Token": getCookie("csrf_token")
+			},
 			credentials: "same-origin",
 			body: data
 		});
@@ -443,6 +446,16 @@ document.getElementById("form").addEventListener("submit", async e => {
 		submitBtn.disabled = false;
 	}
 });
+
+function getCookie(name) {
+	const value = `; ${document.cookie}`;
+	const parts = value.split(`; ${name}=`);
+	if (parts.length === 2) {
+		return parts.pop().split(';').shift();
+	}
+	return null;
+}
+
 
 function escapeHtml(text) {
 	const div = document.createElement('div');
