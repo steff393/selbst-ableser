@@ -6,6 +6,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
 from .routes import get_router
 
 
@@ -17,8 +18,21 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 		response.headers["X-XSS-Protection"] = "1; mode=block"
 		response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 		return response
+	
+
+class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
+	def __init__(self, app, max_request_size: int):
+		super().__init__(app)
+		self.max_request_size = max_request_size
+
+	async def dispatch(self, request: StarletteRequest, call_next):
+		content_length = request.headers.get("content-length")
+		if content_length and int(content_length) > self.max_request_size:
+			return JSONResponse(status_code=413, content={"detail": "File too large"}			)
+		return await call_next(request)
 
 
+# main function
 def create_app(cfg, registry):
 	app = FastAPI(
 		title="selbst-ableser",
@@ -35,6 +49,9 @@ def create_app(cfg, registry):
 				"www.selbst-ableser.de",
 			]
 		) # else: don't use TrustedHost during development
+	
+	# Global upload limit
+	app.add_middleware(RequestSizeLimitMiddleware, max_request_size=500 * 1024)  # 500kB
 
 	# Security Headers Middleware
 	app.add_middleware(SecurityHeadersMiddleware)
@@ -64,6 +81,5 @@ def create_app(cfg, registry):
 			status_code=exc.status_code,
 			content={"detail": exc.detail}
 		)
-
-
+	
 	return app

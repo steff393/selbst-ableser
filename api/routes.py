@@ -64,11 +64,19 @@ def get_router(cfg, registry, limiter):
 
 
 	def serve_file(filename: str, content_type: str):
+		import re
+		if not re.match(r'^[\w\-\.]+$', filename): # accept only alphanumeric, dot and minus
+			raise HTTPException(status_code=400, detail="Invalid filename")
+		
 		base = os.path.dirname(os.path.abspath(__file__))
 		path = os.path.join(base, "..", "web", filename)
+		web_dir = os.path.abspath(os.path.join(base, "..", "web"))
+		resolved_path = os.path.abspath(path)
 
+		if not resolved_path.startswith(web_dir):
+			raise HTTPException(status_code=403, detail="Access rejected")
 		if not os.path.exists(path):
-			raise HTTPException(status_code=404, detail=f"{filename} nicht gefunden")
+			raise HTTPException(status_code=404, detail=f"{filename} not found")
 
 		return FileResponse(path, media_type=content_type)
 
@@ -185,6 +193,11 @@ def get_router(cfg, registry, limiter):
 	async def users_save(request: Request, user: User = Depends(require_admin)):
 		require_csrf(request)
 		data = await request.json()
+		if not isinstance(data, dict):
+			raise HTTPException(status_code=400, detail="Invalid format")
+		for token, user_data in data.items():
+			if not isinstance(user_data, dict):
+				raise HTTPException(status_code=400, detail="Invalid user data")
 		User.save_to_file(data)
 		return {"status": "ok"}
 	
@@ -229,19 +242,11 @@ def get_router(cfg, registry, limiter):
 		user=Depends(require_admin)
 	):
 		require_csrf(request)
-		filename = os.path.splitext(os.path.basename(file.filename))[0]
-
 		content = await file.read()
-
-		result = import_and_encrypt(
-			content,
-			password,
-			filename + ".json.enc"
-		)
-
+		result = import_and_encrypt(content, password, cfg["Locationfile"])
 		return {
 			"status": "ok",
-			"output": filename + ".json.enc",
+			"output": cfg["Locationfile"],
 			**result
 		}
 
