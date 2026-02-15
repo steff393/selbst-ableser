@@ -66,6 +66,11 @@ def get_router(cfg, registry):
 	@router.get("/chart.umd.min.js")
 	def chart_js():
 		return serve_file("chart.umd.min.js", "text/javascript")
+	
+	@router.get("/")
+	def root(request: Request):
+		require_admin(request)
+		return serve_file("index.html", "text/html")
 
 	PAGE_CONFIG = {
 		"index": "admin",
@@ -139,7 +144,7 @@ def get_router(cfg, registry):
 		return response
 
 	# -----------------------------------------------------------------------------
-	# Users (Setup + Admin)
+	# Users (Admin)
 	# -----------------------------------------------------------------------------
 
 	@router.get("/users/data")

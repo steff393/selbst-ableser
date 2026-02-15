@@ -316,31 +316,8 @@
 		<div class="subtitle">Verwaltung · Zählerdaten · Auswertung</div>
 	</div>
 
-	<!-- Setup Mode Card -->
-	<div class="card" id="setup-card" style="display:none;">
-		<div class="card-header">
-			<div class="card-icon">🔐</div>
-			<div>
-				<div class="card-title">Ersteinrichtung</div>
-				<div class="card-description">
-					Willkommen! Legen Sie zunächst einen Admin-Benutzer an. Dieser Token gewährt vollen Zugriff auf alle Verwaltungsfunktionen.
-				</div>
-			</div>
-		</div>
-		<div class="alert">
-			<div class="alert-title">Wichtiger Hinweis</div>
-			<div>Im Setup-Modus haben alle Zugriffe Administratorrechte. Nach Anlegen des ersten Benutzers ist nur noch der Admin-Token gültig.</div>
-		</div>
-		<div class="setup-form">
-			<input type="text" id="admin-token" class="token-field" placeholder="Admin-Token eingeben oder generieren">
-			<button class="btn btn-outline" onclick="generateToken()">🔄 Generieren</button>
-			<button class="btn btn-primary" onclick="saveAdmin()">💾 Speichern</button>
-		</div>
-		<div id="setup-status"></div>
-	</div>
-
 	<!-- Normal Mode Cards -->
-	<div id="normal-cards" style="display:none;">
+	<div id="normal-cards">
 		
 		<!-- Benutzerverwaltung -->
 		<div class="card">
@@ -403,73 +380,6 @@
 </div>
 
 <script>
-const apiBase = "";
-
-// Setup-Mode Check
-fetch(`/users/data`, {credentials: "same-origin"})
-	.then(r => {
-		if (!r.ok) return null;
-		return r.json();
-	})
-	.then(data => {
-		if (data && Object.keys(data).length === 0) {
-			// Setup-Mode: leeres {} → Admin-Token erstellen
-			document.getElementById("setup-card").style.display = "block";
-			generateToken();
-		} else {
-			// Normalbetrieb
-			document.getElementById("normal-cards").style.display = "block";
-		}
-	})
-	.catch(err => {
-		console.warn("Fehler beim Laden von /users/data:", err);
-		// Im Fehlerfall: Normalbetrieb anzeigen
-		document.getElementById("normal-cards").style.display = "block";
-	});
-
-// Token-Funktionen
-function generateToken() {
-	const token = crypto.getRandomValues(new Uint8Array(8))
-		.reduce((s, b) => s + b.toString(16).padStart(2, "0"), "");
-	document.getElementById("admin-token").value = token;
-}
-
-function saveAdmin() {
-	const token = document.getElementById("admin-token").value.trim();
-	const statusEl = document.getElementById("setup-status");
-
-	if (!token) {
-		showStatus("error", "Bitte einen gültigen Token eingeben.");
-		return;
-	}
-
-	const users = {};
-	users[token] = { flat: null, area: 0, move_in: null, move_out: null };
-
-	fetch(`/users/save`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		credentials: "same-origin",
-		body: JSON.stringify(users)
-	})
-	.then(r => {
-		if (!r.ok) throw new Error("Fehler beim Speichern");
-		return r.json();
-	})
-	.then(() => {
-		showStatus("success", `
-			✅ Admin-Benutzer erfolgreich erstellt!<br><br>
-			<strong>Ihr Admin-Token:</strong><br>
-			<code>${token}</code><br><br>
-			<small>Bitte notieren und sicher aufbewahren!</small><br><br>
-			<a href="/${token}/index.html" class="btn btn-primary" style="display: inline-flex;">👉 Zur Verwaltung</a>
-		`);
-	})
-	.catch(err => {
-		showStatus("error", "Fehler beim Speichern des Admin-Benutzers.");
-		console.error(err);
-	});
-}
 
 function showStatus(type, message) {
 	const statusEl = document.getElementById("setup-status");

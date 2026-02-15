@@ -43,24 +43,39 @@ Telegramm von 42130857 blockiert
 Der Auswertungsserver liest die Telegramme aus den Snapshots, entschlüsselt sie und bereit die Daten auf, z.B. für die Unterjährige Verbrauchsmitteilung (UVI). 
 
 #### Start
-`python main.py`  
+`uvicorn main:app --port 8080`  
 
 ```
 Warte auf Key auf Port 53165 …
-HTTP-Server aktiv: http://192.168.178.76:8080
+INFO:     Started server process [23040]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8080 (Press CTRL+C to quit)
+Userfile nicht gefunden – erstelle neue Datei...
+========================================
+Admin-Token erzeugt:
+0123456789abcdef
+Bitte sicher notieren bzw. speichern!
+========================================
 ```
 
 #### Benutzereinrichtung
-Über den o.g. Link muss nun zuerst ein Admin-Token gespeichert werden. Anschließend können verschiedene Nutzer gespeichert werden.
+Über den o.g. Link und mit Hilfe des Admin-Tokens kann nun die Login-Seite aufgerufen werden. Anschließend können verschiedene Nutzer gespeichert werden.
 Nutzer werden über Token (z.B. db7c01267a874140) unterschieden und zu Wohnungen zugeteilt.  
-Admin-Nutzer sind Nutzer ohne hinterlegte Wohnung. 
+Admin-Nutzer sind Nutzer ohne hinterlegte Wohnung.  
 
 #### Konfiguration der Zählerplätze
 Zählerplätze und Zähler können in einer Excel-Datei verwaltet werden. Zu jedem Zählerplatz können dort beliebig viele Zähler hinterlegt werden, so dass auch Zählerwechsel berücksichtigt werden können.  
 Eine Beispiel-Datei findet sich unter Releases. 
-Über http://192.168.178.76:8080/admin-token/import.html kann eine Excel-Datei importiert und mit einem Passwort verschlüsselt gespeichert werden. Das Passwort kann dem Auswertungsserver als Parameter beim Aufruf übergeben werden.  
+Über http://192.168.178.76:8080/import.html kann eine Excel-Datei importiert und mit einem Passwort verschlüsselt gespeichert werden. Das Passwort kann dem Auswertungsserver als Umgebungsvariable beim Aufruf übergeben werden.  
 
-`python main.py -pw test_passwort`  
+Windows Eingabeaufforderung:  
+`set LOCATION_PW=geheim`
+`uvicorn main:app --port 8080`  
+
+Linux / macOS:  
+`LOCATION_PW=geheim uvicorn main:app --port 8080`  
+
 ```
 Registry entschlüsselt
 HTTP-Server aktiv: http://192.168.178.76:8080
@@ -74,7 +89,7 @@ Sobald zusätzlich zum Admin ein Nutzer mit Wohnung = 1 angelegt ist und in der 
 SnapshotDir = tests\snapshots
 ```
 kann nun auch über die Benutzerverwaltung eine UVI mit den Testdaten erzeugt werden:  
-http://192.168.178.76:8080/token/uvi.html
+http://192.168.178.76:8080/uvi.html
 
 ---
 
