@@ -79,12 +79,12 @@ def get_router(cfg, registry, limiter):
 
 	@router.get("/favicon.ico")
 	@limiter.limit("20/minute")
-	def favicon():
+	def favicon(request: Request):
 		return serve_file("favicon.ico", "image/svg+xml")
 
 	@router.get("/chart.umd.min.js")
 	@limiter.limit("20/minute")
-	def chart_js():
+	def chart_js(request: Request):
 		return serve_file("chart.umd.min.js", "text/javascript")
 	
 	@router.get("/")
@@ -102,15 +102,12 @@ def get_router(cfg, registry, limiter):
 
 	@router.get("/{page_name}.html")
 	@limiter.limit("60/minute")
-	def serve_html_page(
-		page_name: str,
-		request: Request
-	):
-		# öffentlich erlaubte Seiten
+	def serve_html_page(page_name: str,	request: Request):
+		# public pages
 		if page_name in ["login", "impressum", "datenschutz"]:
 				return serve_file(page_name + ".html", "text/html")
 
-		# geschützte Seiten
+		# protected pages
 		access = PAGE_CONFIG.get(page_name)
 		if access == "admin":
 				require_admin(request)
@@ -179,7 +176,7 @@ def get_router(cfg, registry, limiter):
 
 	@router.get("/users/data")
 	@limiter.limit("20/minute")
-	def users_data(user: User = Depends(require_admin)):
+	def users_data(request: Request, user: User = Depends(require_admin)):
 		return User.load_from_file()
 	
 
@@ -194,7 +191,7 @@ def get_router(cfg, registry, limiter):
 
 	@router.get("/users/export")
 	@limiter.limit("5/hour")
-	def users_export(user: User = Depends(require_admin)):
+	def users_export(request: Request, user: User = Depends(require_admin)):
 		filename, content = User.export()
 		
 		return Response(
@@ -212,6 +209,7 @@ def get_router(cfg, registry, limiter):
 	@router.get("/eval")
 	@limiter.limit("20/minute")
 	def eval_uvi(
+		request: Request,
 		start: str = "2024-01-31",
 		end: str = "2026-01-31",
 		current_user: User = Depends(require_login)

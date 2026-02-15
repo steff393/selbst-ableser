@@ -1,5 +1,7 @@
+import os
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -13,6 +15,15 @@ def create_app(cfg, registry):
 		redoc_url=None,
 		openapi_url=None
 	)
+
+	if os.getenv("DEPLOYMENT_ENV", "development") == "production":
+		app.add_middleware(
+			TrustedHostMiddleware,
+			allowed_hosts=[
+				"selbst-ableser.de",
+				"www.selbst-ableser.de",
+			]
+		) # else: don't use TrustedHost during development
 
 	# SlowAPI Limiter
 	limiter = Limiter(key_func=get_remote_address)
