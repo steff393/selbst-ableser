@@ -53,9 +53,9 @@ Ideal für private Anwender, Vermieter oder Bastler, die ihre Zählerdaten selbs
 ---
 
 ## Screenshots
-<img alt="Image" src="https://github.com/user-attachments/assets/7023a887-8551-421c-a673-d3840cfd78ae" />
-
-
+<img alt="wM-Bus Dashboard" src="https://github.com/user-attachments/assets/7023a887-8551-421c-a673-d3840cfd78ae" />
+<br><br>
+<img alt="Nutzerverwaltung" src="https://github.com/user-attachments/assets/90840f0c-931c-4924-9c85-d67c420a477d" />
 ---
 
 ## Projektstatus
