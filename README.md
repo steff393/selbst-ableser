@@ -52,6 +52,12 @@ Ideal für private Anwender, Vermieter oder Bastler, die ihre Zählerdaten selbs
 
 ---
 
+## Screenshots
+<img alt="Image" src="https://github.com/user-attachments/assets/7023a887-8551-421c-a673-d3840cfd78ae" />
+
+
+---
+
 ## Projektstatus
 
 🚧 **In Entwicklung**
