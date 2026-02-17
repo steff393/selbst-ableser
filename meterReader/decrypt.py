@@ -1,12 +1,18 @@
 from Crypto.Cipher import AES
 import binascii
+from typing import Optional
 
-def decrypt(telegram, key):
-	if isinstance(telegram, (bytes, bytearray)):
-		data = bytes(telegram)
-	elif isinstance(telegram, str):
-		data    = binascii.unhexlify(''.join(c for c in telegram.lower() if c in '0123456789abcdef')) # to lower case
-	hex_key = binascii.unhexlify(key)
+def decrypt(telegram: str, key: str) -> Optional[str]:
+	# decrypts wmbus telegram
+	try:
+		data    = binascii.unhexlify(telegram)
+		hex_key = binascii.unhexlify(key)
+		if len(data) < 16 or len(hex_key) != 16:
+			raise ValueError
+	except Exception:
+		print(f"Decrypt: Ungültige Daten '{telegram}' oder AES-Key: '{key}'")
+		return(None)
+
 	# Standard IV Konstruktion
 	m_field    = data[2:4]       # Manufacturer       --| 
 	id_field   = data[4:8]       # Meter ID           --|--> all 4 = unique ID for every meter
@@ -20,7 +26,7 @@ def decrypt(telegram, key):
 	block_size = 16
 
 	if encr_mode != 5:
-		print(f"encr_mode {encr_mode} can't be decoded")
+		print(f"Decrypt: encr_mode {encr_mode} kann nicht entschlüsselt werden")
 		return(None)
 
 	iv = m_field + id_field + ver_field + type_field + acc_field # no sum, but concatenation of bytes
@@ -30,7 +36,8 @@ def decrypt(telegram, key):
 	cipher = AES.new(hex_key, AES.MODE_CBC, iv)
 	result = cipher.decrypt(data[offset : offset + block_cnt * block_size])
 	if result[0] == 0x2F and result[1] == 0x2F:
-		# return begin and end of original telegramm
-		return(data[:offset] + result + data[offset + block_cnt * block_size :])
+		# add begin and end of original telegramm
+		decrypt = data[:offset] + result + data[offset + block_cnt * block_size :]
+		return(decrypt.hex()) # return as string
 	else:
 		return(None)

@@ -2,11 +2,10 @@ import os
 import json
 import datetime
 from typing import Optional
-from .model import MeterConfig, MeterReading, MonthlyResult, MonthlyAggregateResult
+from .model import MeterConfig, MeterReading, MonthlyResult
+from .decrypt import decrypt
 from .logger import dbg
 from meterRegistry import MeterRegistry
-from collections import defaultdict
-from typing import List
 
 
 _daily_cache = {}
@@ -76,13 +75,18 @@ def load_daily_file(date: datetime.date):
 	return data
 
 
-def search_meter_reading(meter_id: str, date: datetime.date, max_back: int = 5) -> Optional[MeterReading]:
+def search_meter_reading(date: datetime.date, meter_id: str, aes_key: Optional[str] = None, max_back: int = 5) -> Optional[MeterReading]:
 	# search up to max_back days before date for the meter reading
 	for delta in range(max_back + 1):
 		d = date - datetime.timedelta(days=delta)
 		data = load_daily_file(d)
 		if data and meter_id in data:
-			val = get_currHCA_from_wmbus(data[meter_id]["wmbus"])
+			if aes_key:
+				wmbus = decrypt(data[meter_id]["wmbus"], aes_key)
+				if wmbus:
+					val = get_currHCA_from_wmbus(wmbus)
+			else:
+				val = get_currHCA_from_wmbus(data[meter_id]["wmbus"])
 			if val is not None:
 				return MeterReading(meter_id=meter_id, value=val, found_date=d)
 	return None
@@ -140,7 +144,7 @@ def evaluate_uvi(json_path: str, registry: MeterRegistry, start_date=None, end_d
 			if not meterCfg:
 				continue
 
-			reading = search_meter_reading(meterCfg.id, month_end)
+			reading = search_meter_reading(month_end, meterCfg.id, meterCfg.aes_key)
 			if not reading: # no reading found
 				continue
 			
