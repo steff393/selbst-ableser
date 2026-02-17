@@ -402,6 +402,9 @@
 
 		<div class="controls">
 			<input type="text" class="search-box" id="searchBox" placeholder="🔍 Suche nach ID, Hersteller, Typ...">
+			<select id="snapshotSelect" class="search-box" style="max-width:220px;">
+				<option value="">📅 Snapshot wählen...</option>
+			</select>
 			<button id="updateBtn">Aktualisieren</button>
 			<button id="snapshotBtn">Snapshot</button>
 			<button id="exportBtn">Export CSV</button>
@@ -715,6 +718,44 @@
 			renderTable();
 		}
 
+		async function loadSnapshotList() {
+			try {
+				const response = await fetch("list");
+				if (!response.ok) return;
+
+				const data = await response.json();
+
+				// limit to 10 last elements
+				const lastTen = data.slice(-10).reverse();
+
+				const select = document.getElementById("snapshotSelect");
+				select.innerHTML = '<option value="">📅 Snapshot wählen...</option>';
+
+				lastTen.forEach(date => {
+					const opt = document.createElement("option");
+					opt.value = date;
+					opt.textContent = date;
+					select.appendChild(opt);
+				});
+
+			} catch (err) {
+				console.error("Snapshot-Liste Fehler:", err);
+			}
+		}
+		
+		document.getElementById("snapshotSelect").addEventListener("change", async (e) => {
+			const value = e.target.value;
+			if (!value) return;
+
+			try {
+				await fetch(`load/${value}`);
+				loadData(); 
+				showStatus("Snapshot geladen!", "success");
+			} catch (err) {
+				showStatus("Fehler beim Laden des Snapshots", "error");
+			}
+		});
+
 		// Suche
 		document.getElementById('searchBox').addEventListener('input', (e) => {
 			const searchTerm = e.target.value.toLowerCase();
@@ -769,6 +810,7 @@
 
 		// Initial laden
 		loadData();
+		loadSnapshotList();
 	</script>
 </body>
 </html>
