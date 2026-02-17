@@ -18,15 +18,16 @@ In die Datei cfg.ini muss als Port der COM-Port des iU891A-XL-Empfängers einget
 Die AES-Schlüssel der Zähler sind für diesen Schritt nicht erforderlich.  
 
 #### Start
-`python wmbus.py`  
+`uvicorn wmbus:app --port 8081`  
 
-Alternativ kann auch ein bestehender Snapshot mit Testdaten eingelesen werden.  
-`python wmbus.py -snap 2026-01-31.json` 
 
 #### Ausgabe
 ```
+INFO:     Started server process [22444]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8081 (Press CTRL+C to quit)
 Verbinde mit iU891A-XL an COM5...
-HTTP-Server aktiv: http://192.168.178.76:8080
 -> C001030424C0 Get Device Info
 <- C00104006E48090000BE2D0600C70B0000CF5DC0 Device Info OK
 -> C00903030E0000003200A0BB0D00AF61C0 Set Configuration C1/T1
@@ -38,6 +39,10 @@ Telegramm von 42130857 blockiert
 ```
 
 Über die o.g. Adresse kann der Webserver im Browser aufgerufen werden.  
+
+#### Laden von Testdaten
+Über http://127.0.0.1:8081/load/2025-12-31 können auch Testdaten aus einem Snapshot geladen werden.  
+
 
 ## Auswertungs-Server
 Der Auswertungsserver liest die Telegramme aus den Snapshots, entschlüsselt sie und bereit die Daten auf, z.B. für die Unterjährige Verbrauchsmitteilung (UVI). 
@@ -98,8 +103,9 @@ Mit den oben genannten Befehlen ist der Server nur von dem Gerät erreichbar, au
 ---
 
 # Autostart unter Linux
-Create a file selbst-ableser.service  
+Eine Datei namens selbst-ableser.service anlegen  
 `sudo nano /etc/systemd/system/selbst-ableser.service`  
+und mit folgendem Inhalt befüllen:  
 
 ```
 [Unit]
@@ -107,13 +113,15 @@ Description=Read wmbus meters
 After=network.target  
 
 [Service]  
-ExecStart=/home/sf/selbst-ableser/venv/bin/python /home/sf/selbst-ableser/main.py  
-WorkingDirectory=/home/sf/selbst-ableser/
-StandardOutput=inherit
-StandardError=inherit
+User=pi
+WorkingDirectory=/home/pi/selbst-ableser/
+Environment="PATH=/home/pi/wmbus/venv/bin"
+ExecStart=/home/pi/selbst-ableser/venv/bin/uvicorn wmbus:app --host 0.0.0.0 --port 8081 --workers 1
+StandardOutput=null
+StandardError=journal
 Restart=always
 RestartSec=10
-User=sf
+
 
 [Install]
 WantedBy=multi-user.target

@@ -1,35 +1,15 @@
 import configparser
 import threading
+import os
 import time
-import argparse
 from wmBus import WMBusReceiver
 from frame_store import FrameStore
 from wmbusBlocklist import BlockList
-from wmbusServer.http_server import start_http
+from meterRegistry import MeterRegistry
+from wmbusServer.app import create_app
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-snap", help="Laden von Daten aus Snapshot-Datei (optional)")
-args = parser.parse_args()
 
-config = configparser.ConfigParser(inline_comment_prefixes='#')
-config.read('cfg.ini')
-cfg = config['Configuration']
-
-frame_store = FrameStore(cfg)
-blocklist = BlockList(cfg.get('Blocklist', ''))
-
-def main():
-	# Load existing data
-	if (args.snap):
-		frame_store.load_snapshot_file(args.snap)
-
-	# Snapshot setup
-	frame_store.start_scheduler()
-	
-	# HTTP-Server setup
-	threading.Thread(target=start_http, args=(cfg, frame_store), daemon=True).start()
-	
-	# Serial communication
+def wmbusComm():
 	port = cfg.get('Port', '').strip()
 	if port:
 		while True:
@@ -59,5 +39,24 @@ def main():
 				break
 
 
-if __name__ == "__main__":
-	main()
+config = configparser.ConfigParser(inline_comment_prefixes='#')
+config.read('cfg.ini')
+cfg = config['Configuration']
+
+frame_store = FrameStore(cfg)
+blocklist = BlockList(cfg.get('Blocklist', ''))
+
+# Snapshot setup
+frame_store.start_scheduler()
+
+registry = MeterRegistry(
+	cfg['Locationfile'],
+	password=os.getenv("LOCATION_PW"),
+	key_port=int(cfg.get('KeyPort', 0)) or None)
+#registry.print()
+
+# Serial communication
+threading.Thread(target=wmbusComm, daemon=True).start()
+
+# Server
+app = create_app(cfg, registry, frame_store)

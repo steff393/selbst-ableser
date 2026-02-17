@@ -449,7 +449,7 @@
 		let allData = [];
 		let filteredData = [];
 		let currentPage = 1;
-		let rowsPerPage = 8;
+		let rowsPerPage = 25;
 		let sortColumn = 'id';
 		let sortDirection = 'asc';
 
@@ -502,11 +502,10 @@
 				document.getElementById('loading').style.display = 'block';
 				document.getElementById('wmbusTable').style.display = 'none';
 				
-				const token = window.location.pathname.substring(1);
-				const response = await fetch(`${token}/data`);
+				const response = await fetch(`data`);
 				
 				if (!response.ok) {
-					showStatus("Token ungültig oder keine Berechtigung.", 'error');
+					showStatus("Fehler beim Laden der Daten.", 'error');
 					return;
 				}
 				
