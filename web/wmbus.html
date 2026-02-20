@@ -473,21 +473,92 @@
 		function typ2txt(tg) {
 			const val = tg[9];
 			const MEDIUM_TYPES = {
-				0x00: "OTH", 0x01: "OIL", 0x02: "ELC", 0x03: "GAS",
-				0x04: "WMZ", 0x05: "STM", 0x06: "WWZ", 0x07: "KWZ",
-				0x08: "HKV", 0x80: "HKV", 0x09: "AIR", 0x0A: "CLR",
-				0x0B: "CLF", 0x0C: "HTF", 0x0D: "HCX", 0x0E: "BUS",
-				0x0F: "UNK"
+				0x00: { code: "OTH", name: "Other", de: "Anderes" },
+				0x01: { code: "OIL", name: "Oil", de: "Öl" },
+				0x02: { code: "ELC", name: "Electricity", de: "Elektrizität" },
+				0x03: { code: "GAS", name: "Gas", de: "Gas" },
+				0x04: { code: "WMZ", name: "Heat (return)", de: "Wärme (Rücklauf)" },
+				0x05: { code: "STM", name: "Steam", de: "Dampf" },
+				0x06: { code: "WWZ", name: "Hot Water", de: "Warmwasser" },
+				0x07: { code: "KWZ", name: "Water", de: "Wasser" },
+				0x08: { code: "HKV", name: "Heat Cost Allocator", de: "Heizkostenverteiler" },
+				0x80: { code: "HKV", name: "Heat Cost Allocator", de: "Heizkostenverteiler" }, // special case for TCH
+				0x09: { code: "AIR", name: "Compressed Air", de: "Pressluft" },
+				0x0A: { code: "CLR", name: "Cooling (return)", de: "Kühlung (Rücklauf)" },
+				0x0B: { code: "CLF", name: "Cooling (flow)", de: "Kühlung (Vorlauf)" },
+				0x0C: { code: "HTF", name: "Heat (flow)", de: "Wärme (Vorlauf)" },
+				0x0D: { code: "HCX", name: "Heat / Cooling", de: "Wärme/Kühlung" },
+				0x0E: { code: "BUS", name: "Bus / System", de: "Bus / System" },
+				0x0F: { code: "UNK", name: "Unknown", de: "Unbekannt" },
+				0x14: { code: "CAL", name: "Calorific value", de: "Heiz-/Brennwert" },
+				0x15: { code: "BHW", name: "Boiling Water", de: "Heißwasser" },
+				0x16: { code: "CLD", name: "Cold Water", de: "Kaltwasser" },
+				0x17: { code: "DUW", name: "Dual Water", de: "Mischwasser" },
+				0x18: { code: "PRS", name: "Pressure", de: "Druck" },
+				0x19: { code: "ADC", name: "A/D Converter", de: "A/D Wandler" },
+				0x1A: { code: "SMK", name: "Smoke detector", de: "Rauchmelder" },
+				0x1B: { code: "RMS", name: "Room sensor", de: "Raumsensor" },
+				0x1C: { code: "GDT", name: "Gas detector", de: "Gasdetektor" },
+				0x20: { code: "CBR", name: "Circuit breaker", de: "Unterbrecher" },
+				0x21: { code: "VAL", name: "Valve", de: "Ventil" },
+				0x25: { code: "DSP", name: "Display", de: "Anzeige" },
+				0x28: { code: "SEW", name: "Sewage", de: "Abwasser" },
+				0x29: { code: "WST", name: "Waste", de: "Abfall" },
+				0x2A: { code: "CO2", name: "Carbon dioxide", de: "Kohlendioxid" },
+				// Table 2 values
+				0x31: { code: "COM", name: "Communication controller", de: "Kommunikationssteuergerät" },
+				0x32: { code: "UNI", name: "Unidirectional repeater", de: "Unidirektionaler Repeater" },
+				0x33: { code: "BIR", name: "Bidirectional repeater", de: "Bidirektionaler Repeater" },
+				0x36: { code: "RCS", name: "Radio converter (system side)", de: "Funkumsetzer (Systemseite)" },
+				0x37: { code: "RCM", name: "Radio converter (meter side)", de: "Funkumsetzer (Zählerseite)" },
+				0x38: { code: "WIR", name: "Wired adapter", de: "Drahtgebundener Adapter" },
+				// Inofficial values
+				0xF0: { code: "SMK", name: "Smoke detector(?)", de: "Rauchmelder(?)" }
 			};
-			return MEDIUM_TYPES[val] || "???";
+			if (MEDIUM_TYPES[val]) {
+				return MEDIUM_TYPES[val].code;
+			} else {
+				//return { code: "UNK", name: "Unknown", de: "Unbekannt" };
+				return("???");
+			}
 		}
 
 		// Prüfe ob Telegramm verschlüsselt ist (CI-Feld, Byte 10)
 		function isEncrypted(tg) {
 			if (tg.length < 11) return false;
+			
 			const ci = tg[10];
-			// Verschlüsselte Telegramme haben typischerweise CI >= 0x70
-			return ci >= 0x70 && ci <= 0x8F;
+			
+			// CI = 0x78 (kein tplh) oder 0xA0 (Mfct specific) → nie verschlüsselt
+			if (ci === 0x78 || ci === 0xA0) return false;
+			
+			// CI = 0x7A → kurzer tplh, tpl-cfg High-Byte liegt bei Byte 14
+			if (ci === 0x7A) {
+				if (tg.length < 15) return false;
+				const encMode = tg[14] & 0x07; // Bits [2:0] des High-Bytes
+				return encMode !== 0;
+			}
+
+			// CI = 0x72 → langer tplh (4 Byte ID + 2 Byte Mfct + version + type + acc + sts + cfg)
+			// tpl-cfg High-Byte bei Byte 22
+			if (ci === 0x72) {
+					if (tg.length < 23) return false;
+					const encMode = tg[22] & 0x07 // Bits [2:0] des High-Bytes
+					return encMode !== 0;
+			}
+			
+			// CI = 0x8C → ELL, tpl-cfg High-Byte liegt bei Byte 34
+			// Aufbau: 10=ELL-CI, 11=ell-cc, 12=ell-acc,
+			//         13=afl-ci, 14=afl-len (=15), dann AFL-Daten,
+			//         30=tpl-ci, 31=acc, 32=sts, 33/34=tpl-cfg
+			if (ci === 0x8C) {
+				if (tg.length < 35) return false;
+				const encMode = tg[34] & 0x07;
+				return encMode !== 0;
+			}
+			
+			// Alle anderen CI-Felder: sicherheitshalber als verschlüsselt behandeln
+			return true;
 		}
 
 		// RSSI Klassifizierung
