@@ -5,6 +5,8 @@
 
 Das Projekt richtet sich an Eigentümer & Mieter, die ihre Verbrauchsdaten **selbst**, **lokal** und **datenschutzfreundlich** erfassen möchten – ohne Cloud-Zwang oder externe Dienste.
 
+Webseite: [selbst-ableser.de](https://www.selbst-ableser.de)  
+
 ---
 
 ## Funktionen
