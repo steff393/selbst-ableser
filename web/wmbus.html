@@ -471,56 +471,59 @@
 		}
 
 		function typ2txt(tg) {
-			const val = tg[9];
 			const MEDIUM_TYPES = {
-				0x00: { code: "OTH", name: "Other", de: "Anderes" },
-				0x01: { code: "OIL", name: "Oil", de: "Öl" },
-				0x02: { code: "ELC", name: "Electricity", de: "Elektrizität" },
-				0x03: { code: "GAS", name: "Gas", de: "Gas" },
-				0x04: { code: "WMZ", name: "Heat (return)", de: "Wärme (Rücklauf)" },
-				0x05: { code: "STM", name: "Steam", de: "Dampf" },
-				0x06: { code: "WWZ", name: "Hot Water", de: "Warmwasser" },
-				0x07: { code: "KWZ", name: "Water", de: "Wasser" },
-				0x08: { code: "HKV", name: "Heat Cost Allocator", de: "Heizkostenverteiler" },
-				0x80: { code: "HKV", name: "Heat Cost Allocator", de: "Heizkostenverteiler" }, // special case for TCH
-				0x09: { code: "AIR", name: "Compressed Air", de: "Pressluft" },
-				0x0A: { code: "CLR", name: "Cooling (return)", de: "Kühlung (Rücklauf)" },
-				0x0B: { code: "CLF", name: "Cooling (flow)", de: "Kühlung (Vorlauf)" },
-				0x0C: { code: "HTF", name: "Heat (flow)", de: "Wärme (Vorlauf)" },
-				0x0D: { code: "HCX", name: "Heat / Cooling", de: "Wärme/Kühlung" },
-				0x0E: { code: "BUS", name: "Bus / System", de: "Bus / System" },
-				0x0F: { code: "UNK", name: "Unknown", de: "Unbekannt" },
-				0x14: { code: "CAL", name: "Calorific value", de: "Heiz-/Brennwert" },
-				0x15: { code: "BHW", name: "Boiling Water", de: "Heißwasser" },
-				0x16: { code: "CLD", name: "Cold Water", de: "Kaltwasser" },
-				0x17: { code: "DUW", name: "Dual Water", de: "Mischwasser" },
-				0x18: { code: "PRS", name: "Pressure", de: "Druck" },
-				0x19: { code: "ADC", name: "A/D Converter", de: "A/D Wandler" },
-				0x1A: { code: "SMK", name: "Smoke detector", de: "Rauchmelder" },
-				0x1B: { code: "RMS", name: "Room sensor", de: "Raumsensor" },
-				0x1C: { code: "GDT", name: "Gas detector", de: "Gasdetektor" },
-				0x20: { code: "CBR", name: "Circuit breaker", de: "Unterbrecher" },
-				0x21: { code: "VAL", name: "Valve", de: "Ventil" },
-				0x25: { code: "DSP", name: "Display", de: "Anzeige" },
-				0x28: { code: "SEW", name: "Sewage", de: "Abwasser" },
-				0x29: { code: "WST", name: "Waste", de: "Abfall" },
-				0x2A: { code: "CO2", name: "Carbon dioxide", de: "Kohlendioxid" },
+				0x00: { code: "OTH", name: "Other",                        de: "Anderes" },
+				0x01: { code: "OIL", name: "Oil",                          de: "Öl" },
+				0x02: { code: "ELC", name: "Electricity",                  de: "Elektrizität" },
+				0x03: { code: "GAS", name: "Gas",                          de: "Gas" },
+				0x04: { code: "WMZ", name: "Heat (return)",                de: "Wärme (Rücklauf)" },
+				0x05: { code: "STM", name: "Steam",                        de: "Dampf" },
+				0x06: { code: "WWZ", name: "Hot Water",                    de: "Warmwasser" },
+				0x07: { code: "KWZ", name: "Water",                        de: "Wasser" },
+				0x08: { code: "HKV", name: "Heat Cost Allocator",          de: "Heizkostenverteiler" },
+				0x80: { code: "HKV", name: "Heat Cost Allocator",          de: "Heizkostenverteiler" },
+				0x09: { code: "AIR", name: "Compressed Air",               de: "Pressluft" },
+				0x0A: { code: "CLR", name: "Cooling (return)",             de: "Kühlung (Rücklauf)" },
+				0x0B: { code: "CLF", name: "Cooling (flow)",               de: "Kühlung (Vorlauf)" },
+				0x0C: { code: "HTF", name: "Heat (flow)",                  de: "Wärme (Vorlauf)" },
+				0x0D: { code: "HCX", name: "Heat / Cooling",               de: "Wärme/Kühlung" },
+				0x0E: { code: "BUS", name: "Bus / System",                 de: "Bus / System" },
+				0x0F: { code: "UNK", name: "Unknown",                      de: "Unbekannt" },
+				0x14: { code: "CAL", name: "Calorific value",              de: "Heiz-/Brennwert" },
+				0x15: { code: "BHW", name: "Boiling Water",                de: "Heißwasser" },
+				0x16: { code: "CLD", name: "Cold Water",                   de: "Kaltwasser" },
+				0x17: { code: "DUW", name: "Dual Water",                   de: "Mischwasser" },
+				0x18: { code: "PRS", name: "Pressure",                     de: "Druck" },
+				0x19: { code: "ADC", name: "A/D Converter",                de: "A/D Wandler" },
+				0x1A: { code: "SMK", name: "Smoke detector",               de: "Rauchmelder" },
+				0x1B: { code: "RMS", name: "Room sensor",                  de: "Raumsensor" },
+				0x1C: { code: "GDT", name: "Gas detector",                 de: "Gasdetektor" },
+				0x20: { code: "CBR", name: "Circuit breaker",              de: "Unterbrecher" },
+				0x21: { code: "VAL", name: "Valve",                        de: "Ventil" },
+				0x25: { code: "DSP", name: "Display",                      de: "Anzeige" },
+				0x28: { code: "SEW", name: "Sewage",                       de: "Abwasser" },
+				0x29: { code: "WST", name: "Waste",                        de: "Abfall" },
+				0x2A: { code: "CO2", name: "Carbon dioxide",               de: "Kohlendioxid" },
 				// Table 2 values
-				0x31: { code: "COM", name: "Communication controller", de: "Kommunikationssteuergerät" },
-				0x32: { code: "UNI", name: "Unidirectional repeater", de: "Unidirektionaler Repeater" },
-				0x33: { code: "BIR", name: "Bidirectional repeater", de: "Bidirektionaler Repeater" },
-				0x36: { code: "RCS", name: "Radio converter (system side)", de: "Funkumsetzer (Systemseite)" },
+				0x31: { code: "COM", name: "Communication controller",     de: "Kommunikationssteuergerät" },
+				0x32: { code: "UNI", name: "Unidirectional repeater",      de: "Unidirektionaler Repeater" },
+				0x33: { code: "BIR", name: "Bidirectional repeater",       de: "Bidirektionaler Repeater" },
+				0x36: { code: "RCS", name: "Radio converter (system side)",de: "Funkumsetzer (Systemseite)" },
 				0x37: { code: "RCM", name: "Radio converter (meter side)", de: "Funkumsetzer (Zählerseite)" },
-				0x38: { code: "WIR", name: "Wired adapter", de: "Drahtgebundener Adapter" },
+				0x38: { code: "WIR", name: "Wired adapter",                de: "Drahtgebundener Adapter" },
 				// Inofficial values
-				0xF0: { code: "SMK", name: "Smoke detector(?)", de: "Rauchmelder(?)" }
+				0x62: { code: "WW?", name: "Warm water(?)",                de: "Warmwasser(?)" },
+				0x72: { code: "KW?", name: "Cold water(?)",                de: "Kaltwasser(?)" },
+				0xF0: { code: "SM?", name: "Smoke detector(?)",            de: "Rauchmelder(?)" },
+				0xFF: { code: "???", name: "Unknown",                      de: "Unbekannt" }
 			};
-			if (MEDIUM_TYPES[val]) {
-				return MEDIUM_TYPES[val].code;
-			} else {
-				//return { code: "UNK", name: "Unknown", de: "Unbekannt" };
-				return("???");
+			if (tg.length > 10) {
+				const val = tg[9];
+				if (MEDIUM_TYPES[val]) {
+					return MEDIUM_TYPES[val] ;
+				}
 			}
+			return MEDIUM_TYPES[0xFF] ;
 		}
 
 		// Prüfe ob Telegramm verschlüsselt ist (CI-Feld, Byte 10)
@@ -530,7 +533,7 @@
 			const ci = tg[10];
 			
 			// CI = 0x78 (kein tplh) oder 0xA0 (Mfct specific) → nie verschlüsselt
-			if (ci === 0x78 || ci === 0xA0) return false;
+			if (ci === 0x78 || (ci >= 0xA0 && ci <= 0xB7)) return false;
 			
 			// CI = 0x7A → kurzer tplh, tpl-cfg High-Byte liegt bei Byte 14
 			if (ci === 0x7A) {
@@ -592,6 +595,8 @@
 					for (let i = 0; i < row.wmbus.length; i += 2) {
 						wmbus.push(parseInt(row.wmbus.substr(i, 2), 16));
 					}
+					
+					const typeInfo = typ2txt(wmbus);
 
 					allData.push({
 						id: id,
@@ -599,7 +604,8 @@
 						timestampDate: parseGermanDate(row.timestamp),
 						rssi: parseInt(row.rssi),
 						manufacturer: wmbus.length >= 4 ? man2txt(wmbus) : 'N/A',
-						type: wmbus.length >= 10 ? typ2txt(wmbus) : 'N/A',
+						type: typeInfo.code,
+						typeDe: typeInfo.de,
 						encrypted: wmbus.length >= 11 ? isEncrypted(wmbus) : false,
 						wmbus: row.wmbus,
 						wmbusBytes: wmbus
@@ -731,7 +737,7 @@
 					<td>${item.timestamp}</td>
 					<td><span class="rssi ${getRssiClass(item.rssi)}">${item.rssi} dBm</span></td>
 					<td><span class="badge manufacturer">${item.manufacturer}</span></td>
-					<td><span class="badge type">${item.type}</span></td>
+					<td><span class="badge type" title="${item.typeDe}">${item.type}</span></td>
 					<td>${encryptedBadge}</td>
 					<td><a href="https://wmbusmeters.org/analyze/${item.wmbus}" target="_blank" class="wmbus-link">${item.wmbus}</a></td>
 				`;
