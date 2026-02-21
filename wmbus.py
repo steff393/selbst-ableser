@@ -49,11 +49,13 @@ blocklist = BlockList(cfg.get('Blocklist', ''))
 # Snapshot setup
 frame_store.start_scheduler()
 
+# to be removed ??
 registry = MeterRegistry(
 	cfg['Locationfile'],
 	password=os.getenv("LOCATION_PW"),
 	key_port=int(cfg.get('KeyPort', 0)) or None)
 #registry.print()
+#-----------------
 
 # Serial communication
 threading.Thread(target=wmbusComm, daemon=True).start()

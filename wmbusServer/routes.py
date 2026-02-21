@@ -1,12 +1,16 @@
 import os
 import json
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 
+# to be removed ??
+from meterRegistry import MeterRegistry
+from meterReader import decrypt
+# ----------------
 
-def get_router(cfg, registry, store, limiter):
+def get_router(cfg, registry: MeterRegistry, store, limiter):
 	router = APIRouter()	
 
 	def serve_file(filename: str, content_type: str):
@@ -41,10 +45,16 @@ def get_router(cfg, registry, store, limiter):
 	def build_payload(source_data):
 		payload = {}
 		for meter_nr, data in source_data.items():
+			meterCfg = registry.get_meter(meter_nr)
+			aes_key = meterCfg.aes_key if meterCfg else None
+			if aes_key:
+				wmbus = decrypt(data["wmbus"].hex(), aes_key)
+			else: 
+				wmbus = data["wmbus"].hex()
 			payload[meter_nr] = {
 				"timestamp": data["timestamp"],
 				"rssi": data["rssi"],
-				"wmbus": data["wmbus"].hex(),
+				"wmbus": wmbus,
 			}
 		return payload
 
@@ -80,19 +90,28 @@ def get_router(cfg, registry, store, limiter):
 	
 	@router.get("/load/{snapDate}")
 	@limiter.limit("60/minute")
-	def data(request: Request, snapDate: date | None = None):
+	def load(request: Request, snapDate: date | None = None):
 		store.load_snapshot_file(snapDate.isoformat() + ".json")
 		return RedirectResponse(url="/", status_code=303)
 	
 	@router.get("/list")
 	@limiter.limit("60/minute")
-	def data(request: Request):
+	def list(request: Request):
 		files = []
 		if os.path.isdir(cfg['SnapshotDir']):
 			for f in sorted(os.listdir(cfg['SnapshotDir'])):
 				if f.endswith(".json"):
 					files.append(f[:-5])
 		return files
+	
+	@router.get("/snapshot")
+	@limiter.limit("2/minute")
+	def snap(request: Request, snapDate: date | None = None):
+		store.make_snapshot(force=True)
+		return ({
+				"status": "ok",
+				"snapshot": datetime.now().strftime("%Y-%m-%d")
+			})
 
 	# -----------------------------------------------------------------------------
 	# Return the complete router
