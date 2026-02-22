@@ -1,6 +1,6 @@
 # Entschlüsselung der Zählerplatzdaten
 
-Die Datei `locations.json.enc` enthält die verschlüsselten Zählerplatzdaten auch die kritischen AES-Schlüssel der Funkzähler. Die AES-Schlüssel der Zähler sind die **sensibelsten Daten im System**. Um sie zu nutzen, muss dem Programm beim Start oder zur Laufzeit ein Passwort (Token) übergeben werden. Dafür stehen drei Methoden zur Verfügung.
+Die Datei `locations.json.enc` enthält die verschlüsselten Zählerplatzdaten und damit auch die kritischen AES-Schlüssel der Funkzähler. Die AES-Schlüssel der Zähler sind die **sensibelsten Daten im System**. Um sie zu nutzen, muss dem Programm beim Start oder zur Laufzeit ein Passwort (Token) übergeben werden. Dafür stehen drei Methoden zur Verfügung.
 
 ---
 
@@ -54,26 +54,20 @@ nc 127.0.0.1 53165
 **Wann geeignet?**
 Wenn das Passwort nicht persistent gespeichert werden soll und der Betreiber es bewusst nach jedem Neustart manuell eingeben möchte. Das Programm ist solange nicht voll funktionsfähig, bis das Passwort übermittelt wurde – was in manchen Szenarien ein gewünschtes Sicherheitsmerkmal ist.
 
+Beispiel: Die oben genannten Befehle können z.B. über eine Raspberry Pi Connect SSH-Verbindung eingegeben werden. Dies sichert weitgehend ab, dass Daten über eine manipulierte Verbindung abgegriffen werden.  
+
 ---
 
 ## Methode C – HTTP POST über die Web-Oberfläche
 
-Das Passwort wird über einen HTTP POST-Request an `/locations` übermittelt. Dies entspricht dem Token-Panel in der Web-Oberfläche, das den Schlüssel direkt aus dem Browser an den Server sendet.
+Das Passwort wird über einen HTTP POST-Request an `/locations/unlock` übermittelt. Dies entspricht dem Token-Panel in der Web-Oberfläche, das den Schlüssel direkt aus dem Browser an den Server sendet.
 
 ```http
-POST /locations
+POST /locations/unlock
 Content-Type: application/json
 
 { "key": "geheim" }
 ```
-
-Der aktuelle Sperrstatus kann jederzeit abgefragt werden:
-
-```http
-GET /locations/locked
-```
-
-Antwort: `{"status":"unlocked"}` oder `{"status":"locked"}`
 
 **Wann geeignet?**
 Wenn die Web-Oberfläche ohnehin geöffnet ist und das Passwort bequem über den Browser eingegeben werden soll – ohne Zugriff auf die Kommandozeile des Servers. Der Token kann dabei im Browser-LocalStorage gespeichert und bei Bedarf erneut gesendet werden. Hierbei muss sichergestellt werden, dass niemand unbefugt Zugriff auf den Browser hat.  
@@ -89,3 +83,14 @@ Wenn die Web-Oberfläche ohnehin geöffnet ist und das Passwort bequem über den
 | Benötigt Kommandozeile | ✅ Ja | ✅ Ja | ❌ Nein |
 
 Empfohlen wird die Variante B. Die anderen beiden Varianten können gewählt werden, wenn das Risiko verstanden wurde und durch entsprechende Zusatzmaßnahmen verringert wurde.  
+
+---
+
+## Aktuellen Status auslesen
+Der aktuelle Sperrstatus kann jederzeit abgefragt werden:
+
+```http
+GET /locations/locked
+```
+
+Antwort: `{"status":"unlocked"}` oder `{"status":"locked"}`

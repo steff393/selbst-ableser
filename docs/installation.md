@@ -72,7 +72,7 @@ Admin-Nutzer sind Nutzer ohne hinterlegte Wohnung.
 #### Konfiguration der Zählerplätze
 Zählerplätze und Zähler können in einer Excel-Datei verwaltet werden. Zu jedem Zählerplatz können dort beliebig viele Zähler hinterlegt werden, so dass auch Zählerwechsel berücksichtigt werden können.  
 Eine Beispiel-Datei findet sich unter Releases. 
-Über http://192.168.178.76:8080/import.html kann eine Excel-Datei importiert und mit einem Passwort verschlüsselt gespeichert werden. Das Passwort kann dem Auswertungsserver als Umgebungsvariable beim Aufruf übergeben werden.  
+Über den Daten-Import kann eine Excel-Datei importiert und mit einem Passwort verschlüsselt gespeichert werden. Das Passwort kann dem Auswertungsserver als Umgebungsvariable beim Aufruf übergeben werden (Alternative Wege siehe [locations.md](locations.md)).  
 
 Windows Eingabeaufforderung:  
 `set LOCATION_PW=geheim`  
