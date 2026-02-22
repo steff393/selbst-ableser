@@ -71,6 +71,11 @@ def get_router(cfg, registry: MeterRegistry, store, limiter):
 	@limiter.limit("60/minute")
 	def root(request: Request):
 		return serve_file("wmbus.html", "text/html")
+		
+	@router.get("/manufacturers.json")
+	@limiter.limit("60/minute")
+	def manufacturers(request: Request):
+		return serve_file("manufacturers.json", "application/json")
 
 	# -----------------------------------------------------------------------------
 	# API

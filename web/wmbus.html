@@ -455,6 +455,19 @@
 		let rowsPerPage = 25;
 		let sortColumn = 'id';
 		let sortDirection = 'asc';
+		let manufacturerMap = {};
+
+		// Hersteller-Mapping laden
+		function loadManufacturerMap() {
+			fetch("/manufacturers.json")
+				.then(response => response.json())
+				.then(data => {
+					manufacturerMap = data;
+				})
+				.catch(error => {
+					console.error("Fehler beim Laden des Hersteller-Mappings:", error);
+				});
+		}
 
 		// Manufacturer extrahieren
 		function int2_le(bytes) {
@@ -462,6 +475,7 @@
 		}
 
 		function man2txt(tg) {
+			if (tg.length < 4) return "N/A";
 			let k = int2_le(tg.slice(2, 4));
 			const a = Math.floor(k / 1024);
 			k %= 1024;
@@ -478,8 +492,8 @@
 				0x03: { code: "GAS", name: "Gas",                          de: "Gas" },
 				0x04: { code: "WMZ", name: "Heat (return)",                de: "Wärme (Rücklauf)" },
 				0x05: { code: "STM", name: "Steam",                        de: "Dampf" },
-				0x06: { code: "WWZ", name: "Hot Water",                    de: "Warmwasser" },
-				0x07: { code: "KWZ", name: "Water",                        de: "Wasser" },
+				0x06: { code: "WWZ", name: "Hot Water",                    de: "Warmwasserzähler" },
+				0x07: { code: "KWZ", name: "Water",                        de: "Kaltwasserzähler" },
 				0x08: { code: "HKV", name: "Heat Cost Allocator",          de: "Heizkostenverteiler" },
 				0x80: { code: "HKV", name: "Heat Cost Allocator",          de: "Heizkostenverteiler" },
 				0x09: { code: "AIR", name: "Compressed Air",               de: "Pressluft" },
@@ -603,7 +617,8 @@
 						timestamp: row.timestamp,
 						timestampDate: parseGermanDate(row.timestamp),
 						rssi: parseInt(row.rssi),
-						manufacturer: wmbus.length >= 4 ? man2txt(wmbus) : 'N/A',
+						manufacturer: man2txt(wmbus),
+						manufactLong: manufacturerMap[man2txt(wmbus)] || 'Unbekannt',
 						type: typeInfo.code,
 						typeDe: typeInfo.de,
 						encrypted: wmbus.length >= 11 ? isEncrypted(wmbus) : false,
@@ -736,7 +751,7 @@
 					<td><strong>${item.id}</strong></td>
 					<td>${item.timestamp}</td>
 					<td><span class="rssi ${getRssiClass(item.rssi)}">${item.rssi} dBm</span></td>
-					<td><span class="badge manufacturer">${item.manufacturer}</span></td>
+					<td><span class="badge manufacturer" title="${item.manufactLong}">${item.manufacturer}</span></td>
 					<td><span class="badge type" title="${item.typeDe}">${item.type}</span></td>
 					<td>${encryptedBadge}</td>
 					<td><a href="https://wmbusmeters.org/analyze/${item.wmbus}" target="_blank" class="wmbus-link">${item.wmbus}</a></td>
@@ -886,6 +901,7 @@
 		});
 
 		// Initial laden
+		loadManufacturerMap();
 		loadData();
 		loadSnapshotList();
 	</script>
