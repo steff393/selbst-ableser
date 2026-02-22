@@ -9,4 +9,4 @@ from .logic import (
 )
 from .logger import dbg
 from .serialize import serialize_monthly_results
-from .decrypt import decrypt
+from .decrypt import decryptTelegram, getEncrMode

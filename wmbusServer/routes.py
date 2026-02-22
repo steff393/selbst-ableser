@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 
 # to be removed ??
 from meterRegistry import MeterRegistry
-from meterReader import decrypt
+from meterReader import decryptTelegram, getEncrMode
 # ----------------
 
 def get_router(cfg, registry: MeterRegistry, store, limiter):
@@ -47,8 +47,8 @@ def get_router(cfg, registry: MeterRegistry, store, limiter):
 		for meter_nr, data in source_data.items():
 			meterCfg = registry.get_meter(meter_nr)
 			aes_key = meterCfg.aes_key if meterCfg else None
-			if aes_key:
-				wmbus = decrypt(data["wmbus"].hex(), aes_key)
+			if aes_key and getEncrMode(data["wmbus"].hex()) is not None:
+				wmbus = decryptTelegram(data["wmbus"].hex(), aes_key)
 			else: 
 				wmbus = data["wmbus"].hex()
 			payload[meter_nr] = {

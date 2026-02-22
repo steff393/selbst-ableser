@@ -3,7 +3,7 @@ import json
 import datetime
 from typing import Optional
 from .model import MeterConfig, MeterReading, MonthlyResult
-from .decrypt import decrypt
+from .decrypt import decryptTelegram, getEncrMode
 from .logger import dbg
 from meterRegistry import MeterRegistry
 
@@ -81,8 +81,8 @@ def search_meter_reading(date: datetime.date, meter_id: str, aes_key: Optional[s
 		d = date - datetime.timedelta(days=delta)
 		data = load_daily_file(d)
 		if data and meter_id in data:
-			if aes_key:
-				wmbus = decrypt(data[meter_id]["wmbus"], aes_key)
+			if aes_key and getEncrMode(data["wmbus"].hex()) is not None:
+				wmbus = decryptTelegram(data[meter_id]["wmbus"], aes_key)
 				if wmbus:
 					val = get_currHCA_from_wmbus(wmbus)
 			else:

@@ -1,12 +1,11 @@
 from Crypto.Cipher import AES
-import binascii
 from typing import Optional
 
-def decrypt(telegram: str, key: str) -> Optional[str]:
+def decryptTelegram(telegram: str, key: str) -> Optional[str]:
 	# decrypts wmbus telegram
 	try:
-		data    = binascii.unhexlify(telegram)
-		hex_key = binascii.unhexlify(key)
+		data    = bytes.fromhex(telegram)
+		hex_key = bytes.fromhex(key)
 		if len(data) < 16 or len(hex_key) != 16:
 			raise ValueError
 	except Exception:
@@ -41,3 +40,29 @@ def decrypt(telegram: str, key: str) -> Optional[str]:
 		return(decrypt.hex()) # return as string
 	else:
 		return(None)
+
+
+def getEncrMode(telegram: str) -> Optional[int]:
+	try:
+		data = bytes.fromhex(telegram)
+	except Exception:
+		return None
+
+	if len(data) < 11:
+		return None
+
+	ci = data[10]
+
+	if ci == 0x78 or (0xA0 <= ci <= 0xB7):   # CI = 0x78 (no tplh) or 0xA0–0xB7 (Mfct specific) -> never encrypted
+		return None
+
+	CI_MAP = {
+		0x7A: 14, # CI = 0x7A → short tplh, tpl-cfg high-byte at byte 14
+		0x72: 22, # CI = 0x72 → long  tplh, tpl-cfg high-byte at byte 22
+		0x8C: 34, # CI = 0x8C → ELL,        tpl-cfg high-byte at byte 34
+	}
+	
+	if ci in CI_MAP:
+		if len(data) >= (CI_MAP[ci] + 1):
+			return (data[CI_MAP[ci]] & 0x07)
+	return None
