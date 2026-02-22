@@ -58,6 +58,7 @@
 			color: white;
 			padding: 30px;
 			text-align: center;
+			position: relative;
 		}
 
 		header h1 {
@@ -378,6 +379,81 @@
 				padding: 8px;
 			}
 		}
+		
+		.token-toggle {
+			position: absolute;
+			top: 16px;
+			right: 20px;
+			background: transparent;
+			border: 1px solid rgba(255,255,255,0.35);
+			color: rgba(255,255,255,0.8);
+			padding: 5px 9px;
+			font-size: 1.1em;
+			border-radius: 6px;
+			cursor: pointer;
+			transition: all 0.2s;
+			line-height: 1;
+		}
+		.token-toggle:hover {
+			background: rgba(255,255,255,0.15);
+			color: white;
+			transform: none;
+			box-shadow: none;
+		}
+		.token-toggle.unlocked {
+			border-color: var(--color-success);
+			color: var(--color-success);
+		}
+		.token-panel {
+			display: none;
+			padding: 12px 30px;
+			background: #f0f4f8;
+			border-bottom: 1px solid var(--color-border);
+			gap: 8px;
+			flex-wrap: wrap;
+			align-items: center;
+		}
+		.token-panel.open {
+			display: flex;
+		}
+		.token-panel label {
+			font-size: 0.85em;
+			color: var(--color-text-secondary);
+			font-weight: 500;
+		}
+		.token-panel input[type="text"] {
+			flex: 1;
+			min-width: 180px;
+			padding: 7px 10px;
+			border: 1px solid var(--color-border);
+			border-radius: 6px;
+			font-family: 'Courier New', monospace;
+			font-size: 0.85em;
+			background: white;
+		}
+		.token-panel input[type="text"]:focus {
+			outline: none;
+			border-color: var(--color-primary);
+			box-shadow: 0 0 0 2px rgba(13, 115, 119, 0.1);
+		}
+		.token-btn {
+			padding: 7px 12px;
+			font-size: 0.82em;
+			background: var(--color-surface);
+			color: var(--color-primary);
+			border: 1px solid var(--color-primary);
+			border-radius: 6px;
+			cursor: pointer;
+			font-weight: 500;
+			transition: all 0.2s;
+			white-space: nowrap;
+		}
+		.token-btn:hover {
+			background: var(--color-primary);
+			color: white;
+			transform: none;
+			box-shadow: none;
+		}
 	</style>
 </head>
 <body>
@@ -398,7 +474,18 @@
 					<div class="stat-label">Ø RSSI</div>
 				</div>
 			</div>
+			<button class="token-toggle" id="tokenToggle" title="Token verwalten">🔒</button>
 		</header>
+
+		<div class="token-panel" id="tokenPanel">
+			<label>Token:</label>
+			<input type="text" id="tokenField" placeholder="Token eingeben…" autocomplete="off">
+			<button class="token-btn" id="btnTokenFile">📂 Datei laden</button>
+			<input type="file" id="tokenFileInput" accept=".txt,.key" style="display:none">
+			<button class="token-btn" id="btnTokenSaveLocal">🗄️ Im Browser sichern</button>
+			<button class="token-btn" id="btnTokenLoadLocal">📂 Aus Browser laden</button>
+			<button class="token-btn" id="btnTokenSend">📤 Senden</button>
+		</div>
 
 		<div class="controls">
 			<input type="text" class="search-box" id="searchBox" placeholder="🔍 Suche nach ID, Hersteller, Typ...">
@@ -634,6 +721,7 @@
 				document.getElementById('loading').style.display = 'none';
 				document.getElementById('wmbusTable').style.display = 'table';
 				document.getElementById('pagination').style.display = 'flex';
+				checkLockStatus();
 
 			} catch(err) {
 				console.error(err);
@@ -898,6 +986,107 @@
 			link.click();
 			
 			showStatus('CSV-Export erfolgreich!', 'success');
+		});
+
+		const STORAGE_KEY = 'locations_token';
+
+		async function checkLockStatus() {
+			try {
+				const resp = await fetch("locations/locked");
+				const json = await resp.json();
+				updateLockIcon(json.status === "unlocked");
+			} catch(e) {
+				updateLockIcon(false);
+			}
+		}
+		
+		function updateLockIcon(unlocked) {
+			const token = document.getElementById('tokenField').value.trim();
+			const btn = document.getElementById('tokenToggle');
+			if (unlocked) {
+				btn.textContent = '🔓';
+				btn.classList.add('unlocked');
+			} else {
+				btn.textContent = '🔒';
+				btn.classList.remove('unlocked');
+			}
+		}
+
+		document.getElementById('tokenToggle').addEventListener('click', () => {
+			document.getElementById('tokenPanel').classList.toggle('open');
+		});
+
+		document.getElementById('btnTokenFile').addEventListener('click', () => {
+			document.getElementById('tokenFileInput').click();
+		});
+
+		document.getElementById('tokenFileInput').addEventListener('change', (e) => {
+			const file = e.target.files[0];
+			if (!file) return;
+			const reader = new FileReader();
+			reader.onload = (ev) => {
+				document.getElementById('tokenField').value = ev.target.result.trim();
+				showStatus(`Token aus Datei ${file.name} geladen`, 'success');
+			};
+			reader.readAsText(file);
+			e.target.value = '';
+		});
+
+		document.getElementById('btnTokenSaveLocal').addEventListener('click', () => {
+			const token = document.getElementById('tokenField').value.trim();
+			if (!token) { showStatus('Kein Token eingegeben', 'error'); return; }
+			localStorage.setItem(STORAGE_KEY, token);
+			showStatus(`Token im Browser gespeichert`, 'success');
+		});
+
+		document.getElementById('btnTokenLoadLocal').addEventListener('click', () => {
+			const token = localStorage.getItem(STORAGE_KEY);
+			if (token) {
+				document.getElementById('tokenField').value = token;
+				showStatus('Token aus Browser-Speicher geladen', 'success');
+			} else {
+				showStatus('Kein gespeicherter Token gefunden', 'error');
+			}
+		});
+
+		document.getElementById('btnTokenSend').addEventListener('click', async () => {
+			const key = document.getElementById('tokenField').value;
+			try {
+				const resp = await fetch("/locations/unlock", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					credentials: "same-origin",
+					body: JSON.stringify({ key })
+				});
+				if (!resp.ok) {
+					throw new Error("Fehler beim Senden");
+				}
+				const data = await resp.text();
+				let status = false;
+				try {
+					const json = JSON.parse(data);
+					status = json.status === "ok";
+				} catch(e) {
+					status = false;
+				}
+				document.getElementById('tokenField').value = "";
+				showStatus(`Server antwortet: ${data}`, 'success');
+				checkLockStatus();
+			} catch (err) {
+				console.error(err);
+				showStatus('Fehler beim Senden des Tokens', 'error');
+				checkLockStatus();
+			}
+		});
+
+		// Beim Start: Token aus LocalStorage laden falls vorhanden
+		window.addEventListener('DOMContentLoaded', () => {
+			const saved = localStorage.getItem(STORAGE_KEY);
+			if (saved) {
+				document.getElementById('tokenField').value = saved;
+			}
 		});
 
 		// Initial laden

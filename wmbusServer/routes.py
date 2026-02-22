@@ -78,7 +78,7 @@ def get_router(cfg, registry: MeterRegistry, store, limiter):
 		return serve_file("manufacturers.json", "application/json")
 
 	# -----------------------------------------------------------------------------
-	# API
+	# API GET
 	# -----------------------------------------------------------------------------
 	
 	@router.get("/data")
@@ -117,6 +117,32 @@ def get_router(cfg, registry: MeterRegistry, store, limiter):
 				"status": "ok",
 				"snapshot": datetime.now().strftime("%Y-%m-%d")
 			})
+	
+	@router.get("/locations/locked")
+	@limiter.limit("60/minute")
+	def locations_locked(request: Request):
+		return ({"status": "unlocked" if registry.is_unlocked() else "locked"})
+	
+	# -----------------------------------------------------------------------------
+	# API POST
+	# -----------------------------------------------------------------------------
+
+	@router.post("/locations/unlock")
+	@limiter.limit("10/day")
+	async def receive_key(request: Request):
+		
+		try:
+			body = await request.json()
+			key = body.get("key")
+			if not key or len(key) > 100:
+				raise HTTPException(status_code=400, detail="Kein gültiger Key übermittelt")
+			# unlock the meterRegistry with the provided key
+			if registry._unlock(key) == True:
+				return {"status": "ok"}
+			else:
+				return {"status": "wrong password"}
+		except Exception as e:
+			return {"status": "error"}
 
 	# -----------------------------------------------------------------------------
 	# Return the complete router

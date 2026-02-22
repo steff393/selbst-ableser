@@ -20,4 +20,4 @@ def wait_for_key_secure(port: int = 53165) -> str:
 			conn.sendall(
 				b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nKey erhalten\n"
 			)
-			return secret
+			return secret if len(secret) < 100 else ""

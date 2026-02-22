@@ -123,12 +123,13 @@
 		}
 
 		input[type="file"],
-		input[type="password"] {
+		input[type="text"] {
 			width: 100%;
 			padding: 0.75rem;
 			border: 2px dashed var(--color-border);
 			border-radius: var(--radius-md);
-			font-size: 0.95rem;
+			font-family: 'Courier New', monospace;
+			font-size: 0.8rem;
 			transition: all var(--transition-fast);
 			background: var(--color-bg);
 		}
@@ -138,12 +139,12 @@
 		}
 
 		input[type="file"]:hover,
-		input[type="password"]:hover {
+		input[type="text"]:hover {
 			border-color: var(--color-primary-light);
 			background: white;
 		}
 
-		input[type="password"]:focus,
+		input[type="text"]:focus,
 		input[type="file"]:focus {
 			outline: none;
 			border-color: var(--color-primary);
@@ -186,6 +187,38 @@
 		.btn:disabled {
 			opacity: 0.5;
 			cursor: not-allowed;
+		}
+
+		.btn-secondary {
+			background: white;
+			color: var(--color-primary);
+			border: 2px solid var(--color-primary);
+			width: auto;
+			margin-top: 0;
+			padding: 0.4rem 0.85rem;
+			font-size: 0.8rem;
+		}
+
+		.btn-secondary:hover:not(:disabled) {
+			background: var(--color-primary);
+			color: white;
+			transform: translateY(-1px);
+			box-shadow: var(--shadow-sm);
+		}
+
+		.token-actions {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 0.5rem;
+			margin-top: 0.5rem;
+		}
+
+		.token-actions .token-row {
+			display: flex;
+			gap: 0.5rem;
+			flex-wrap: wrap;
+			justify-content: center;
 		}
 
 		.info-box {
@@ -292,7 +325,7 @@
 			}
 
 			input[type="file"],
-			input[type="password"] {
+			input[type="text"] {
 				padding: 0.6rem;
 				font-size: 0.9rem;
 			}
@@ -330,13 +363,23 @@
 <div class="container">
 	<div class="header">
 		<h1>Excel-Import</h1>
-		<div class="subtitle">Zähler- und Standortdaten importieren</div>
+		<div class="subtitle">Zählerplatz- und Zählerdaten importieren</div>
 	</div>
 
 	<div class="card">
 		<div class="info-box">
-			<strong>Hinweis:</strong> Laden Sie Ihre Excel-Datei (.xlsx) mit Zählerdaten hoch. 
-			Die Daten werden serverseitig validiert und verschlüsselt gespeichert.
+			<strong>Hinweis:</strong> Lade deine Excel-Datei (.xlsx) mit Zählerdaten hoch. 
+			Die Daten werden serverseitig validiert und verschlüsselt gespeichert.<br><br>
+			<strong>Erklärung:</strong> 
+			Die Excel-Datei enthält die AES-Schlüssel der Funkzähler. 
+			Diese Schlüssel müssen unbedingt vertraulich bleiben (wie auch die Excel-Datei), weil sie später nicht geändert werden können 
+			(sondern in den Zählern fest gespeichert sind).<br>
+			Vergib daher ein sicheres Passwort, am besten einen zufälligen Token. Du solltest das Passwort als Datei speichern.
+			Du kannst es <u>zusätzlich</u> auch in deinem Browser speichern, allerdings nur wenn fremder Zugriff ausgeschlossen ist.
+			<br>
+			Bei Verlust des Passworts kann die Excel-Datei erneut (mit neuem Passwort) importiert werden.
+			<br><br>
+			Bei einem Neustart des Servers muss es neu übermittelt werden. Es wird nicht auf dem System gespeichert.
 		</div>
 
 		<form id="form">
@@ -347,8 +390,20 @@
 			</div>
 
 			<div class="form-group">
-				<label for="password-input">Passwort (min. 6 Zeichen)</label>
-				<input type="password" id="password-input" name="password" minlength="6" placeholder="Passwort eingeben" required>
+				<label for="password-input">Passwort / Token</label>
+				<input type="text" id="password-input" name="password" required>
+				<div class="token-actions">
+					<div class="token-row">
+						<button type="button" class="btn btn-secondary" id="btn-new-token">🔄 Zufälligen Token erzeugen</button>
+						<button type="button" class="btn btn-secondary" id="btn-copy">📋 In Zwischenanlage kopieren</button>
+						<button type="button" class="btn btn-secondary" id="btn-save-file">💾 Als Datei sichern</button>
+					</div>
+					<div class="token-row">
+						<button type="button" class="btn btn-secondary" id="btn-save-local">🗄️ Im Browser speichern</button>
+						<button type="button" class="btn btn-secondary" id="btn-load-local">📂 Aus Browser laden</button>
+					</div>
+				</div>
+				<div id="token-info" class="file-info"></div>
 			</div>
 
 			<button type="submit" class="btn btn-primary">
@@ -380,13 +435,81 @@ document.getElementById('file-input').addEventListener('change', function(e) {
 	const infoEl = document.getElementById('file-info');
 	
 	if (file) {
-		const sizeMB = (file.size / 1024 / 1024).toFixed(2);
-		infoEl.textContent = `📁 ${file.name} (${sizeMB} MB)`;
+		const sizeMB = (file.size / 1024).toFixed(2);
+		infoEl.textContent = `📁 ${file.name} (${sizeMB} KB)`;
 		infoEl.classList.add('show');
 	} else {
 		infoEl.classList.remove('show');
 	}
 });
+
+const STORAGE_KEY = 'locations_token';
+
+/*
+window.addEventListener('DOMContentLoaded', () => {
+	const field = document.getElementById('password-input');
+	const saved = localStorage.getItem(STORAGE_KEY);
+	if (saved) {
+		field.value = saved;
+		showTokenInfo('🗄️ Token aus Browser-Speicher geladen');
+	} else {
+		field.value = generateToken();
+	}
+});
+*/
+
+function generateToken() {
+	const bytes = new Uint8Array(32);
+	crypto.getRandomValues(bytes);
+	return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+document.getElementById('btn-new-token').addEventListener('click', () => {
+	document.getElementById('password-input').value = generateToken();
+	showTokenInfo('🔄 Neuer Token erzeugt – bitte neu sichern!');
+});
+
+document.getElementById('btn-copy').addEventListener('click', () => {
+	const token = document.getElementById('password-input').value;
+	navigator.clipboard.writeText(token).then(() => {
+		showTokenInfo('📋 Token in Zwischenablage kopiert');
+	}).catch(() => {
+		showTokenInfo('⚠️ Kopieren nicht möglich');
+	});
+});
+
+document.getElementById('btn-save-file').addEventListener('click', () => {
+	const token = document.getElementById('password-input').value;
+	const blob = new Blob([token], { type: 'text/plain' });
+	const a = document.createElement('a');
+	a.href = URL.createObjectURL(blob);
+	a.download = STORAGE_KEY + '.txt';
+	a.click();
+	URL.revokeObjectURL(a.href);
+	showTokenInfo('💾 Token als Datei gespeichert');
+});
+
+document.getElementById('btn-save-local').addEventListener('click', () => {
+	const token = document.getElementById('password-input').value;
+	localStorage.setItem(STORAGE_KEY, token);
+	showTokenInfo('✅ Token im Browser gespeichert');
+});
+
+document.getElementById('btn-load-local').addEventListener('click', () => {
+	const token = localStorage.getItem(STORAGE_KEY);
+	if (token) {
+		document.getElementById('password-input').value = token;
+		showTokenInfo('📂 Token aus Browser-Speicher geladen');
+	} else {
+		showTokenInfo('⚠️ Kein gespeicherter Token gefunden');
+	}
+});
+
+function showTokenInfo(msg) {
+	const el = document.getElementById('token-info');
+	el.textContent = msg;
+	el.classList.add('show');
+}
 
 // Form Submit
 document.getElementById("form").addEventListener("submit", async e => {
@@ -405,7 +528,7 @@ document.getElementById("form").addEventListener("submit", async e => {
 	
 	try {
 		const data = new FormData(form);
-		const res = await fetch("import/upload", {
+		const res = await fetch("locations/import", {
 			method: "POST",
 			headers: {
 				"X-CSRF-Token": getCookie("csrf_token")
@@ -455,7 +578,6 @@ function getCookie(name) {
 	}
 	return null;
 }
-
 
 function escapeHtml(text) {
 	const div = document.createElement('div');

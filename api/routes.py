@@ -232,8 +232,13 @@ def get_router(cfg, registry, limiter):
 	# -----------------------------------------------------------------------------
 	# Import Upload (Admin only)
 	# -----------------------------------------------------------------------------
-
-	@router.post("/import/upload")
+	
+	@router.get("/locations/locked")
+	@limiter.limit("60/minute")
+	def locations_locked(request: Request, user: User = Depends(require_admin)):
+		return ({"status": "unlocked" if registry.is_unlocked() else "locked"})
+	
+	@router.post("/locations/import")
 	@limiter.limit("5/minute")
 	async def import_upload(
 		request: Request,
@@ -249,6 +254,23 @@ def get_router(cfg, registry, limiter):
 			"output": cfg["Locationfile"],
 			**result
 		}
+	
+	@router.post("/locations/unlock")
+	@limiter.limit("10/day")
+	async def receive_key(request: Request, user=Depends(require_admin)):
+		require_csrf(request)
+		try:
+			body = await request.json()
+			key = body.get("key")
+			if not key or len(key) > 100:
+				raise HTTPException(status_code=400, detail="Kein gültiger Key übermittelt")
+			# unlock the meterRegistry with the provided key
+			if registry._unlock(key) == True:
+				return {"status": "ok"}
+			else:
+				return {"status": "wrong password"}
+		except Exception as e:
+			return {"status": "error"}
 
 	# -----------------------------------------------------------------------------
 	# Return the complete router

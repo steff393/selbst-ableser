@@ -18,7 +18,7 @@ In die Datei cfg.ini muss als Port der COM-Port des iU891A-XL-Empfängers einget
 Die AES-Schlüssel der Zähler sind für diesen Schritt nicht erforderlich.  
 
 #### Start
-`uvicorn wmbus:app --port 8081`  
+`uvicorn wmbus:app --port 8081 --workers 1`  
 
 
 #### Ausgabe

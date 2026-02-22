@@ -195,17 +195,25 @@
 			flex: 1;
 			min-width: 200px;
 			padding: 0.5rem 0.75rem;
-			border: 1px solid var(--color-border);
-			border-radius: var(--radius-sm);
+			border: 2px dashed var(--color-border);
+			border-radius: var(--radius-md);
 			font-family: 'Courier New', monospace;
-			font-size: 0.95rem;
+			font-size: 0.8rem;
 			transition: all var(--transition-fast);
+			background: var(--color-bg);
+		}
+
+		.token-field:hover {
+			border-color: var(--color-primary);
+			background: white;
 		}
 
 		.token-field:focus {
 			outline: none;
 			border-color: var(--color-primary);
+			border-style: solid;
 			box-shadow: 0 0 0 3px rgba(13, 115, 119, 0.1);
+			background: white;
 		}
 
 		.status-box {
@@ -326,7 +334,7 @@
 				<div>
 					<div class="card-title">Benutzerverwaltung</div>
 					<div class="card-description">
-						Verwalten Sie Benutzer, Wohnungen und Zugangsrechte. Erstellen Sie Tokens für Mieter und konfigurieren Sie Wohnungsdaten.
+						Verwalte Benutzer, Wohnungen und Zugangsrechte. Erstelle Tokens für Mieter und konfiguriere die Wohnungsdaten.
 					</div>
 				</div>
 			</div>
@@ -342,7 +350,7 @@
 				<div>
 					<div class="card-title">Daten-Import</div>
 					<div class="card-description">
-						Importieren Sie Zähler- und Standortdaten aus Excel-Dateien. Die Daten werden automatisch validiert und verschlüsselt gespeichert.
+						Importiere die Zählerplatz-Daten aus Excel-Dateien. Die Daten werden automatisch validiert und verschlüsselt gespeichert.
 					</div>
 				</div>
 			</div>
@@ -350,6 +358,24 @@
 				<a href="import.html" class="btn btn-secondary">Excel importieren</a>
 				<a href="https://github.com/steff393/selbst-ableser/releases/download/v0.0.1/locations.xlsx" class="btn btn-outline">Vorlage herunterladen</a>
 			</div>
+		</div>
+
+		<div class="card">
+			<div class="card-header">
+				<div class="card-icon">🔑</div>
+				<div>
+					<div class="card-title">Daten entschlüsseln</div>
+					<div class="card-description">
+						Sende das Passwort an den Server, um die Zählerplatz-Daten zu entschlüsseln.
+					</div>
+				</div>
+			</div>
+			<div class="setup-form" style="margin-top: 0.75rem;">
+				<input type="text" id="locations-token" class="token-field" placeholder="Token eingeben…">
+				<button type="button" class="btn btn-outline" id="btn-load-locations-token">📂 Aus Browser laden</button>
+				<button type="button" class="btn btn-primary" id="btn-send-locations-token">📤 Senden</button>
+			</div>
+			<div id="locations-status"></div>
 		</div>
 
 		<!-- Status & Statistiken -->
@@ -385,6 +411,51 @@ function showStatus(type, message) {
 	const statusEl = document.getElementById("setup-status");
 	statusEl.innerHTML = `<div class="status-box ${type}">${message}</div>`;
 }
+
+document.getElementById('btn-load-locations-token').addEventListener('click', () => {
+	const token = localStorage.getItem('locations_token');
+	const statusEl = document.getElementById('locations-status');
+	if (token) {
+		document.getElementById('locations-token').value = token;
+	} else {
+		statusEl.innerHTML = '<div class="status-box error">⚠️ Kein gespeicherter Token gefunden</div>';
+	}
+});
+
+document.getElementById('btn-send-locations-token').addEventListener('click', async () => {
+	const key = document.getElementById('locations-token').value;
+	const statusEl = document.getElementById('locations-status');
+	try {
+		const resp = await fetch("/locations/unlock", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"X-CSRF-Token": getCookie("csrf_token")
+			},
+			credentials: "same-origin",
+			body: JSON.stringify({ key })
+		});
+		if (!resp.ok) {
+			throw new Error("Fehler beim Senden");
+		}
+		const data = await resp.text();
+		document.getElementById('locations-token').value = "";
+		statusEl.innerHTML = `<div class="status-box success">✅ Server antwortet: ${data}</div>`;
+	} catch (err) {
+		console.error(err);
+		statusEl.innerHTML = '<div class="status-box error">❌ Fehler beim Senden des Tokens</div>';
+	}
+});
+
+function getCookie(name) {
+	const value = `; ${document.cookie}`;
+	const parts = value.split(`; ${name}=`);
+	if (parts.length === 2) {
+		return parts.pop().split(';').shift();
+	}
+	return null;
+}
+
 </script>
 
 </body>
