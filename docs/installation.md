@@ -14,11 +14,15 @@ Nun können entweder der wM-Bus-Server oder der Auswertungs-Server gestartet wer
 Der wM-Bus-Server empfängt Telegramme und stellt sie auf einer Webseite (noch verschlüsselt dar). Außerdem speichert er täglich (oder monatlich) sogenannte Snapshots ab. Diese enthalten das zuletzt empfangene Telegramm jedes Zählers.  
 
 #### Vorbereitung
-In die Datei cfg.ini muss als Port der COM-Port des iU891A-XL-Empfängers eingetragen werden (oder Port auskommentiert werden, falls testweise nur mit Snapshots gearbeitet wird).  
+In die Datei cfg.ini muss als Port der COM-Port des iU891A-XL-Empfängers eingetragen werden (oder Port auskommentiert werden, falls testweise nur mit Snapshots gearbeitet wird). Der COM-Port lässt sich unter Linux wie folgt bestimmen:  
+`ls -l /dev/serial/by-id/`  
+Die Datei cfg.ini lässt sich unter Linux mit Nano öffnen:  
+`nano cfg.ini`  
 Die AES-Schlüssel der Zähler sind für diesen Schritt nicht erforderlich.  
 
 #### Start
-`uvicorn wmbus:app --port 8081 --workers 1`  
+`uvicorn wmbus:app --port 8081 --workers 1` bzw.  
+`uvicorn wmbus:app --port 8081 --workers 1 --host 0.0.0.0` zur Freigabe für alle Rechner im gleichen Netzwerk
 
 
 #### Ausgabe
@@ -38,7 +42,7 @@ Telegramm von 42130857 blockiert
 12:53:42 ✔ Zähler 42130855 | RSSI -95 dBm | wmBus 32446850550813426980A011FF32B80270044F03A108820A177F007F80ADA95024303D02000000000000000000021033644974
 ```
 
-Über die o.g. Adresse kann der Webserver im Browser aufgerufen werden.  
+Über die o.g. Adresse kann der Webserver im Browser aufgerufen werden, z.B. http://IP-Adresse:8081.  
 
 #### Laden von Testdaten
 Über http://127.0.0.1:8081/load/2025-12-31 können auch Testdaten aus einem Snapshot geladen werden.  
