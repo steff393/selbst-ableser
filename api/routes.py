@@ -158,7 +158,7 @@ def get_router(cfg, registry, limiter):
 		response.set_cookie(
 			key="csrf_token",
 			value=csrf_token,
-			secure=True,
+			secure=(request.url.scheme == "https"), # CSRF token cookie doesn't need to be HttpOnly so JS can read it but it should only be marked secure when using HTTPS.
 			samesite="lax",
 			path="/"
 		)
