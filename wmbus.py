@@ -53,7 +53,7 @@ frame_store.start_scheduler()
 registry = MeterRegistry(
 	cfg['Locationfile'],
 	password=os.getenv("LOCATION_PW"),
-	key_port=int(cfg.get('KeyPort', 0)) or None)
+	key_port=int(cfg.get('KeyPortWmbus', 0)) or None)
 #registry.print()
 #-----------------
 
