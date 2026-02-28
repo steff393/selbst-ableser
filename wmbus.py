@@ -7,6 +7,7 @@ from frame_store import FrameStore
 from wmbusBlocklist import BlockList
 from meterRegistry import MeterRegistry
 from wmbusServer.app import create_app
+from pathlib import Path
 
 
 def wmbusComm():
@@ -39,12 +40,32 @@ def wmbusComm():
 				break
 
 
+# Load and validate the configuration
+BASE_DIR = Path(__file__).parent
+cfg_file = BASE_DIR / 'cfg.ini'
+if not cfg_file.exists():
+	raise FileNotFoundError(f"cfg.ini nicht gefunden in {BASE_DIR}")
+
 config = configparser.ConfigParser(inline_comment_prefixes='#')
-config.read('cfg.ini')
+config.read(cfg_file)
 cfg = config['Configuration']
 
+cfg['SnapshotDir']   = str(BASE_DIR / cfg['SnapshotDir'])
+Path(cfg['SnapshotDir']).mkdir(parents=True, exist_ok=True)
+
+if cfg.get('Locationfile'):
+    cfg['Locationfile'] = str(BASE_DIR / cfg['Locationfile'])
+else:
+    cfg['Locationfile'] = ''
+
+if cfg.get('Blocklistfile'):
+    cfg['Blocklistfile'] = str(BASE_DIR / cfg['Blocklistfile'])
+else:
+    cfg['Blocklistfile'] = ''
+
+
 frame_store = FrameStore(cfg)
-blocklist = BlockList(cfg.get('Blocklist', ''))
+blocklist = BlockList(cfg['Blocklistfile'])
 
 # Snapshot setup
 frame_store.start_scheduler()
