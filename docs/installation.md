@@ -130,3 +130,9 @@ Check status of service
 
 Check, which services are enabled  
 `systemctl list-unit-files --state=enabled`  
+
+Restart the service  
+`sudo systemctl restart selbst-ableser`  
+
+Display the logs  
+`journalctl -u selbst-ableser -n 20 --no-pager`  

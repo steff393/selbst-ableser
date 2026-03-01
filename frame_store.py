@@ -1,5 +1,6 @@
 import threading
 import datetime
+from datetime import timedelta
 import time
 import os
 import json
@@ -95,9 +96,15 @@ class FrameStore:
 
 	def time_for_snapshot(self, now):
 		if self.cfg['SnapshotMode'] == "daily":
-			trigger = (now.hour == 0)
+			trigger = (now.hour == 23)
 		elif self.cfg['SnapshotMode'] == "monthly":
-			trigger = (now.day == 1 and now.hour == 0)
+			tomorrow = now + timedelta(days=1)
+			last_day = (tomorrow.month != now.month) # check if tomorrow is a different month, which means today is the last day of the month
+			trigger = (last_day and now.hour >= 23)
+		elif self.cfg['SnapshotMode'] == "monthly_safe":
+			plusDays = now + timedelta(days=5)
+			last_days = (plusDays.month != now.month) # check if in 5 days it's a different month, which means we are in the last 5 days of the month
+			trigger = (last_days and now.hour >= 23)
 		else:
 			trigger = False
 		return trigger
