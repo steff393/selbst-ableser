@@ -5,7 +5,10 @@ def wait_for_key_secure(port: int = 53165) -> str:
 	host = "127.0.0.1"
 	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 		s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		s.bind((host, port))
+		try:
+			s.bind((host, port))
+		except OSError:
+			raise RuntimeError(f"KeyPort {port} ist belegt oder gesperrt.")
 		s.listen(1)
 
 		print(f"Warte auf Key auf Port {port} …")

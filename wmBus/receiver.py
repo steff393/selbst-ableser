@@ -1,17 +1,38 @@
 import serial
+import serial.tools.list_ports
 import time
 from .slip import encode
 from .dongle import check_crc, check_wmbus_len, extract_wmbus_data, read_frame_timeout, listen_frames
 
 BAUDRATE = 115200
 TIMEOUT  = 0.2
+IMST_VID = "04B4" # Cypress Semiconductor
+IMST_PID = "0003" # Product ID
 
 
 class WMBusReceiver:
 	def __init__(self, port):
+		if port == "auto":
+			port = self.find_iU891A()
+		if port is None:
+			raise Exception("iU891A-XL Stick nicht gefunden. Bitte korrekten Port in cfg.ini angeben.")
 		self.ser = serial.Serial(port, BAUDRATE, timeout=TIMEOUT)
 		print(f"Verbinde mit iU891A-XL an {port}...")
 
+	def find_iU891A(self):
+		# Automatically find the iU891A-XL stick by checking connected serial ports
+		for port in serial.tools.list_ports.comports():
+			if "IMST" in (port.manufacturer or "") or \
+				 "iU891A" in (port.description or ""):
+				return port.device
+			# Alternative: check VID/PID
+			hwid = port.hwid.upper()
+			if f"VID_{IMST_VID}" in hwid and f"PID_{IMST_PID}" in hwid:
+				return port.device
+		print("IMST iU891A nicht gefunden. Verfügbare serielle Ports:")
+		for port in serial.tools.list_ports.comports():
+			print(f"  {port.device} - {port.description}")
+		return None
 
 	def init_stick(self):
 		# Wakeup

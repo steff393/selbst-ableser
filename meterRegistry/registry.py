@@ -43,12 +43,15 @@ class MeterRegistry:
 
 	def registry_unlock_worker(self):
 		while True:
-			password = wait_for_key_secure(self._key_port)
-			ok = self._unlock(password)
-			if ok:
+			try:
+				password = wait_for_key_secure(self._key_port)
+				ok = self._unlock(password)
+				if ok:
+					break
+			except RuntimeError as e:
+				print(f"Warnung: {e}")
 				break
-
-
+		
 	def _try_load_plaintext(self) -> bool:
 		try:
 			with open(self._path, "r", encoding="utf-8") as f:
