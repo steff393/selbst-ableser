@@ -14,7 +14,7 @@ Nun können entweder der wM-Bus-Server oder der Auswertungs-Server gestartet wer
 Der wM-Bus-Server empfängt Telegramme und stellt sie auf einer Webseite (noch verschlüsselt dar). Außerdem speichert er täglich (oder monatlich) sogenannte Snapshots ab. Diese enthalten das zuletzt empfangene Telegramm jedes Zählers.  
 
 #### Vorbereitung
-In die Datei cfg.ini muss als Port der COM-Port des iU891A-XL-Empfängers eingetragen werden (oder Port auskommentiert werden, falls testweise nur mit Snapshots gearbeitet wird). Der COM-Port lässt sich unter Linux wie folgt bestimmen:  
+Falls die automatische Erkennung des iU891A-XL-Empfängers nicht funktioniert, muss der entsprechende Port in die Datei cfg.ini eingetragen werden (oder Port auskommentiert werden, falls testweise nur mit Snapshots gearbeitet wird). Der COM-Port lässt sich unter Linux wie folgt bestimmen:  
 `ls -l /dev/serial/by-id/`  
 Die Datei cfg.ini lässt sich unter Linux mit Nano öffnen:  
 `nano cfg.ini`  
