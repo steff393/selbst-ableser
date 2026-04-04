@@ -91,6 +91,17 @@ class FrameStore:
 
 		self.last_snapshot_key = key
 		print(f"[SNAPSHOT] Gespeichert: {filename}")
+
+		# backup if configured and directory exists
+		if 'BackupDir' in self.cfg and self.cfg['BackupDir'] and os.path.isdir(self.cfg['BackupDir']):
+			backup_dir = self.cfg['BackupDir']
+			backup_filename = os.path.join(backup_dir, f"{key}.json")
+			try:
+				with open(backup_filename, "w", encoding="utf-8") as f:
+					json.dump(payload, f, indent=2)
+			except Exception as e:
+				print(f"[SNAPSHOT] Fehler beim Speichern im Backup: {e}")
+
 		return key
 
 
