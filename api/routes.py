@@ -1,6 +1,7 @@
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
+from cachetools import TTLCache
 
 from fastapi import APIRouter, Request, UploadFile, File, Form, Depends, HTTPException
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, Response
@@ -11,9 +12,8 @@ from .uvi_service import UviService
 from .importer import import_and_encrypt
 
 
-session_store = {}
-SESSION_LIFETIME = timedelta(hours=2)
-
+SESSION_LIFETIME_SECONDS = 7200  # 2 hours
+session_store = TTLCache(maxsize=50, ttl=SESSION_LIFETIME_SECONDS) # max 50 sessions at same time
 
 def get_router(cfg, registry, limiter):
 	router = APIRouter()
@@ -27,17 +27,9 @@ def get_router(cfg, registry, limiter):
 			raise HTTPException(status_code=401)
 
 		session = session_store[token]
-
-		created = datetime.fromisoformat(session["created"]) # check for expiry
-		if datetime.utcnow() - created > SESSION_LIFETIME:
-			del session_store[token]
-			raise HTTPException(status_code=401)
-
-		user_token = session["user"]
-		user = User.get(user_token)
+		user = User.get(session["user"])
 		if not user:
 			raise HTTPException(status_code=401)
-
 		return user
 
 	
@@ -145,7 +137,7 @@ def get_router(cfg, registry, limiter):
 		csrf_token = secrets.token_urlsafe(32)
 		session_store[session_token] = {
 			"user": token,
-			"created": datetime.utcnow().isoformat(),
+			"created": datetime.now(timezone.utc).isoformat(), # not needed (because TTLCache takes care), but maybe useful for debugging
 			"csrf": csrf_token
 		}
 		response = JSONResponse({"status": "ok"})
@@ -153,6 +145,7 @@ def get_router(cfg, registry, limiter):
 			key="session_token",
 			value=session_token,
 			httponly=True,
+			secure=(request.url.scheme == "https"), # similar like below
 			samesite="lax",
 			max_age=7200,         # 2 hours
 			path="/"

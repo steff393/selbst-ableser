@@ -18,6 +18,7 @@ fastapi
 uvicorn[standard]
 python-multipart
 slowapi
+cachetools>=7.0
 
 # Email
 schedule==1.2.2

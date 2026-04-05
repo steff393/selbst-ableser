@@ -136,3 +136,11 @@ Restart the service
 
 Display the logs  
 `journalctl -u selbst-ableser -n 20 --no-pager`  
+
+---
+
+# Automatische Installation unter Linux
+`sudo git clone https://github.com/steff393/selbst-ableser /opt/selbst-ableser`  
+`sudo bash /opt/selbst-ableser/install.sh`  
+
+Das Skript erstellt die venv, installiert die Python-Pakete aus der requirements.txt und erstellt 3 Daemons (s. services-Ordner). Außerdem generiert es den Admin-Token (s. users.json).  
