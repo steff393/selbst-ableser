@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request, UploadFile, File, Form, Depends, HTTPExc
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, Response
 
 from .users import User
+from .email import Email
 from .uvi_service import UviService
 from .importer import import_and_encrypt
 
@@ -106,6 +107,7 @@ def get_router(cfg, registry, limiter):
 		"users": "admin",
 		"import": "admin",
 		"uvi": "login",
+		"email": "admin",
 	}
 
 	@router.get("/{page_name}.html")
@@ -214,7 +216,41 @@ def get_router(cfg, registry, limiter):
 				"Content-Disposition": f'attachment; filename="{filename}"'
 			}
 		)
+
+	# -----------------------------------------------------------------------------
+	# Email (Admin)
+	# -----------------------------------------------------------------------------
+
+	@router.get("/email/data")
+	@limiter.limit("20/minute")
+	def email_data(request: Request, user: User = Depends(require_admin)):
+		return Email.load_from_file()
 	
+
+	@router.post("/email/save")
+	@limiter.limit("10/minute")
+	async def email_save(request: Request, user: User = Depends(require_admin)):
+		require_csrf(request)
+		data = await request.json()
+		if not isinstance(data, dict):
+			raise HTTPException(status_code=400, detail="Invalid format")
+		Email.save_to_file(data)
+		return {"status": "ok"}
+	
+
+	@router.get("/email/export")
+	@limiter.limit("5/hour")
+	def email_export(request: Request, user: User = Depends(require_admin)):
+		filename, content = Email.export()
+		
+		return Response(
+			content=content,
+			media_type="application/json",
+			headers={
+				"Content-Disposition": f'attachment; filename="{filename}"'
+			}
+		)
+
 	# -----------------------------------------------------------------------------
 	# UVI
 	# -----------------------------------------------------------------------------

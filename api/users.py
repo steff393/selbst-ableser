@@ -1,4 +1,3 @@
-import os
 import json
 from datetime import datetime, date
 from dataclasses import dataclass
