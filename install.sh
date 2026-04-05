@@ -52,16 +52,17 @@ cp $APP_DIR/services/selbst-ableser-main.service  /etc/systemd/system/
 cp $APP_DIR/services/selbst-ableser-wmbus.service /etc/systemd/system/
 
 systemctl daemon-reload
-systemctl start  selbst-ableser-email  selbst-ableser-main  selbst-ableser-wmbus
-systemctl enable selbst-ableser-email  selbst-ableser-main  selbst-ableser-wmbus
+systemctl restart selbst-ableser-email  selbst-ableser-main  selbst-ableser-wmbus # restart also starts, if already running
+systemctl enable  selbst-ableser-email  selbst-ableser-main  selbst-ableser-wmbus
 info "Services aktiviert"
 
 # ── 5. Token Display ──────────────────────────────────────
-step 5 "Bitte den generierten Admin-Token sichern:"
-
-sleep 15
+step 5 "Admin-Token erzeugen"
+sleep 10
 echo ""
-tail $APP_DIR/users.json
+TOKEN=$(python3 -c "import json; d=json.load(open('$APP_DIR/users.json')); print(list(d.keys())[0])")
+info "Admin-Token: $TOKEN"
+info "Bitte sicher notieren bzw. speichern!"
 
 # ── Fertig ────────────────────────────────────────────────
 echo ""
