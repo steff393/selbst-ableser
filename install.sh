@@ -3,8 +3,7 @@ set -e
 
 # Usage:
 # sudo git clone https://github.com/steff393/selbst-ableser /opt/selbst-ableser
-# cd /opt/selbst-ableser
-# sudo bash install.sh
+# sudo bash /opt/selbst-ableser/install.sh
 
 APP_DIR="/opt/selbst-ableser"
 VENV_DIR="$APP_DIR/venv"
