@@ -267,20 +267,11 @@ def get_router(cfg, registry, limiter):
 		import smtplib
 		from email.mime.text import MIMEText
 		
-		body = f"""\
-Test-E-Mail von selbst-ableser
-
-Dies ist eine Test-E-Mail zur Überprüfung der E-Mail-Konfiguration.
-
-Viele Grüße
-selbst-ableser - weil deine Daten dir gehören
-"""
-		
 		try:
 			with smtplib.SMTP_SSL("mail.gmx.net", 465) as server:
 				server.login(data["sender"], data["password"])
 				for recipient in data["to"]:
-					msg = MIMEText(body, "plain", "utf-8")
+					msg = MIMEText("Test-E-Mail zur Überprüfung der E-Mail-Konfiguration", "plain", "utf-8")
 					msg["From"] = data["sender"]
 					msg["To"] = recipient
 					msg["Subject"] = "Test-E-Mail von selbst-ableser"
