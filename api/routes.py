@@ -251,6 +251,45 @@ def get_router(cfg, registry, limiter):
 			}
 		)
 
+	@router.post("/email/test")
+	@limiter.limit("10/hour")
+	async def email_test(request: Request, user: User = Depends(require_admin)):
+		require_csrf(request)
+		data = await request.json()
+		if not isinstance(data, dict):
+			raise HTTPException(status_code=400, detail="Invalid format")
+		
+		# Validate required fields
+		if not data.get("sender") or not data.get("password") or not data.get("to"):
+			raise HTTPException(status_code=400, detail="Missing required email settings")
+		
+		# Send test email using the same logic as the email.py script
+		import smtplib
+		from email.mime.text import MIMEText
+		
+		body = f"""\
+Test-E-Mail von selbst-ableser
+
+Dies ist eine Test-E-Mail zur Überprüfung der E-Mail-Konfiguration.
+
+Viele Grüße
+selbst-ableser - weil deine Daten dir gehören
+"""
+		
+		try:
+			with smtplib.SMTP_SSL("mail.gmx.net", 465) as server:
+				server.login(data["sender"], data["password"])
+				for recipient in data["to"]:
+					msg = MIMEText(body, "plain", "utf-8")
+					msg["From"] = data["sender"]
+					msg["To"] = recipient
+					msg["Subject"] = "Test-E-Mail von selbst-ableser"
+					server.sendmail(data["sender"], recipient, msg.as_string())
+		except Exception as e:
+			raise HTTPException(status_code=500, detail=f"Failed to send test email: {str(e)}")
+		
+		return {"status": "ok"}
+
 	# -----------------------------------------------------------------------------
 	# UVI
 	# -----------------------------------------------------------------------------

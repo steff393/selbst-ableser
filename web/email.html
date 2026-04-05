@@ -371,6 +371,7 @@
 
 	<div class="actions-bar">
 		<button class="btn btn-success" onclick="save()">💾 Speichern</button>
+		<button class="btn btn-secondary" onclick="testEmail()">📧 Test</button>
 		<button class="btn btn-secondary" onclick="exportEmail()">📤 Export</button>
 	</div>
 
@@ -601,6 +602,44 @@ function exportEmail() {
 	})
 	.catch(err => {
 		showError("Fehler beim Export der E-Mail-Konfiguration");
+		console.error(err);
+	});
+}
+
+function testEmail() {
+	const status = document.getElementById("status");
+	status.innerHTML = "";
+
+	const config = getCleanConfig();
+
+	if (!config.sender) {
+		showError("Bitte eine Absender-E-Mail-Adresse eingeben.");
+		return;
+	}
+	if (!config.password) {
+		showError("Bitte ein Passwort eingeben.");
+		return;
+	}
+	if (config.to.length === 0) {
+		showError("Bitte mindestens einen Empfänger angeben.");
+		return;
+	}
+
+	fetch(`/email/test`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json", "X-CSRF-Token": getCookie("csrf_token") },
+		credentials: "same-origin",
+		body: JSON.stringify(config)
+	})
+	.then(r => {
+		if (!r.ok) throw new Error("Test fehlgeschlagen");
+		return r.json();
+	})
+	.then(() => {
+		showSuccess("✅ Test-E-Mail erfolgreich versendet!");
+	})
+	.catch(err => {
+		showError("Fehler beim Versenden der Test-E-Mail");
 		console.error(err);
 	});
 }
