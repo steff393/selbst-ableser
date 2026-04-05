@@ -7,6 +7,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request as StarletteRequest
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from .routes import get_router
 
 
@@ -63,6 +64,9 @@ def create_app(cfg, registry):
 
 	# Security Headers Middleware
 	app.add_middleware(SecurityHeadersMiddleware)
+
+	# Proxy Headers Middleware (for correct IP-detection (rate limits) behind Reverse Proxy)
+	app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["127.0.0.1"])
 
 	# SlowAPI Limiter
 	limiter = Limiter(key_func=get_remote_address)
