@@ -1,7 +1,11 @@
 #!/bin/bash
 set -e
 
-REPO_URL="https://github.com/steff393/selbst-ableser.git"
+# Usage:
+# sudo git clone https://github.com/steff393/selbst-ableser /opt/selbst-ableser
+# cd /opt/selbst-ableser
+# sudo bash install.sh
+
 APP_DIR="/opt/selbst-ableser"
 VENV_DIR="$APP_DIR/venv"
 
@@ -33,10 +37,11 @@ info "Logs werden nur noch im RAM gespeichert"
 
 # ── 3. Repository + venv ──────────────────────────────────
 step 3 "App installieren"
-#rm -rf "$APP_DIR"
-#git clone --depth 1 "$REPO_URL" "$APP_DIR"
+info "Venv installieren..."
 python3 -m venv "$VENV_DIR"
+info "pip upgraden..."
 "$VENV_DIR/bin/pip" install --upgrade pip -q
+info "requirements.txt installieren..."
 "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt" -q
 info "App bereit unter $APP_DIR"
 

@@ -29,7 +29,7 @@ logger.addHandler(console_handler)
 def load_email_config():
 	config_path = Path(__file__).resolve().parent / "email.json"
 	if not config_path.is_file():
-		logger.info("email.json not found, mail delivery disabled")
+		logger.info("email.json not found")
 		return None
 
 	try:

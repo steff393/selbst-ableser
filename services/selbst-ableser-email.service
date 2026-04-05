@@ -7,6 +7,7 @@ WorkingDirectory= /opt/selbst-ableser
 ExecStart=        /opt/selbst-ableser/venv/bin/python email_sender.py
 Restart=always
 RestartSec=5
+Environment=PYTHONUNBUFFERED=1
 User=root
 
 [Install]
