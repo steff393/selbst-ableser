@@ -1,6 +1,6 @@
 [Unit]
 Description=selbst-ableser E-Mail-Versand
-After=network.target selbst-ableser-main.service
+After=network.target
 
 [Service]
 WorkingDirectory=/opt/selbst-ableser
@@ -8,7 +8,11 @@ ExecStart=/opt/selbst-ableser/venv/bin/python email_sender.py
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
-User=root
+User=selbst-ableser
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/selbst-ableser
 
 [Install]
 WantedBy=multi-user.target

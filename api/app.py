@@ -55,7 +55,7 @@ def create_app(cfg, registry):
 			TrustedHostMiddleware,
 			allowed_hosts=[
 				"selbst-ableser.de",
-				"www.selbst-ableser.de",
+				"app.selbst-ableser.de",
 			]
 		) # else: don't use TrustedHost during development
 	
