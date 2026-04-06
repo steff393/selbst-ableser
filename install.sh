@@ -147,5 +147,5 @@ echo "╚═══════════════════════�
 echo ""
 echo -e "  Status prüfen:  ${YELLOW}systemctl status selbst-ableser-...${NC}"
 echo -e "  Logs anzeigen:  ${YELLOW}journalctl -u status selbst-ableser-... -f${NC}"
-echo -e "  Deinstallieren: ${YELLOW}sudo bash install.sh --$MODE --uninstall${NC}"
+echo -e "  Deinstallieren: ${YELLOW}sudo bash $APP_DIR/install.sh --$MODE --uninstall${NC}"
 echo ""

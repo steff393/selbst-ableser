@@ -8,7 +8,7 @@ ExecStart=/opt/selbst-ableser/venv/bin/uvicorn wmbus:app --host 0.0.0.0 --port 8
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
-User=selbst-ableser
+User=selbst
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

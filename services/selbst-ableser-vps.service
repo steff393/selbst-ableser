@@ -9,7 +9,7 @@ Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
 Environment=DEPLOYMENT_ENV=production
-User=selbst-ableser
+User=selbst
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
