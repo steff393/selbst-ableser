@@ -1,4 +1,5 @@
 import os
+import logging
 import secrets
 from datetime import datetime, timezone
 from cachetools import TTLCache
@@ -14,6 +15,8 @@ from .importer import import_and_encrypt
 
 SESSION_LIFETIME_SECONDS = 7200  # 2 hours
 session_store = TTLCache(maxsize=50, ttl=SESSION_LIFETIME_SECONDS) # max 50 sessions at same time
+logger = logging.getLogger("selbst_ableser.audit")
+
 
 def get_router(cfg, registry, limiter):
 	router = APIRouter()
@@ -131,6 +134,7 @@ def get_router(cfg, registry, limiter):
 		token = data.get("token")
 
 		if not User.exists(token):
+			logger.warning(f"LOGIN FAIL ip={request.client.host}")
 			raise HTTPException(status_code=403, detail="Ungültiger Token")
 
 		session_token = secrets.token_urlsafe(32)
@@ -140,6 +144,7 @@ def get_router(cfg, registry, limiter):
 			"created": datetime.now(timezone.utc).isoformat(), # not needed (because TTLCache takes care), but maybe useful for debugging
 			"csrf": csrf_token
 		}
+		logger.info(f"LOGIN OK   ip={request.client.host} user={token[:3]}…")
 		response = JSONResponse({"status": "ok"})
 		response.set_cookie(
 			key="session_token",
@@ -167,6 +172,7 @@ def get_router(cfg, registry, limiter):
 		# Token aus Store entfernen
 		if token and token in session_store:
 				del session_store[token]
+				logger.info(f"LOGOUT     ip={request.client.host}")
 
 		# Redirect zurück auf Login + Cookie löschen
 		response = RedirectResponse("/login.html", status_code=302)
@@ -308,6 +314,7 @@ def get_router(cfg, registry, limiter):
 		require_csrf(request)
 		content = await file.read()
 		result = import_and_encrypt(content, password, cfg["Locationfile"])
+		logger.info(f"IMPORT     ip={request.client.host} locations={result['locations']} meters={result['meters']}")
 		return {
 			"status": "ok",
 			"output": cfg["Locationfile"],
@@ -325,8 +332,10 @@ def get_router(cfg, registry, limiter):
 				raise HTTPException(status_code=400, detail="Kein gültiger Key übermittelt")
 			# unlock the meterRegistry with the provided key
 			if registry._unlock(key) == True:
+				logger.info(f"UNLOCK OK  ip={request.client.host}")
 				return {"status": "ok"}
 			else:
+				logger.warning(f"UNLOCK FAIL ip={request.client.host}")
 				return {"status": "wrong password"}
 		except Exception as e:
 			return {"status": "error"}

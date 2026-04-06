@@ -1,4 +1,5 @@
 import os
+import logging
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -9,6 +10,18 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request as StarletteRequest
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from .routes import get_router
+
+
+handlers = [logging.StreamHandler()]
+if os.getenv("DEPLOYMENT_ENV", "development") == "production":
+	handlers.insert(0, logging.FileHandler("audit.log"))  # log to file in production but not on Raspberry Pi (SD card wear)
+
+logging.basicConfig(
+	level=logging.INFO,
+	format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
+	datefmt="%Y-%m-%d %H:%M:%S",
+	handlers=handlers
+)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
