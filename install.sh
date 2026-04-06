@@ -15,7 +15,7 @@ else
 fi
 APP_DIR="/opt/selbst-ableser"
 VENV_DIR="$APP_DIR/venv"
-APP_USER="selbst-ableser"
+APP_USER="selbst"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 TOTAL=6
@@ -59,7 +59,7 @@ fi
 echo ""
 echo "╔══════════════════════════════════════╗"
 echo "║    selbst-ableser  Installation      ║"
-echo "║                 $MODE                 ║"
+echo "║                 $MODE                  ║"
 echo "╚══════════════════════════════════════╝"
 
 
@@ -89,6 +89,10 @@ else
 	info "User '$APP_USER' angelegt"
 fi
 chown -R $APP_USER:$APP_USER $APP_DIR
+if [ "$MODE" == "pi" ]; then
+  usermod -a -G dialout $APP_USER
+  info "User '$APP_USER' zur Gruppe 'dialout' hinzugefügt"
+fi
 info "Dateiberechtigungen gesetzt"
 
 
