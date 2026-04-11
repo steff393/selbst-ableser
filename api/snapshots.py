@@ -17,7 +17,7 @@ class SnapshotService:
 		self.cfg = cfg
 		self.max_file_size = 512 * 1024  # 512KB per file
 		self.max_total_size = 10 * 1024 * 1024  # 10MB total for ZIP
-		self.token_file = os.path.join("upload-token.txt")
+		self.token_file = "upload-token.txt"
 
 	def _normalize_snapshot_name(self, name: str) -> str:
 		if not isinstance(name, str) or not re.match(r'^[\w\-\.]+\.json$', name):
