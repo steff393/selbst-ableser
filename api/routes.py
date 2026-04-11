@@ -327,12 +327,17 @@ def get_router(cfg, registry, limiter):
 	async def snapshots_upload(request: Request, file: UploadFile = File(...)):
 		upload_token = request.headers.get("X-Snapshot-Upload-Token")
 		if not upload_token:
+			logger.warning(f"UPLOAD FAIL ip={request.client.host} reason=missing_token")
 			raise HTTPException(status_code=401, detail="Missing upload token")
 		
 		content = await file.read()
-		result = snapshot_service.handle_upload(content, upload_token, file.filename or "snapshot.json")
-		logger.info(f"UPLOAD OK  ip={request.client.host} filename={result['filename']}")
-		return result
+		try:
+			result = snapshot_service.handle_upload(content, upload_token, file.filename or "snapshot.json")
+			logger.info(f"UPLOAD OK  ip={request.client.host} filename={result['filename']}")
+			return result
+		except HTTPException as e:
+			logger.warning(f"UPLOAD FAIL ip={request.client.host} filename={file.filename} status={e.status_code} detail={e.detail}")
+			raise
 
 	# -----------------------------------------------------------------------------
 	# Import Upload (Admin only)
