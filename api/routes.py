@@ -1,7 +1,6 @@
 import os
 import logging
 import secrets
-from datetime import datetime, timezone
 from cachetools import TTLCache
 
 from fastapi import APIRouter, Request, UploadFile, File, Form, Depends, HTTPException
@@ -11,6 +10,7 @@ from .users import User
 from .email import Email
 from .uvi_service import UviService
 from .importer import import_and_encrypt
+from .snapshots import SnapshotService
 
 
 SESSION_LIFETIME_SECONDS = 7200  # 2 hours
@@ -23,6 +23,7 @@ def get_router(cfg, registry, limiter):
 	User.set_userfile(cfg["Userfile"])
 
 	uvi_service = UviService(cfg["SnapshotDir"], registry)
+	snapshot_service = SnapshotService(cfg)
 	
 	def require_login(request: Request) -> User:
 		token = request.cookies.get("session_token")
@@ -103,6 +104,7 @@ def get_router(cfg, registry, limiter):
 		"import": "admin",
 		"uvi": "login",
 		"email": "admin",
+		"snapshots": "admin",
 	}
 
 	@router.get("/{page_name}.html")
@@ -293,7 +295,19 @@ def get_router(cfg, registry, limiter):
 		current_user: User = Depends(require_login)
 	):
 		return uvi_service.evaluate_for_user(current_user, start, end)
-	
+
+	@router.get("/snapshots/list")
+	@limiter.limit("20/minute")
+	def snapshots_list(request: Request, user: User = Depends(require_admin)):
+		return snapshot_service.list_snapshots()
+
+	@router.post("/snapshots/download")
+	@limiter.limit("20/minute")
+	async def snapshots_download(request: Request, user: User = Depends(require_admin)):
+		payload = await request.json()
+		files = payload.get("files")
+		return snapshot_service.download_snapshots(files)
+
 	# -----------------------------------------------------------------------------
 	# Import Upload (Admin only)
 	# -----------------------------------------------------------------------------
