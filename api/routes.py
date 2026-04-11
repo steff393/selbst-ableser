@@ -309,6 +309,31 @@ def get_router(cfg, registry, limiter):
 		files = payload.get("files")
 		return snapshot_service.download_snapshots(files)
 
+	@router.get("/snapshots/token")
+	@limiter.limit("20/minute")
+	def snapshots_get_token(request: Request, user: User = Depends(require_admin)):
+		token = snapshot_service.read_token()
+		return {"token": token or ""}
+
+	@router.post("/snapshots/create-token")
+	@limiter.limit("10/day")
+	def snapshots_create_token(request: Request, user: User = Depends(require_admin)):
+		require_csrf(request)
+		token = snapshot_service.create_token()
+		return {"token": token}
+
+	@router.post("/snapshots/upload")
+	@limiter.limit("10/day")
+	async def snapshots_upload(request: Request, file: UploadFile = File(...)):
+		upload_token = request.headers.get("X-Snapshot-Upload-Token")
+		if not upload_token:
+			raise HTTPException(status_code=401, detail="Missing upload token")
+		
+		content = await file.read()
+		result = snapshot_service.handle_upload(content, upload_token, file.filename or "snapshot.json")
+		logger.info(f"UPLOAD OK  ip={request.client.host} filename={result['filename']}")
+		return result
+
 	# -----------------------------------------------------------------------------
 	# Import Upload (Admin only)
 	# -----------------------------------------------------------------------------

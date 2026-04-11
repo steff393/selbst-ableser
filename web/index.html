@@ -409,6 +409,24 @@
 			<div id="locations-status"></div>
 		</div>
 
+		<!-- Upload Token Management -->
+		<div class="card">
+			<div class="card-header">
+				<div class="card-icon">🔐</div>
+				<div>
+					<div class="card-title">Upload Token</div>
+					<div class="card-description">
+						Erstelle und verwalte einen Sicherheits-Token für Remote-Uploads von Snapshots auf einen Server.
+					</div>
+				</div>
+			</div>
+			<div class="setup-form" style="margin-top: 0.75rem;">
+				<input type="text" id="upload-token" class="token-field" placeholder="Token wird geladen…" autocomplete="off" readonly>
+				<button type="button" class="btn btn-primary" id="btn-generate-upload-token">🔑 Token erzeugen</button>
+				<button type="button" class="btn btn-outline" id="btn-copy-upload-token">📋 Kopieren</button>
+			</div>
+		</div>
+
 		<!-- Status & Statistiken -->
 		<div class="card">
 			<div class="card-header">
@@ -486,6 +504,58 @@ function getCookie(name) {
 	}
 	return null;
 }
+
+// Load upload token on page load
+async function loadUploadToken() {
+	try {
+		const resp = await fetch("/snapshots/token", {
+			method: "GET",
+			credentials: "same-origin"
+		});
+		if (resp.ok) {
+			const data = await resp.json();
+			document.getElementById('upload-token').value = data.token || '❌ Kein Upload-Token gespeichert';
+		}
+	} catch (err) {
+		console.error("Error loading upload token:", err);
+	}
+}
+
+document.getElementById('btn-generate-upload-token').addEventListener('click', async () => {
+	try {
+		const resp = await fetch("/snapshots/create-token", {
+			method: "POST",
+			headers: {
+				"X-CSRF-Token": getCookie("csrf_token")
+			},
+			credentials: "same-origin"
+		});
+		if (!resp.ok) {
+			throw new Error("Fehler beim Erstellen des Tokens");
+		}
+		const data = await resp.json();
+		document.getElementById('upload-token').value = data.token;
+	} catch (err) {
+		console.error(err);
+		document.getElementById('upload-token').value = '❌ Fehler beim Erstellen des Tokens';
+	}
+});
+
+document.getElementById('btn-copy-upload-token').addEventListener('click', async () => {
+	const token = document.getElementById('upload-token').value;
+	if (!token) {
+		document.getElementById('upload-token').value = '❌ Kein Token vorhanden';
+		return;
+	}
+	try {
+		await navigator.clipboard.writeText(token);
+	} catch (err) {
+		console.error(err);
+	}
+});
+
+// Load token on page load
+loadUploadToken();
 
 </script>
 

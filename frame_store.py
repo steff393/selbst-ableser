@@ -4,6 +4,7 @@ from datetime import timedelta
 import time
 import os
 import json
+import requests
 
 
 class FrameStore:
@@ -102,7 +103,44 @@ class FrameStore:
 			except Exception as e:
 				print(f"[SNAPSHOT] Fehler beim Speichern im Backup: {e}")
 
+		# upload to remote server if configured
+		self._upload_to_remote(filename, payload)
+
 		return key
+
+	def _upload_to_remote(self, filepath: str, payload: dict):
+		"""Upload snapshot to remote server with authentication."""
+		try:
+			upload_server = self.cfg.get('UploadServer')
+			token = self.cfg.get('UploadToken')
+			
+			# Check if token is configured
+			if not upload_server or not token:
+				return
+			
+			# Prepare multipart upload
+			with open(filepath, 'rb') as f:
+				files = {'file': (os.path.basename(filepath), f, 'application/json')}
+				headers = {'X-Snapshot-Upload-Token': token}
+				
+				# Construct upload URL
+				upload_url = f"{upload_server.rstrip('/')}/snapshots/upload"
+				
+				# Send POST request with timeout
+				response = requests.post(upload_url, files=files, headers=headers, timeout=30, verify=True)
+				
+				if response.status_code == 200:
+					print(f"[UPLOAD] Erfolgreich hochgeladen zu: {upload_url}")
+				else:
+					print(f"[UPLOAD] Fehler beim Upload: HTTP {response.status_code}")
+					print(f"[UPLOAD] Response: {response.text[:200]}")
+		
+		except requests.exceptions.Timeout:
+			print(f"[UPLOAD] Timeout beim Upload")
+		except requests.exceptions.ConnectionError:
+			print(f"[UPLOAD] Verbindungsfehler beim Upload")
+		except Exception as e:
+			print(f"[UPLOAD] Fehler beim Remote-Upload: {e}")
 
 
 	def time_for_snapshot(self, now):

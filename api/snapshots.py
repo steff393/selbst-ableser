@@ -1,6 +1,8 @@
 import os
 import re
 import zipfile
+import json
+import secrets
 from datetime import datetime, timezone
 from io import BytesIO
 
@@ -9,10 +11,13 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 
 class SnapshotService:
+	UPLOAD_TOKEN_LENGTH = 32
+	
 	def __init__(self, cfg):
 		self.cfg = cfg
 		self.max_file_size = 512 * 1024  # 512KB per file
 		self.max_total_size = 10 * 1024 * 1024  # 10MB total for ZIP
+		self.token_file = os.path.join("upload-token.txt")
 
 	def _normalize_snapshot_name(self, name: str) -> str:
 		if not isinstance(name, str) or not re.match(r'^[\w\-\.]+\.json$', name):
@@ -65,6 +70,82 @@ class SnapshotService:
 				"snapshot": len(snapshot_files),
 				"backup": len(backup_files),
 			}
+		}
+
+	def read_token(self) -> str:
+		"""Read the upload token from file."""
+		if not os.path.isfile(self.token_file):
+			return ""
+		try:
+			with open(self.token_file, 'r', encoding='utf-8') as f:
+				token = f.read().strip()
+				return token if token and len(token) == self.UPLOAD_TOKEN_LENGTH else ""
+		except (OSError, IOError):
+			return ""
+
+	def create_token(self) -> str:
+		"""Generate a new upload token and save it to file."""
+		token = secrets.token_urlsafe(self.UPLOAD_TOKEN_LENGTH)
+		try:
+			with open(self.token_file, 'w', encoding='utf-8') as f:
+				f.write(token)
+		except (OSError, IOError) as e:
+			raise HTTPException(status_code=500, detail=f"Failed to save token: {str(e)}")
+		return token
+
+	def _validate_json(self, content: bytes) -> dict:
+		"""Validate that content is valid JSON."""
+		try:
+			return json.loads(content.decode('utf-8'))
+		except (json.JSONDecodeError, UnicodeDecodeError) as e:
+			raise HTTPException(status_code=400, detail=f"Invalid JSON format: {str(e)}")
+
+	def handle_upload(self, content: bytes, upload_token: str, filename: str) -> dict:
+		"""Handle snapshot upload with validation and security checks."""
+		# Validate upload token
+		if not upload_token or len(upload_token) != self.UPLOAD_TOKEN_LENGTH:
+			raise HTTPException(status_code=401, detail="Invalid upload token")
+		
+		# Validate token against stored token:
+		valid_token = self.read_token()
+		if not valid_token or upload_token != valid_token:
+			raise HTTPException(status_code=401, detail="Invalid or missing upload token")
+		
+		# Check file size
+		if len(content) > self.max_file_size:
+			raise HTTPException(status_code=413, detail=f"File too large (max {self.max_file_size} bytes)")
+		
+		# Validate JSON content
+		json_data = self._validate_json(content)
+		
+		# Generate expected filename for today and verify it matches
+		today = datetime.now(timezone.utc).date()
+		expected_filename = f"{today.isoformat()}.json"
+		if filename != expected_filename:
+			raise HTTPException(status_code=400, detail=f"Filename must be {expected_filename}")
+		
+		# Check for path traversal
+		snapshot_dir = self.cfg.get("SnapshotDir", ".")
+		os.makedirs(snapshot_dir, exist_ok=True)
+		filepath = os.path.join(snapshot_dir, filename)
+		if not self._is_path_safe(filepath, snapshot_dir):
+			raise HTTPException(status_code=403, detail="Access rejected")
+		
+		# Prevent overwriting existing files
+		if os.path.isfile(filepath):
+			raise HTTPException(status_code=409, detail="File already exists")
+		
+		# Write the file
+		try:
+			with open(filepath, 'wb') as f:
+				f.write(content)
+		except (OSError, IOError) as e:
+			raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+		
+		return {
+			"status": "ok",
+			"filename": filename,
+			"size": len(content)
 		}
 
 	def download_snapshots(self, files):
