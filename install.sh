@@ -100,6 +100,7 @@ info "Dateiberechtigungen gesetzt"
 step 4 "Python-Umgebung einrichten"
 info "Venv erstellen..."
 python3 -m venv "$VENV_DIR"
+chown -R $APP_USER:$APP_USER $VENV_DIR
 info "pip upgraden..."
 "$VENV_DIR/bin/pip" install --upgrade pip -q
 info "requirements.txt installieren..."

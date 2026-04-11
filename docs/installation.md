@@ -21,8 +21,8 @@ Die Datei cfg.ini lässt sich unter Linux mit Nano öffnen:
 Die AES-Schlüssel der Zähler sind für diesen Schritt nicht erforderlich.  
 
 #### Start
-`uvicorn wmbus:app --port 8081 --workers 1` bzw.  
-`uvicorn wmbus:app --port 8081 --workers 1 --host 0.0.0.0` zur Freigabe für alle Rechner im gleichen Netzwerk
+`uvicorn wmbus:app --port 8181 --workers 1` bzw.  
+`uvicorn wmbus:app --port 8181 --workers 1 --host 0.0.0.0` zur Freigabe für alle Rechner im gleichen Netzwerk
 
 
 #### Ausgabe
@@ -30,7 +30,7 @@ Die AES-Schlüssel der Zähler sind für diesen Schritt nicht erforderlich.
 INFO:     Started server process [22444]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8081 (Press CTRL+C to quit)
+INFO:     Uvicorn running on http://127.0.0.1:8181 (Press CTRL+C to quit)
 Verbinde mit iU891A-XL an COM5...
 -> C001030424C0 Get Device Info
 <- C00104006E48090000BE2D0600C70B0000CF5DC0 Device Info OK
@@ -42,7 +42,7 @@ Telegramm von 42130857 blockiert
 12:53:42 ✔ Zähler 42130855 | RSSI -95 dBm | wmBus 32446850550813426980A011FF32B80270044F03A108820A177F007F80ADA95024303D02000000000000000000021033644974
 ```
 
-Über die o.g. Adresse kann der Webserver im Browser aufgerufen werden, z.B. http://IP-Adresse:8081.  
+Über die o.g. Adresse kann der Webserver im Browser aufgerufen werden, z.B. http://IP-Adresse:8181.  
 
 #### Laden von Testdaten
 Über "Snapshot wählen..." können in der Web-Oberfläche auch Testdaten aus einem Snapshot geladen werden.  
@@ -52,15 +52,15 @@ Telegramm von 42130857 blockiert
 Der Auswertungsserver liest die Telegramme aus den Snapshots, entschlüsselt sie und bereit die Daten auf, z.B. für die Unterjährige Verbrauchsmitteilung (UVI). 
 
 #### Start
-`uvicorn main:app --port 8080` bzw.  
-`uvicorn main:app --port 8080 --host 0.0.0.0`  zur Freigabe für alle Rechner im gleichen Netzwerk  
+`uvicorn main:app --port 8282` bzw.  
+`uvicorn main:app --port 8282 --host 0.0.0.0`  zur Freigabe für alle Rechner im gleichen Netzwerk  
 
 ```
 Warte auf Key auf Port 53165 …
 INFO:     Started server process [23040]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8080 (Press CTRL+C to quit)
+INFO:     Uvicorn running on http://127.0.0.1:8282 (Press CTRL+C to quit)
 Userfile nicht gefunden – erstelle neue Datei...
 ========================================
 Admin-Token erzeugt:
@@ -91,56 +91,69 @@ kann nun auch über die Benutzerverwaltung eine UVI mit den Testdaten erzeugt un
 
 #### Freigabe für andere Geräte im gleichen Netzwerk  
 Mit den oben genannten Befehlen ist der Server nur von dem Gerät erreichbar, auf dem er läuft. Durch Anfügen von `--host 0.0.0.0` wird er für alle Geräte im gleichen Netzwerk erreichbar:  
-`uvicorn main:app --port 8080 --host 0.0.0.0`  
+`uvicorn main:app --port 8282 --host 0.0.0.0`  
 
 ---
 
-# Autostart unter Linux
-Eine Datei namens selbst-ableser.service anlegen  
-`sudo nano /etc/systemd/system/selbst-ableser.service`  
-und mit folgendem Inhalt befüllen:  
-
-```
-[Unit]
-Description=Read wmbus meters
-After=network.target  
-
-[Service]  
-User=pi
-WorkingDirectory=/home/pi/selbst-ableser/
-Environment="PATH=/home/pi/wmbus/venv/bin"
-ExecStart=/home/pi/selbst-ableser/venv/bin/uvicorn wmbus:app --host 0.0.0.0 --port 8081 --workers 1
-StandardOutput=null
-StandardError=journal
-Restart=always
-RestartSec=10
-
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Start the service and enable it to be started at every boot:  
-`sudo systemctl daemon-reload`  
-`sudo systemctl start selbst-ableser.service`  
-`sudo systemctl enable selbst-ableser.service`  
-
-Check status of service  
-`sudo systemctl status selbst-ableser.service`  
-
-Check, which services are enabled  
-`systemctl list-unit-files --state=enabled`  
-
-Restart the service  
-`sudo systemctl restart selbst-ableser`  
-
-Display the logs  
-`journalctl -u selbst-ableser -n 20 --no-pager`  
-
----
 
 # Automatische Installation unter Linux
 `sudo git clone https://github.com/steff393/selbst-ableser /opt/selbst-ableser`  
 `sudo bash /opt/selbst-ableser/install.sh`  
 
 Das Skript erstellt die venv, installiert die Python-Pakete aus der requirements.txt und erstellt 3 Daemons (s. services-Ordner). Außerdem generiert es den Admin-Token (s. users.json).  
+
+Mit folgendem (optionalen) Skript kann außerdem ein USB-Stick für das Backup der Snapshots automatisch gemountet werden (als /mnt/usbbackup). Der USB-Stick muss vorher bereits angeschlossen werden.  
+`sudo bash /opt/selbst-ableser/install_usb.sh`  
+
+---
+
+# Installation auf Plesk
+Domain → Hosting & DNS → Apache & nginx Einstellungen  
+- "Proxy Mode" deaktivieren  
+=> Apply (vor nächstem Schritt)
+- Zusätzliche nginx-Direktiven:  
+```
+location / {
+	proxy_pass http://127.0.0.1:8282;
+	proxy_set_header Host $host;
+	proxy_set_header X-Real-IP $remote_addr;
+	proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+	proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+---
+
+# Autostart und Logs unter Linux
+Statt selbst-ableser ist jeweils der richtige Name des Daemons (s. Ordner services) zu verwenden.  
+
+Starten  
+`systemctl start selbst-ableser`
+
+Stoppen  
+`systemctl stop selbst-ableser`
+
+Autostart beim Booten aktivieren  
+`systemctl enable selbst-ableser`
+
+Autostart beim Booten deaktivieren (aber läuft noch bis zum nächsten Reboot)  
+`systemctl disable selbst-ableser`
+
+Sofort stoppen UND Autostart deaktivieren  
+`systemctl disable --now selbst-ableser`
+
+Sofort starten UND Autostart aktivieren  
+`systemctl enable --now selbst-ableser`
+
+### Status und Logs prüfen
+Läuft die App?  
+`systemctl status selbst-ableser`
+
+Live-Logs anzeigen  
+`journalctl -u selbst-ableser -f`
+
+Letzte 20 Zeilen  
+`journalctl -u selbst-ableser -n 20 --no-pager`
+
+Letzte 50 Zeilen  
+`journalctl -u selbst-ableser -n 50`
