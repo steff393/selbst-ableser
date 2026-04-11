@@ -79,7 +79,7 @@ class SnapshotService:
 		try:
 			with open(self.token_file, 'r', encoding='utf-8') as f:
 				token = f.read().strip()
-				return token if token and len(token) == self.UPLOAD_TOKEN_LENGTH else ""
+				return token if token and len(token) >= self.UPLOAD_TOKEN_LENGTH else ""
 		except (OSError, IOError):
 			return ""
 
@@ -103,7 +103,7 @@ class SnapshotService:
 	def handle_upload(self, content: bytes, upload_token: str, filename: str) -> dict:
 		"""Handle snapshot upload with validation and security checks."""
 		# Validate upload token
-		if not upload_token or len(upload_token) != self.UPLOAD_TOKEN_LENGTH:
+		if not upload_token or len(upload_token) < self.UPLOAD_TOKEN_LENGTH:
 			raise HTTPException(status_code=401, detail="Invalid upload token")
 		
 		# Validate token against stored token:

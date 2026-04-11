@@ -20,5 +20,8 @@ python-multipart
 slowapi
 cachetools>=7.0
 
+# HTTP requests for remote uploads
+requests==2.33.1
+
 # Email
 schedule==1.2.2
