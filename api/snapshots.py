@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 
 class SnapshotService:
-	UPLOAD_TOKEN_LENGTH = 32
+	UPLOAD_TOKEN_LENGTH = 128
 	
 	def __init__(self, cfg):
 		self.cfg = cfg
