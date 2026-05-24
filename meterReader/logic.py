@@ -5,6 +5,7 @@ from typing import Optional
 from .model import MeterConfig, MeterReading, MonthlyResult
 from .decrypt import decryptTelegram, getEncrMode
 from .logger import dbg
+from .cleanup import move_unused_files
 from meterRegistry import MeterRegistry
 
 
@@ -170,6 +171,11 @@ def evaluate_uvi(json_path: str, registry: MeterRegistry, start_date=None, end_d
 						found_date  = reading.found_date.strftime("%Y-%m-%d")
 					)
 				)
+	
+	# Move unused snapshot files to subfolder within the requested time range
+	if flat is None:  # only when evaluating all locations
+		move_unused_files(results, json_path, start_date=start_date, end_date=end_date)
+	
 	return results
 
 
