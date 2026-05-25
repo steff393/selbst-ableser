@@ -4,12 +4,13 @@ After=network.target
 
 [Service]
 WorkingDirectory=/opt/selbst-ableser
-ExecStart=/opt/selbst-ableser/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8282 --workers 1
+# Set --host to 0.0.0.0 on a local system, to enable access from any device
+ExecStart=/opt/selbst-ableser/venv/bin/uvicorn app:app --host 127.0.0.1 --port 8282 --workers 1
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
-# Set to "production" on a public-facing VPS (enables TrustedHostMiddleware + audit log file)
-Environment=DEPLOYMENT_ENV=development
+# Set to "production" on a public-facing VPS (enables TrustedHostMiddleware + audit log file) or to "development" on a local system
+Environment=DEPLOYMENT_ENV=production
 User=selbst
 SupplementaryGroups=dialout
 NoNewPrivileges=true

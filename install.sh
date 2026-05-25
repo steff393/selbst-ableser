@@ -96,6 +96,10 @@ info "requirements.txt installieren..."
 step 5 "Systemd-Services einrichten"
 cp "$APP_DIR/services/selbst-ableser.service"       /etc/systemd/system/
 cp "$APP_DIR/services/selbst-ableser-email.service" /etc/systemd/system/
+if is_raspberry_pi; then
+  sed -i "s|--host 127.0.0.1|--host 0.0.0.0|" /etc/systemd/system/selbst-ableser.service
+	sed -i "s|DEPLOYMENT_ENV=production|DEPLOYMENT_ENV=development|" /etc/systemd/system/selbst-ableser.service
+fi
 systemctl daemon-reload
 systemctl restart selbst-ableser selbst-ableser-email # restart also starts, if already running
 systemctl enable  selbst-ableser selbst-ableser-email
