@@ -7,7 +7,7 @@ graph TD
     E --> F[JSON Snapshot Files<br/>SnapshotDir<br/>]
     E --> G[JSON Snapshot Files<br/>BackupDir<br/>optional]
     
-    D --> H[FastAPI Server<br/>wmbusServer/api]
+    D --> H[Unified FastAPI app<br/>app:app on :8282<br/>mode-driven]
     H --> I[Web Interface<br/>HTML/JS/CSS]
     H --> J[REST API<br/>Endpoints]
     

@@ -11,12 +11,12 @@ Das Passwort wird vor dem Programmstart als Umgebungsvariable gesetzt. Das Progr
 **Windows (Eingabeaufforderung):**
 ```cmd
 set LOCATION_PW=geheim
-uvicorn main:app --port 8080
+uvicorn app:app --port 8282
 ```
 
 **Linux / macOS:**
 ```bash
-LOCATION_PW=geheim uvicorn main:app --port 8080
+LOCATION_PW=geheim uvicorn app:app --port 8282
 ```
 
 **Wann geeignet?**

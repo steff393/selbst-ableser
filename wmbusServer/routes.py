@@ -45,11 +45,12 @@ def get_router(cfg, registry: MeterRegistry, store, limiter):
 	def build_payload(source_data):
 		payload = {}
 		for meter_nr, data in source_data.items():
-			meterCfg = registry.get_meter(meter_nr)
+			# In collector mode there is no registry — telegrams stay encrypted.
+			meterCfg = registry.get_meter(meter_nr) if registry is not None else None
 			aes_key = meterCfg.aes_key if meterCfg else None
 			if aes_key and getEncrMode(data["wmbus"].hex()) is not None:
 				wmbus = decryptTelegram(data["wmbus"].hex(), aes_key)
-			else: 
+			else:
 				wmbus = data["wmbus"].hex()
 			payload[meter_nr] = {
 				"timestamp": data["timestamp"],
@@ -121,8 +122,10 @@ def get_router(cfg, registry: MeterRegistry, store, limiter):
 	@router.get("/locations/locked")
 	@limiter.limit("60/minute")
 	def locations_locked(request: Request):
+		if registry is None:
+			return ({"status": "not_available"})
 		return ({"status": "unlocked" if registry.is_unlocked() else "locked"})
-	
+
 	# -----------------------------------------------------------------------------
 	# API POST
 	# -----------------------------------------------------------------------------
@@ -130,7 +133,8 @@ def get_router(cfg, registry: MeterRegistry, store, limiter):
 	@router.post("/locations/unlock")
 	@limiter.limit("10/day")
 	async def receive_key(request: Request):
-		
+		if registry is None:
+			raise HTTPException(status_code=404, detail="Registry not available in this mode")
 		try:
 			body = await request.json()
 			key = body.get("key")

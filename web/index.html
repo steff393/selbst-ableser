@@ -35,6 +35,19 @@
 			--transition-base: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 		}
 
+		.mode-badge {
+			display: inline-block;
+			margin-top: 0.5rem;
+			padding: 0.25rem 0.75rem;
+			border-radius: 999px;
+			font-size: 0.8rem;
+			font-weight: 600;
+			letter-spacing: 0.02em;
+		}
+		.mode-badge--neutral { background: #eef2f7; color: var(--color-text-secondary); }
+		.mode-badge--ok      { background: #e6f4ec; color: #1f7a3a; }
+		.mode-badge--warn    { background: #fde8ea; color: var(--color-danger); cursor: help; }
+
 		* {
 			margin: 0;
 			padding: 0;
@@ -322,6 +335,7 @@
 	<div class="header">
 		<h1>Selbst-Ableser</h1>
 		<div class="subtitle">Verwaltung · Zählerdaten · Auswertung</div>
+		<div id="mode-badge" class="mode-badge" style="display:none"></div>
 	</div>
 
 	<!-- Normal Mode Cards -->
@@ -424,6 +438,22 @@
 				<input type="text" id="upload-token" class="token-field" placeholder="Token wird geladen…" autocomplete="off" readonly>
 				<button type="button" class="btn btn-primary" id="btn-generate-upload-token">🔑 Token erzeugen</button>
 				<button type="button" class="btn btn-outline" id="btn-copy-upload-token">📋 Kopieren</button>
+			</div>
+		</div>
+
+		<!-- wM-Bus Live-Daten (revealed when /mode reports features.wmbus = true) -->
+		<div class="card" id="wmbus-card" style="display:none">
+			<div class="card-header">
+				<div class="card-icon">📡</div>
+				<div>
+					<div class="card-title">wM-Bus Live-Daten</div>
+					<div class="card-description">
+						Aktuelle Telegramme direkt vom Empfänger anzeigen, Snapshots laden und Empfangsqualität prüfen.
+					</div>
+				</div>
+			</div>
+			<div class="card-actions">
+				<a href="#" class="btn btn-primary" id="wmbus-link" target="_blank" rel="noopener">Dashboard öffnen</a>
 			</div>
 		</div>
 
@@ -556,6 +586,32 @@ document.getElementById('btn-copy-upload-token').addEventListener('click', async
 
 // Load token on page load
 loadUploadToken();
+
+// Mode badge + feature-driven visibility for the wM-Bus card.
+async function loadModeBadge() {
+	const badge = document.getElementById('mode-badge');
+	try {
+		const res = await fetch('/mode');
+		if (!res.ok) return;
+		const { mode, features } = await res.json();
+		const labels = { local: 'Einzelplatz', evaluator: 'Auswertung', collector: 'Sammler' };
+		if (badge) {
+			badge.className = 'mode-badge mode-badge--neutral';
+			badge.textContent = labels[mode] || mode;
+			badge.style.display = 'inline-block';
+		}
+		// Show the wM-Bus card whenever the same process exposes the wmbus routes.
+		if (features && features.wmbus) {
+			const card = document.getElementById('wmbus-card');
+			const link = document.getElementById('wmbus-link');
+			if (card && link) {
+				link.href = '/wmbus/';
+				card.style.display = '';
+			}
+		}
+	} catch (e) { /* ignore — badge stays hidden */ }
+}
+loadModeBadge();
 
 </script>
 

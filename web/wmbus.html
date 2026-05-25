@@ -31,6 +31,19 @@
 			--color-border-light: #f0f3f7;
 		}
 
+		.mode-badge {
+			display: inline-block;
+			margin-top: 0.75rem;
+			padding: 0.25rem 0.75rem;
+			border-radius: 999px;
+			font-size: 0.8rem;
+			font-weight: 600;
+			letter-spacing: 0.02em;
+		}
+		.mode-badge--neutral { background: rgba(255, 255, 255, 0.2); color: white; }
+		.mode-badge--ok      { background: #e6f4ec; color: #1f7a3a; }
+		.mode-badge--warn    { background: #fde8ea; color: var(--color-danger); cursor: help; }
+
 		* {
 			margin: 0;
 			padding: 0;
@@ -475,6 +488,7 @@
 				</div>
 			</div>
 			<button class="token-toggle" id="tokenToggle" title="Token verwalten">🔒</button>
+			<div id="mode-badge" class="mode-badge" style="display:none"></div>
 		</header>
 
 		<div class="token-panel" id="tokenPanel">
@@ -546,7 +560,7 @@
 
 		// Hersteller-Mapping laden
 		function loadManufacturerMap() {
-			fetch("/manufacturers.json")
+			fetch("manufacturers.json")
 				.then(response => response.json())
 				.then(data => {
 					manufacturerMap = data;
@@ -963,8 +977,7 @@
 
 		document.getElementById('snapshotBtn').addEventListener('click', async () => {
 			try {
-				const token = window.location.pathname.substring(1);
-				await fetch(`${token}/snapshot`);
+				await fetch(`snapshot`);
 				showStatus('Snapshot erstellt!', 'success');
 			} catch(err) {
 				showStatus('Fehler beim Erstellen des Snapshots', 'error');
@@ -1052,7 +1065,7 @@
 		document.getElementById('btnTokenSend').addEventListener('click', async () => {
 			const key = document.getElementById('tokenField').value;
 			try {
-				const resp = await fetch("/locations/unlock", {
+				const resp = await fetch("locations/unlock", {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
@@ -1093,6 +1106,22 @@
 		loadManufacturerMap();
 		loadData();
 		loadSnapshotList();
+
+		// Mode badge: fetch the server's configured Mode and show it in the header.
+		async function loadModeBadge() {
+			const badge = document.getElementById('mode-badge');
+			if (!badge) return;
+			try {
+				const res = await fetch('/mode');
+				if (!res.ok) return;
+				const { mode } = await res.json();
+				const labels = { local: 'Einzelplatz', evaluator: 'Auswertung', collector: 'Sammler' };
+				badge.className = 'mode-badge mode-badge--neutral';
+				badge.textContent = labels[mode] || mode;
+				badge.style.display = 'inline-block';
+			} catch (e) { /* ignore — badge stays hidden */ }
+		}
+		loadModeBadge();
 	</script>
 </body>
 </html>
