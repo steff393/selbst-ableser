@@ -85,6 +85,12 @@ if FEATURE_ADMIN:
 		password=os.getenv("LOCATION_PW"),
 		key_port=int(cfg.get('KeyPortMain', 0)) or None)
 
+	# Weekly health-alert mailer (Monday 08:00 local). Reads SMTP creds from
+	# email.json. Silently no-ops if no creds configured or registry is locked.
+	from api.health import MeterHealthService
+	from api.health_mailer import start_background as start_health_mailer
+	start_health_mailer(MeterHealthService(cfg, registry))
+
 
 # ============================================================================
 # 3. Collector subsystem (USB receiver + FrameStore + snapshot scheduler)

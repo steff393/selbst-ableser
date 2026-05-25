@@ -1,10 +1,10 @@
 import json
-import smtplib
-from email.mime.text import MIMEText
 import logging
 import schedule
 import time
 from pathlib import Path
+
+from mailer import send_mail as smtp_send_mail
 
 # Logging configuration - file and console
 log_file = "email.log"
@@ -72,20 +72,7 @@ def send_mail(config):
 	to = config.get("to", [])
 	if isinstance(to, str):
 		to = [to]
-
-	try:
-		with smtplib.SMTP_SSL("mail.gmx.net", 465) as server:
-			server.login(config["sender"], config["password"])
-			for recipient in to:
-				msg = MIMEText(body, "plain", "utf-8")
-				msg["From"] = config["sender"]
-				msg["To"] = recipient
-				msg["Subject"] = subject
-				server.sendmail(config["sender"], recipient, msg.as_string())
-				logger.info(f"Mail sent to: {recipient}")
-
-	except Exception as e:
-		logger.error(f"Failed to send mail: {e}")
+	smtp_send_mail(config["sender"], config["password"], to, subject, body)
 
 
 def send_monthly_report():

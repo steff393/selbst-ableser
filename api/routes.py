@@ -12,6 +12,7 @@ from .email import Email
 from .uvi_service import UviService
 from .importer import import_and_encrypt
 from .snapshots import SnapshotService
+from .health import MeterHealthService
 
 
 SESSION_LIFETIME_SECONDS = 7200  # 2 hours
@@ -25,6 +26,7 @@ def get_router(cfg, registry, limiter):
 
 	uvi_service = UviService(cfg["SnapshotDir"], registry)
 	snapshot_service = SnapshotService(cfg)
+	health_service = MeterHealthService(cfg, registry)
 	
 	def require_login(request: Request) -> User:
 		token = request.cookies.get("session_token")
@@ -106,6 +108,7 @@ def get_router(cfg, registry, limiter):
 		"uvi": "login",
 		"email": "admin",
 		"snapshots": "admin",
+		"health": "admin",
 	}
 
 	@router.get("/{page_name}.html")
@@ -296,6 +299,25 @@ def get_router(cfg, registry, limiter):
 		current_user: User = Depends(require_login)
 	):
 		return uvi_service.evaluate_for_user(current_user, start, end)
+
+	@router.get("/health/meters")
+	@limiter.limit("20/minute")
+	def health_meters(request: Request, user: User = Depends(require_admin)):
+		return health_service.check_meters()
+
+	@router.post("/health/test-mail")
+	@limiter.limit("5/hour")
+	def health_test_mail(request: Request, user: User = Depends(require_admin)):
+		require_csrf(request)
+		from .health_mailer import _send_once
+		ok = _send_once(health_service, "email.json")
+		if not ok:
+			# Distinguish reasons so the UI can show a helpful message
+			report = health_service.check_meters()
+			if report.get("status") == "locked":
+				return {"status": "locked", "detail": "Registry gesperrt"}
+			return {"status": "no-mail-config", "detail": "email.json fehlt oder unvollständig"}
+		return {"status": "ok"}
 
 	@router.get("/snapshots/list")
 	@limiter.limit("20/minute")

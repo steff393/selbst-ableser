@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+	<meta charset="utf-8">
+	<title>Selbst-Ableser – Zähler-Status</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<style>
+		:root {
+			--color-primary: #0d7377;
+			--color-primary-light: #14a3a8;
+			--color-primary-dark: #0a5254;
+			--color-success: #52b788;
+			--color-warning: #f4a259;
+			--color-danger: #e63946;
+			--color-bg: #f8f9fb;
+			--color-surface: #ffffff;
+			--color-text-primary: #1a2332;
+			--color-text-secondary: #5a6a7f;
+			--color-text-muted: #8493a8;
+			--color-border: #e3e8ef;
+			--color-border-light: #f0f3f7;
+			--shadow-sm: 0 1px 3px rgba(13, 115, 119, 0.04);
+			--shadow-md: 0 4px 6px rgba(13, 115, 119, 0.06);
+			--shadow-lg: 0 10px 15px rgba(13, 115, 119, 0.08);
+			--radius-sm: 8px;
+			--radius-md: 12px;
+			--radius-lg: 16px;
+		}
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+			background: linear-gradient(135deg, #f8f9fb 0%, #eef2f7 100%);
+			color: var(--color-text-primary);
+			line-height: 1.6;
+			min-height: 100vh;
+			padding: 1rem;
+		}
+		.container { max-width: 1200px; margin: 0 auto; }
+		.header {
+			text-align: center;
+			margin-bottom: 1rem;
+			padding: 1rem;
+			background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+			border-radius: var(--radius-lg);
+			box-shadow: var(--shadow-lg);
+			color: white;
+		}
+		.header h1 { font-size: 1.5rem; font-weight: 600; }
+		.header .subtitle { font-size: 0.9rem; opacity: 0.9; margin-top: 0.25rem; }
+		.summary {
+			display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;
+		}
+		.summary-card {
+			flex: 1; min-width: 180px;
+			background: var(--color-surface);
+			border-radius: var(--radius-md);
+			padding: 1rem;
+			box-shadow: var(--shadow-sm);
+			border-left: 4px solid var(--color-border);
+		}
+		.summary-card.danger    { border-left-color: var(--color-danger); }
+		.summary-card.warning   { border-left-color: var(--color-warning); }
+		.summary-card.success   { border-left-color: var(--color-success); }
+		.summary-card .count    { font-size: 1.8rem; font-weight: 700; }
+		.summary-card .label    { color: var(--color-text-secondary); font-size: 0.9rem; }
+		.section {
+			background: var(--color-surface);
+			border-radius: var(--radius-md);
+			padding: 1rem;
+			margin-bottom: 1rem;
+			box-shadow: var(--shadow-sm);
+		}
+		.section h2 {
+			font-size: 1.05rem; margin-bottom: 0.75rem;
+			display: flex; align-items: center; gap: 0.5rem;
+		}
+		.dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; display: inline-block; }
+		.dot.danger  { background: var(--color-danger); }
+		.dot.warning { background: var(--color-warning); }
+		.dot.success { background: var(--color-success); }
+		table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+		th, td {
+			padding: 0.6rem 0.5rem;
+			text-align: left;
+			border-bottom: 1px solid var(--color-border-light);
+		}
+		th { color: var(--color-text-secondary); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+		td.right { text-align: right; font-variant-numeric: tabular-nums; }
+		.empty { color: var(--color-text-muted); padding: 0.5rem 0; }
+		.actions-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+		.btn {
+			padding: 0.55rem 1.1rem;
+			border-radius: var(--radius-sm);
+			border: none;
+			cursor: pointer;
+			font-size: 0.9rem;
+			font-weight: 500;
+		}
+		.btn-outline {
+			background: transparent;
+			border: 1px solid var(--color-primary);
+			color: var(--color-primary);
+		}
+		.btn-outline:hover { background: var(--color-primary); color: white; }
+		.status-box {
+			padding: 0.75rem 1rem;
+			border-radius: var(--radius-sm);
+			margin-bottom: 1rem;
+		}
+		.status-box.error { background: #fde8ea; color: var(--color-danger); }
+		.status-box.info  { background: #eef2f7; color: var(--color-text-secondary); }
+		.footer {
+			text-align: center;
+			color: var(--color-text-muted);
+			font-size: 0.85rem;
+			margin-top: 2rem;
+			padding: 1.5rem 1rem;
+			border-top: 1px solid var(--color-border-light);
+		}
+		.footer a {
+			color: var(--color-text-secondary);
+			margin: 0 0.75rem;
+			text-decoration: none;
+		}
+		.footer a:hover { color: var(--color-primary); }
+	</style>
+</head>
+<body>
+<div class="container">
+	<div class="header">
+		<h1>Zähler-Status</h1>
+		<div class="subtitle">Welche Zähler haben zuletzt gesendet?</div>
+	</div>
+
+	<div class="actions-bar">
+		<button class="btn btn-outline" id="reloadBtn">Aktualisieren</button>
+		<button class="btn btn-outline" id="testMailBtn" title="Sendet sofort eine Test-Mail an den in email.json hinterlegten Absender">Test-Mail senden</button>
+		<div style="flex:1"></div>
+		<div id="thresholdInfo" style="align-self:center; color:var(--color-text-secondary); font-size:0.85rem;"></div>
+	</div>
+
+	<div id="status"></div>
+
+	<div class="summary">
+		<div class="summary-card danger">
+			<div class="count" id="countNeverSeen">–</div>
+			<div class="label">Nie empfangen</div>
+		</div>
+		<div class="summary-card warning">
+			<div class="count" id="countMissing">–</div>
+			<div class="label">Seit langem nichts gesendet</div>
+		</div>
+		<div class="summary-card success">
+			<div class="count" id="countHealthy">–</div>
+			<div class="label">OK</div>
+		</div>
+	</div>
+
+	<div class="section">
+		<h2><span class="dot danger"></span>Nie empfangen</h2>
+		<table>
+			<thead><tr><th>Wohnung</th><th>Zählerplatz</th><th>Raum</th><th>Typ</th><th>Zähler-ID</th></tr></thead>
+			<tbody id="bodyNeverSeen"></tbody>
+		</table>
+	</div>
+
+	<div class="section">
+		<h2><span class="dot warning"></span>Seit langem nichts gesendet</h2>
+		<table>
+			<thead><tr><th>Wohnung</th><th>Zählerplatz</th><th>Raum</th><th>Typ</th><th>Zähler-ID</th><th class="right">Letzte Empfang</th><th class="right">Tage</th></tr></thead>
+			<tbody id="bodyMissing"></tbody>
+		</table>
+	</div>
+
+	<div class="section">
+		<h2><span class="dot success"></span>OK</h2>
+		<table>
+			<thead><tr><th>Wohnung</th><th>Zählerplatz</th><th>Raum</th><th>Typ</th><th>Zähler-ID</th><th class="right">Letzte Empfang</th><th class="right">Tage</th></tr></thead>
+			<tbody id="bodyHealthy"></tbody>
+		</table>
+	</div>
+</div>
+
+<div class="footer">
+	Selbst-Ableser · weil deine Daten dir gehören<br>
+	<a href="index.html">Startseite</a>
+	<a href="impressum.html">Impressum</a>
+	<a href="datenschutz.html">Datenschutz</a>
+</div>
+
+<script>
+	const statusEl = document.getElementById('status');
+	const thresholdInfo = document.getElementById('thresholdInfo');
+
+	function showStatus(kind, message) {
+		statusEl.innerHTML = message ? `<div class="status-box ${kind}">${message}</div>` : '';
+	}
+
+	function formatDateDE(iso) {
+		if (!iso) return '–';
+		const d = new Date(iso);
+		if (isNaN(d)) return iso;
+		return d.toLocaleDateString('de-DE');
+	}
+
+	function renderRow(tbody, row, withDate) {
+		const tr = document.createElement('tr');
+		const cells = [row.flat || '–', row.location, row.room || '–', row.type, row.meter_id];
+		for (const v of cells) {
+			const td = document.createElement('td');
+			td.textContent = v;
+			tr.appendChild(td);
+		}
+		if (withDate) {
+			const tdDate = document.createElement('td');
+			tdDate.className = 'right';
+			tdDate.textContent = formatDateDE(row.last_seen);
+			tr.appendChild(tdDate);
+			const tdDays = document.createElement('td');
+			tdDays.className = 'right';
+			tdDays.textContent = row.days_since != null ? row.days_since : '–';
+			tr.appendChild(tdDays);
+		}
+		tbody.appendChild(tr);
+	}
+
+	function renderBucket(tbodyId, rows, withDate, emptyText) {
+		const tbody = document.getElementById(tbodyId);
+		tbody.innerHTML = '';
+		if (!rows.length) {
+			const tr = document.createElement('tr');
+			const td = document.createElement('td');
+			td.colSpan = withDate ? 7 : 5;
+			td.className = 'empty';
+			td.textContent = emptyText;
+			tr.appendChild(td);
+			tbody.appendChild(tr);
+			return;
+		}
+		for (const row of rows) renderRow(tbody, row, withDate);
+	}
+
+	async function load() {
+		showStatus('info', 'Wird geladen …');
+		try {
+			const res = await fetch('/health/meters');
+			if (!res.ok) throw new Error('HTTP ' + res.status);
+			const data = await res.json();
+			if (data.status === 'locked') {
+				showStatus('error', 'Zählerplatz-Daten sind gesperrt. Bitte zuerst entschlüsseln.');
+				thresholdInfo.textContent = '';
+				renderBucket('bodyNeverSeen', [], false, '');
+				renderBucket('bodyMissing', [], true, '');
+				renderBucket('bodyHealthy', [], true, '');
+				document.getElementById('countNeverSeen').textContent = '–';
+				document.getElementById('countMissing').textContent = '–';
+				document.getElementById('countHealthy').textContent = '–';
+				return;
+			}
+			showStatus(null, null);
+			thresholdInfo.textContent = `Grenzwert: ${data.threshold_days} Tage`;
+			document.getElementById('countNeverSeen').textContent = data.never_seen.length;
+			document.getElementById('countMissing').textContent = data.missing.length;
+			document.getElementById('countHealthy').textContent = data.healthy.length;
+			renderBucket('bodyNeverSeen', data.never_seen, false, 'Alle konfigurierten Zähler wurden mindestens einmal empfangen.');
+			renderBucket('bodyMissing', data.missing, true, 'Keine Zähler über dem Grenzwert.');
+			renderBucket('bodyHealthy', data.healthy, true, 'Keine Daten.');
+		} catch (e) {
+			showStatus('error', 'Fehler beim Laden: ' + e.message);
+		}
+	}
+
+	document.getElementById('reloadBtn').addEventListener('click', load);
+
+	function getCookie(name) {
+		const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+		return m ? decodeURIComponent(m[1]) : '';
+	}
+
+	document.getElementById('testMailBtn').addEventListener('click', async () => {
+		showStatus('info', 'Test-Mail wird gesendet …');
+		try {
+			const res = await fetch('/health/test-mail', {
+				method: 'POST',
+				credentials: 'same-origin',
+				headers: { 'X-CSRF-Token': getCookie('csrf_token') },
+			});
+			if (!res.ok) throw new Error('HTTP ' + res.status);
+			const data = await res.json();
+			if (data.status === 'ok')               showStatus('info',  'Test-Mail wurde gesendet.');
+			else if (data.status === 'locked')      showStatus('error', 'Registry ist gesperrt – bitte zuerst entschlüsseln.');
+			else if (data.status === 'no-mail-config') showStatus('error', 'email.json fehlt oder unvollständig.');
+			else                                    showStatus('error', 'Test-Mail konnte nicht gesendet werden.');
+		} catch (e) {
+			showStatus('error', 'Fehler: ' + e.message);
+		}
+	});
+
+	load();
+</script>
+</body>
+</html>
