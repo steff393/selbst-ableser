@@ -173,8 +173,8 @@ def evaluate_uvi(json_path: str, registry: MeterRegistry, start_date=None, end_d
 				)
 	
 	# Move unused snapshot files to subfolder within the requested time range
-	if flat is None:  # only when evaluating all locations
-		move_unused_files(results, json_path, start_date=start_date, end_date=end_date)
+	#if flat is None:  # only when evaluating all locations
+	#	move_unused_files(results, json_path, start_date=start_date, end_date=end_date)
 	
 	return results
 
