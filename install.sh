@@ -36,6 +36,9 @@ if [ "${1}" == "--uninstall" ]; then
 	rm -f /etc/udev/rules.d/99-selbst-ableser-usb.rules
 	rm -f /usr/local/bin/selbst-ableser-usb-mount.sh
 	rm -f /usr/local/bin/selbst-ableser-usb-umount.sh
+	systemctl unmask udisks2 2>/dev/null || true
+	systemctl enable udisks2 2>/dev/null || true
+	info "udisks2 wieder aktiviert"
 	udevadm control --reload-rules 2>/dev/null || true
 
 	umount "$USB_MOUNT" 2>/dev/null || true
@@ -99,20 +102,27 @@ info "User '$APP_USER' zur Gruppe 'dialout' hinzugefügt"
 
 
 step 4 "USB Hotplug System"
-mkdir -p "$USB_MOUNT"
+if is_raspberry_pi; then
+	mkdir -p "$USB_MOUNT"
 
-install -m 755 "$USB_DIR/usb-mount.sh" \
-	/usr/local/bin/selbst-ableser-usb-mount.sh
+	install -m 755 "$USB_DIR/usb-mount.sh" \
+		/usr/local/bin/selbst-ableser-usb-mount.sh
 
-install -m 755 "$USB_DIR/usb-umount.sh" \
-	/usr/local/bin/selbst-ableser-usb-umount.sh
+	install -m 755 "$USB_DIR/usb-umount.sh" \
+		/usr/local/bin/selbst-ableser-usb-umount.sh
+	install -m 644 "$USB_DIR/99-selbst-ableser-usb.rules" \
+		/etc/udev/rules.d/99-selbst-ableser-usb.rules
 
-sed "s/__APP_USER__/$APP_USER/g" "$USB_DIR/99-selbst-ableser-usb.rules" \
-	> /etc/udev/rules.d/99-selbst-ableser-usb.rules
+	# Disable udisks2 to prevent conflicts with our custom mount/umount scripts
+	systemctl disable --now udisks2 2>/dev/null || true
+  systemctl mask udisks2 2>/dev/null || true
+   info "udisks2 deaktiviert und maskiert"
 
-udevadm control --reload-rules
-info "USB Hotplug installiert"
-
+	udevadm control --reload-rules
+	info "USB Hotplug installiert"
+else
+	info "Kein Pi – USB Hotplug wird übersprungen"
+fi
 
 step 5 "Python-Umgebung einrichten"
 python3 -m venv "$VENV_DIR"
