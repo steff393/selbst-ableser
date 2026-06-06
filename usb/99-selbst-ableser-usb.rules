@@ -1,0 +1,3 @@
+ACTION=="add",SUBSYSTEM=="block",ENV{ID_BUS}=="usb",ENV{DEVTYPE}=="partition",RUN+="/usr/local/bin/selbst-ableser-usb-mount.sh /dev/%k"
+
+ACTION=="remove",SUBSYSTEM=="block",ENV{ID_BUS}=="usb",ENV{DEVTYPE}=="partition",RUN+="/usr/local/bin/selbst-ableser-usb-umount.sh"

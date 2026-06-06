@@ -16,7 +16,7 @@ SupplementaryGroups=dialout
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ReadWritePaths=/opt/selbst-ableser
+ReadWritePaths=/opt/selbst-ableser /media/usb
 
 [Install]
 WantedBy=multi-user.target

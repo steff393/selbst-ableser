@@ -145,7 +145,7 @@ sudo nano /opt/selbst-ableser/cfg.ini   # Zeile "Mode = …" ändern
 sudo systemctl restart selbst-ableser
 ```
 
-Mit folgendem (optionalen) Skript kann zusätzlich ein USB-Stick für das Backup der Snapshots automatisch gemountet werden (als `/mnt/usbbackup`). Der Stick muss vorher angeschlossen sein:  
+Mit folgendem (optionalen) Skript kann zusätzlich ein USB-Stick für das Backup der Snapshots automatisch gemountet werden (als `/media/usb`). Der Stick muss vorher angeschlossen sein:  
 `sudo bash /opt/selbst-ableser/install_usb.sh`
 
 ### Deinstallation
