@@ -44,12 +44,12 @@ def get_currHCA_from_wmbus(wmbus_hex: str) -> Optional[int]:
 
 		if wmbus_hex[0:2] == "38":
 			# Byte 19/20/21, BCD
-			return int(wmbus_hex[38:39]) * 100000 + \
-			       int(wmbus_hex[39:40]) * 10000 + \
+			return int(wmbus_hex[38:39]) * 10 + \
+			       int(wmbus_hex[39:40]) * 1 + \
 			       int(wmbus_hex[40:41]) * 1000 + \
 			       int(wmbus_hex[41:42]) * 100 + \
-			       int(wmbus_hex[42:43]) * 10 + \
-			       int(wmbus_hex[43:44])
+			       int(wmbus_hex[42:43]) * 100000 + \
+			       int(wmbus_hex[43:44]) * 10000
 
 		if wmbus_hex[0:2] == "9e":
 			# Byte 25-28, Little Endian
@@ -82,7 +82,7 @@ def search_meter_reading(date: datetime.date, meter_id: str, aes_key: Optional[s
 		d = date - datetime.timedelta(days=delta)
 		data = load_daily_file(d)
 		if data and meter_id in data:
-			if aes_key and getEncrMode(data[meter_id]["wmbus"].hex()) is not None:
+			if aes_key and getEncrMode(data[meter_id]["wmbus"]) is not None:
 				wmbus = decryptTelegram(data[meter_id]["wmbus"], aes_key)
 				if wmbus:
 					val = get_currHCA_from_wmbus(wmbus)
