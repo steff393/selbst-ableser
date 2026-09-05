@@ -1,0 +1,165 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Benachrichtigungen</h1>
+    <p class="page-sub">Welche Nachrichten versendet werden und über welchen Mailserver.</p>
+  </div>
+</div>
+
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+{{if .TestResult}}<p class="{{if .TestFailed}}error{{else}}flash{{end}}">{{.TestResult}}</p>{{end}}
+
+<section class="card">
+  <h2>Mailserver</h2>
+  <p class="hint">Voreingestellt sind die Werte für GMX; jeder andere Anbieter lässt sich
+  genauso eintragen.</p>
+
+  <form method="post" action="/operator/notify" id="notify-settings-form">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <div class="form-row">
+    <label>Server <input type="text" name="host" value="{{.Host}}"></label>
+    <label>Port <input type="number" name="port" value="{{.Port}}" min="1" max="65535"></label>
+    <label>Verschlüsselung
+      <select name="encryption">
+        <option value="starttls" {{if eq .Encryption "starttls"}}selected{{end}}>STARTTLS</option>
+        <option value="tls" {{if eq .Encryption "tls"}}selected{{end}}>TLS</option>
+        <option value="none" {{if eq .Encryption "none"}}selected{{end}}>keine</option>
+      </select>
+    </label>
+  </div>
+  <div class="form-row">
+    <label>Benutzername <input type="text" name="username" value="{{.Username}}" autocomplete="username"></label>
+    <label>Passwort
+      <input type="password" name="password" autocomplete="new-password"
+             placeholder="{{if .PasswordSet}}unverändert{{else}}noch nicht hinterlegt{{end}}">
+    </label>
+    <label>Absender <input type="email" name="from" value="{{.From}}"></label>
+  </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Benachrichtigungen</h2>
+  <label class="checkbox-label">
+    <input type="checkbox" name="enabled" value="on" form="notify-settings-form" {{if .Enabled}}checked{{end}}>
+    Versand aktiv
+  </label>
+
+  <table class="kv" style="margin-top: 0.75rem;">
+    <tr>
+      <th style="width: 1%; white-space: nowrap;">
+        Monatliche Mieter-Info
+        <form method="post" action="/operator/notify/test/monthly" style="margin-top: 0.35rem;">
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+          <button type="submit" class="btn-secondary btn-sm">Test</button>
+        </form>
+      </th>
+      <td><span class="hint">Am Monatsersten in der Stunde ab {{.SendHour}} Uhr, ein Hinweis je Wohnung mit
+      hinterlegter E-Mail-Adresse. Enthält keine Verbrauchswerte, nur den Link zur Anmeldung. Lief das
+      System in dieser Stunde nicht, entfällt der Versand und wird nicht nachgeholt — der wöchentliche
+      Status weist dann darauf hin, dass ein Monat unbestätigt aussieht.</span></td>
+    </tr>
+    <tr>
+      <th style="width: 1%; white-space: nowrap;">
+        Wöchentlicher Status
+        <form method="post" action="/operator/notify/test/weekly" style="margin-top: 0.35rem;">
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+          <button type="submit" class="btn-secondary btn-sm">Test</button>
+        </form>
+      </th>
+      <td><span class="hint">Montags in der Stunde ab {{.SendHour}} Uhr an Sie: ob ein Zähler seit 5+ Tagen
+      still ist oder noch nie gesendet hat, ob die Stammdaten seit dem letzten Neustart nicht entsperrt
+      wurden, oder dass alles in Ordnung ist. Kommt jede Woche, auch wenn nichts zu melden ist — das
+      Ausbleiben wäre damit selbst ein Hinweis.</span></td>
+    </tr>
+    <tr>
+      <th style="width: 1%; white-space: nowrap;">
+        Start-Nachricht
+        <form method="post" action="/operator/notify/test/startup" style="margin-top: 0.35rem;">
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+          <button type="submit" class="btn-secondary btn-sm">Test</button>
+        </form>
+      </th>
+      <td>
+        <span class="hint">Zeigt insbesondere, dass die Stammdaten nach einem Neustart wieder
+        gesperrt sind und entsperrt werden müssen. Abschaltbar, weil ein wiederholt abstürzender
+        Dienst sonst unbegrenzt Mail erzeugt.</span>
+        <label class="checkbox-label" style="margin-top: 0.5rem;">
+          <input type="checkbox" name="startup_notification" value="on" form="notify-settings-form" {{if .StartupNotification}}checked{{end}}>
+          Einmalig bei jedem (Neu-)Start eine kurze Nachricht senden
+        </label>
+      </td>
+    </tr>
+  </table>
+  <p class="hint" style="margin-top: 0.5rem;">„Test“ versendet die jeweilige Nachricht sofort, mit den
+  zuletzt gespeicherten Einstellungen — unabhängig vom Zeitplan oben, auch wenn diese Wohnung oder
+  diese Woche bereits benachrichtigt wurde.</p>
+
+  <div class="form-row" style="margin-top: 1rem;">
+    <label>Betreiber-Adresse
+      <input type="email" name="operator_email" value="{{.OperatorEmail}}" placeholder="betreiber@example.org" form="notify-settings-form">
+    </label>
+    <label>Basis-Adresse der Oberfläche
+      <input type="url" name="base_url" value="{{.BaseURL}}" placeholder="https://..." form="notify-settings-form">
+    </label>
+  </div>
+  <p class="hint">Die Basis-Adresse ist der Link, den Mieter in ihrer Monatsnachricht bekommen.</p>
+
+  <button type="submit" form="notify-settings-form" style="margin-top: 0.75rem;">Speichern</button>
+</section>
+
+<section class="card">
+  <h2>Rechtliche Angaben</h2>
+  <p class="hint">Impressum und Datenschutzerklärung sind ohne Anmeldung erreichbar und
+  Pflicht, sobald die Oberfläche öffentlich erreichbar ist. Die Vorlagen unten sind ein
+  Entwurf auf Basis dessen, was dieses System tatsächlich verarbeitet — keine
+  Rechtsberatung. Alles in <code>[eckigen Klammern]</code> ist zu ersetzen; solange noch
+  Platzhalter enthalten sind, weisen die öffentlichen Seiten darauf hin.</p>
+
+  {{if .LegalDraft}}<p class="flash">Es sind noch Platzhalter enthalten.</p>{{end}}
+
+  <form method="post" action="/operator/legal">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+    <div class="card-head">
+      <label for="imprint_text" style="margin: 0;">Impressum</label>
+      <button type="button" class="btn-secondary btn-sm" id="reset-imprint">Auf Standardtext zurücksetzen</button>
+    </div>
+    <textarea id="imprint_text" name="imprint_text" rows="14" spellcheck="false">{{.ImprintText}}</textarea>
+    <textarea id="imprint_text_default" hidden>{{.ImprintDefault}}</textarea>
+
+    <div class="card-head" style="margin-top: 1rem;">
+      <label for="privacy_policy_text" style="margin: 0;">Datenschutzerklärung</label>
+      <button type="button" class="btn-secondary btn-sm" id="reset-privacy">Auf Standardtext zurücksetzen</button>
+    </div>
+    <textarea id="privacy_policy_text" name="privacy_policy_text" rows="24" spellcheck="false">{{.PrivacyPolicyText}}</textarea>
+    <textarea id="privacy_policy_text_default" hidden>{{.PrivacyPolicyDefault}}</textarea>
+
+    <div class="form-row" style="margin-top: 0.75rem;">
+      <button type="submit">Rechtliche Angaben speichern</button>
+    </div>
+    <script>
+    (function () {
+      // The default text lives in a hidden twin of each textarea (plain
+      // element content, so html/template's normal text escaping handles
+      // it exactly like the visible textarea — no separate attribute- or
+      // JS-string-escaping to get right) rather than in the visible one's
+      // own value, since that already holds whatever the operator has
+      // typed and must not double as the reset target.
+      function wireReset(buttonId, fieldId, defaultsId) {
+        var button = document.getElementById(buttonId);
+        var field = document.getElementById(fieldId);
+        var defaults = document.getElementById(defaultsId);
+        if (!button || !field || !defaults) return;
+        button.addEventListener("click", function () {
+          if (field.value !== defaults.value && !confirm("Aktuellen Text durch den Standardtext ersetzen? Nicht gespeicherte Änderungen gehen verloren.")) return;
+          field.value = defaults.value;
+        });
+      }
+      wireReset("reset-imprint", "imprint_text", "imprint_text_default");
+      wireReset("reset-privacy", "privacy_policy_text", "privacy_policy_text_default");
+    })();
+    </script>
+  </form>
+</section>
+{{end}}

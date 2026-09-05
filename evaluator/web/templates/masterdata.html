@@ -1,0 +1,246 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Stammdaten</h1>
+    <p class="page-sub">Wohnungen, Zählerplätze und Zähler pflegen.</p>
+  </div>
+</div>
+
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+
+<section class="card">
+  <h2>Anlage</h2>
+  <p class="hint">Umrechnungsfaktoren für die kWh-Anzeige — je Abrechnungsperiode aus
+  der tatsächlichen Jahresabrechnung neu abgeleitet. Eine Änderung wirkt sich auf die gesamte
+  angezeigte Historie aus, nicht nur auf künftige Monate.</p>
+  <form method="post" action="/operator/masterdata/building">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <label>Bezeichnung <input type="text" name="name" value="{{.Building.Name}}"></label>
+      <label>kWh je HKV-Einheit (Heizung) <input type="number" step="0.001" min="0" name="heating_kwh_per_unit" value="{{.Building.EffectiveHeatingKWhPerUnit}}" required></label>
+      <label>kWh je m³ (Warmwasser) <input type="number" step="0.001" min="0" name="hot_water_kwh_per_m3" value="{{.Building.EffectiveHotWaterKWhPerM3}}" required></label>
+    </div>
+    <button type="submit">Speichern</button>
+  </form>
+</section>
+
+<form method="post" action="/operator/masterdata" id="masterdata-grids-form">
+<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+<input type="hidden" name="units_json" id="units-json">
+<input type="hidden" name="meterpoints_json" id="meterpoints-json">
+<input type="hidden" name="meters_json" id="meters-json">
+
+<section class="card">
+  <div class="card-head">
+    <h2>Wohnungen</h2>
+  </div>
+  <p class="hint">Zeilen einfügen (auch mehrspaltig aus einer Tabellenkalkulation), mit
+  „+ Zeile“ ergänzen, mit dem Pfeil-Knopf einen Wert nach unten ausfüllen. Eine Zeile entfernen
+  und speichern löscht die Wohnung.</p>
+
+  <div class="grid-scroll">
+  <table id="units-grid">
+    <thead>
+      <tr><th>ID</th><th>Bezeichnung</th><th>Fläche (m²)</th><th></th></tr>
+    </thead>
+    <tbody id="units-grid-body"></tbody>
+  </table>
+  </div>
+  <button type="button" id="units-add-row" class="btn-secondary btn-sm">+ Zeile</button>
+  <button type="submit" class="btn btn-sm">Wohnungen, Zählerplätze und Zähler speichern</button>
+</section>
+
+<section class="card card-wide">
+  <div class="card-head">
+    <h2>Zählerplätze &amp; Zähler</h2>
+  </div>
+  <p class="hint">Ein Zählerplatz und sein Zähler sind eine Zeile — ein neuer Zählerplatz braucht
+  keinen eigenen Zwischenschritt, sein erster Zähler wird gleich mit eingetragen. Mehrere Zeilen
+  mit derselben Zählerplatz-ID sind die Zählerhistorie dieses Platzes (siehe „Zählerwechsel“
+  unten). Zeilen einfügen (auch mehrspaltig aus einer Tabellenkalkulation), mit „+ Zeile“
+  ergänzen, mit dem Pfeil-Knopf einen Wert nach unten ausfüllen. AES-Schlüssel darf leer bleiben,
+  wenn der Zähler unverschlüsselt sendet. Einbau als TT.MM.JJJJ. Stichtag-Monat (1-12) nur für
+  Heizungs-Zählerplätze relevant, leer bedeutet Januar. Anfangsstand/Endstand als roher
+  Gerätewert: bei Heizung die dimensionslose Einheiten-Anzeige des Zählers (nicht kWh), bei
+  Warmwasser/Kaltwasser Liter (nicht m³, auch wenn der Zähler selbst m³ anzeigt).</p>
+
+  <div class="grid-scroll">
+  <table id="meters-grid">
+    <thead>
+      <tr>
+        <th>Zählerplatz</th><th>Wohnung</th><th>Raum</th><th>Typ</th><th>Zählernummer</th>
+        <th>AES-Schlüssel (hex)</th><th>Einbau</th><th>Anfangsstand</th><th>Endstand</th><th>kc-Faktor</th><th>Stichtag-Monat</th><th></th>
+      </tr>
+    </thead>
+    <tbody id="meters-grid-body"></tbody>
+  </table>
+  </div>
+  <button type="button" id="meters-add-row" class="btn-secondary btn-sm">+ Zeile</button>
+  <button type="button" id="meters-zaehlerwechsel" class="btn-secondary btn-sm">Zählerwechsel</button>
+  <p class="hint" style="margin-top: 0.5rem;">Zähler ausgebaut: Endstand(e) eintragen und auf
+  „Zählerwechsel“ klicken, nicht auf Speichern — das leert Zählernummer, AES-Schlüssel, Einbau,
+  Anfangsstand, Endstand, kc-Faktor und Stichtag-Monat der betroffenen Zeilen (nur in der Ansicht,
+  noch nichts gespeichert), damit sofort der jeweils neue Zähler eingetragen werden kann. Erst „Speichern“
+  legt dafür wirklich alten und neuen Zähler an. Wird für eine Zeile kein neuer Zähler eingetragen,
+  bleibt beim Speichern der alte unverändert stehen und der Endstand wird wieder verworfen.</p>
+</section>
+
+<button type="submit" class="btn btn-sm" style="margin-bottom: 1.5rem;">Wohnungen, Zählerplätze und Zähler speichern</button>
+</form>
+
+<section class="card">
+  <h2>Export</h2>
+
+  <h3>Vollständige Stammdaten</h3>
+  <p class="hint">Enthält alle AES-Schlüssel im Klartext. Datei sicher aufbewahren, nicht
+  unverschlüsselt weitergeben — dient der Datenhoheit und als lesbare Sicherung
+  neben der regulären Archiv-Sicherung.</p>
+  <a class="btn btn-secondary btn-sm" href="/operator/masterdata/export">Stammdaten exportieren (JSON)</a>
+</section>
+
+<script src="/static/grid.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var METER_FIELDS = ["number", "aes_key", "installed_at", "start_reading", "end_reading", "kc_factor", "reset_month"];
+  var POINT_FIELDS = ["meter_point_id", "unit_id", "room", "kind"];
+  var form = document.getElementById("masterdata-grids-form");
+  var metersBody = document.getElementById("meters-grid-body");
+
+  function field(tr, col) {
+    return tr.querySelector('[data-col="' + col + '"]');
+  }
+  function value(tr, col) {
+    var el = field(tr, col);
+    return el ? el.value.trim() : "";
+  }
+  function setValue(tr, col, v) {
+    var el = field(tr, col);
+    if (el) el.value = v || "";
+  }
+
+  // Zählerwechsel: for every row where an Endstand was just typed (i.e.
+  // it differs from what the row loaded with), remember that row's
+  // current meter fields as the closing meter's data, then clear the
+  // visible meter fields so the replacement meter can be typed into the
+  // same row. Nothing is sent to the server here — see the submit
+  // handler below, which is where a completed swap actually becomes two
+  // rows, and an abandoned one reverts.
+  document.getElementById("meters-zaehlerwechsel").addEventListener("click", function () {
+    Array.prototype.forEach.call(metersBody.children, function (tr) {
+      if (tr.dataset.pendingSwap === "true") return; // already mid-swap
+      var original = JSON.parse(tr.dataset.original || "{}");
+      var currentEnd = value(tr, "end_reading");
+      if (currentEnd === "" || currentEnd === (original.end_reading || "")) return;
+
+      tr.dataset.closingEndReading = currentEnd;
+      tr.dataset.pendingSwap = "true";
+      METER_FIELDS.forEach(function (col) { setValue(tr, col, ""); });
+    });
+  });
+
+  // The Zählerwechsel state above lives only in this page's DOM — leaving
+  // mid-swap (closing the tab, following a nav link, reloading) loses it
+  // silently, with the table looking as if nothing had happened. Warn
+  // before that, but not when the form itself is what's navigating away —
+  // that is the swap actually completing, not an accidental loss of it.
+  var formSubmitting = false;
+  form.addEventListener("submit", function () { formSubmitting = true; });
+  window.addEventListener("beforeunload", function (e) {
+    if (formSubmitting) return;
+    var pending = Array.prototype.some.call(metersBody.children, function (tr) {
+      return tr.dataset.pendingSwap === "true";
+    });
+    if (pending) {
+      e.preventDefault();
+      e.returnValue = ""; // some browsers require a non-empty value to show their own prompt
+    }
+  });
+
+  // Runs before SAGrid's own submit handlers (registered further below,
+  // after this listener) so it can finish resolving every pending
+  // Zählerwechsel by editing the DOM: either splitting one row into two
+  // (old closed meter + new one) or reverting an abandoned swap back to
+  // how the row loaded, before the grids read the table and serialize it.
+  form.addEventListener("submit", function () {
+    Array.prototype.forEach.call(Array.prototype.slice.call(metersBody.children), function (tr) {
+      if (tr.dataset.pendingSwap !== "true") return;
+      var original = JSON.parse(tr.dataset.original || "{}");
+      var isBlank = METER_FIELDS.every(function (col) { return value(tr, col) === ""; });
+
+      if (isBlank) {
+        // No replacement was entered: the swap is abandoned. The old
+        // meter stays exactly as it was; the Endstand that was typed to
+        // start the swap is discarded, not saved anywhere.
+        METER_FIELDS.concat(["removed_at"]).forEach(function (col) {
+          setValue(tr, col, original[col] || "");
+        });
+        delete tr.dataset.pendingSwap;
+        return;
+      }
+
+      // A replacement was entered: emit the old, now-closed meter as its
+      // own row, sharing this row's (possibly also just-edited) meter
+      // point fields. Its Ausbau is the new meter's Einbau — the whole
+      // reason this grid has no separate Ausbau column at all.
+      var closed = document.createElement("tr");
+      closed.style.display = "none";
+      POINT_FIELDS.concat(METER_FIELDS).concat(["removed_at"]).forEach(function (col) {
+        var input = document.createElement("input");
+        input.type = "hidden";
+        input.dataset.col = col;
+        if (POINT_FIELDS.indexOf(col) !== -1) {
+          input.value = value(tr, col);
+        } else if (col === "end_reading") {
+          input.value = tr.dataset.closingEndReading || "";
+        } else if (col === "removed_at") {
+          input.value = value(tr, "installed_at");
+        } else {
+          input.value = original[col] || "";
+        }
+        closed.appendChild(input);
+      });
+      metersBody.insertBefore(closed, tr);
+      delete tr.dataset.pendingSwap;
+    });
+  });
+
+  // Both grids share one form (masterdata-grids-form): each
+  // SAGrid.create() call below attaches its own submit listener to that
+  // same element, so one click fires both and fills both hidden inputs
+  // before the request goes out (see handleMasterDataSave for why units
+  // and the combined meter-point/meter grid have to be saved together).
+  // They are registered after the Zählerwechsel resolution above so that
+  // one runs first and leaves the table in its final shape for these to
+  // read.
+  SAGrid.create({
+    gridId: "units-grid", bodyId: "units-grid-body", addRowId: "units-add-row",
+    formId: "masterdata-grids-form", hiddenInputId: "units-json",
+    columns: ["id", "name", "area_m2"],
+    columnTypes: {area_m2: "number"},
+    initial: {{.UnitsJSON}}
+  });
+  SAGrid.create({
+    gridId: "meters-grid", bodyId: "meters-grid-body", addRowId: "meters-add-row",
+    formId: "masterdata-grids-form", hiddenInputId: "meters-json",
+    columns: ["meter_point_id", "unit_id", "room", "kind", "number", "aes_key", "installed_at", "start_reading", "end_reading", "kc_factor", "reset_month"],
+    hiddenColumns: ["removed_at"], // no visible Ausbau column — see the submit handler above
+    selectOptions: {kind: [
+      {value: "heating", label: "Heizung"},
+      {value: "hot_water", label: "Warmwasser"},
+      {value: "cold_water", label: "Kaltwasser"}
+    ]},
+    columnTypes: {start_reading: "number", end_reading: "number", kc_factor: "number", reset_month: "number"},
+    // installed_at is plain text, not <input type="date">: a native date
+    // input's .value is locked to ISO, so pasting a column of dates
+    // copied out of Excel (DD.MM.YYYY) silently failed. parseGridDay on
+    // the server accepts either form.
+    // FACH-07: unset kc_factor means unscaled (factor 1). FACH-03: unset
+    // reset_month means January.
+    placeholders: {kc_factor: "1", reset_month: "1", installed_at: "TT.MM.JJJJ"},
+    initial: {{.MeterGridJSON}}
+  });
+})();
+</script>
+{{end}}

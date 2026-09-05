@@ -1,2 +1,0 @@
-ACTION=="add",SUBSYSTEM=="block",ENV{ID_BUS}=="usb",ENV{DEVTYPE}=="partition",RUN+="/bin/systemd-run --no-block /usr/local/bin/selbst-ableser-usb-mount.sh %E{DEVNAME}"
-ACTION=="remove",SUBSYSTEM=="block",ENV{ID_BUS}=="usb",ENV{DEVTYPE}=="partition",RUN+="/bin/systemd-run --no-block /usr/local/bin/selbst-ableser-usb-umount.sh"

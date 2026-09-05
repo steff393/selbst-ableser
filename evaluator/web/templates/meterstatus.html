@@ -1,0 +1,47 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Zählerstatus</h1>
+    <p class="page-sub">Grenzwert für „stumm“: {{.ThresholdDays}} Tage ohne Empfang.</p>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat">
+    <div class="stat-label">In Ordnung</div>
+    <div class="stat-value"><span class="badge badge-success"><span class="badge-dot"></span>{{len .OK}}</span></div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Seit längerem stumm</div>
+    <div class="stat-value"><span class="badge badge-warning"><span class="badge-dot"></span>{{len .Silent}}</span></div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Nie empfangen</div>
+    <div class="stat-value"><span class="badge badge-danger"><span class="badge-dot"></span>{{len .NeverSeen}}</span></div>
+  </div>
+</div>
+
+<section class="card">
+  <h2>Nie empfangen</h2>
+  <table class="list">
+    <tr><th>Wohnung</th><th>Raum</th><th>Zähler</th></tr>
+    {{range .NeverSeen}}<tr><td>{{.UnitName}}</td><td>{{.Room}}</td><td>{{.MeterNumber}}</td></tr>{{else}}<tr><td colspan="3" class="empty-row">Keine.</td></tr>{{end}}
+  </table>
+</section>
+
+<section class="card">
+  <h2>Seit längerem stumm</h2>
+  <table class="list">
+    <tr><th>Wohnung</th><th>Raum</th><th>Zähler</th><th>Letzter Empfang</th><th>Tage</th></tr>
+    {{range .Silent}}<tr><td>{{.UnitName}}</td><td>{{.Room}}</td><td>{{.MeterNumber}}</td><td>{{.LastSeen}}</td><td><span class="badge badge-warning">{{.DaysSince}} d</span></td></tr>{{else}}<tr><td colspan="5" class="empty-row">Keine.</td></tr>{{end}}
+  </table>
+</section>
+
+<section class="card">
+  <h2>In Ordnung</h2>
+  <table class="list">
+    <tr><th>Wohnung</th><th>Raum</th><th>Zähler</th><th>Letzter Empfang</th></tr>
+    {{range .OK}}<tr><td>{{.UnitName}}</td><td>{{.Room}}</td><td>{{.MeterNumber}}</td><td>{{.LastSeen}}</td></tr>{{else}}<tr><td colspan="4" class="empty-row">Keine.</td></tr>{{end}}
+  </table>
+</section>
+{{end}}

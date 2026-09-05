@@ -1,0 +1,57 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Sicherheit</h1>
+    <p class="page-sub">Unter welchen Namen diese Anlage antwortet, und ob ein Reverse-Proxy davorsteht.</p>
+  </div>
+</div>
+
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+{{if .Saved}}<p class="flash">Gespeichert.</p>{{end}}
+
+<form method="post" action="/operator/security" id="security-form">
+<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+<section class="card">
+  <h2>Domain-Sperre</h2>
+  <p class="hint">Ohne Eintrag beantwortet die Anlage Anfragen für jeden beliebigen Domainnamen, der
+  zufällig hierher zeigt — auch für eine fremde Domain, die absichtlich hierher gerichtet wurde. Mit
+  der echten Domain eingetragen, wird jede Anfrage mit einem anderen Namen abgelehnt. Mehrere Namen
+  durch Komma trennen. Für eine rein lokale Anlage kann das Feld leer bleiben.</p>
+  <div class="form-row">
+    <label style="flex: 1;">Erlaubte Domains
+      <input type="text" name="allowed_hosts" value="{{.AllowedHosts}}"
+             placeholder="app.ihre-domain.de">
+    </label>
+  </div>
+  <p class="hint">Sie greifen gerade über <code>{{.CurrentHost}}</code> zu. Dieser Name muss in der
+  Liste stehen, sonst wird die Eingabe abgelehnt — sonst wäre genau diese Seite anschließend nicht
+  mehr erreichbar. <strong>Wirkt erst nach einem Neustart</strong> des Dienstes (Schaltfläche auf der
+  Seite <a href="/operator/backup">Backup</a>).</p>
+</section>
+
+<section class="card">
+  <h2>Reverse-Proxy</h2>
+  <p class="hint">Einschalten, wenn vor dieser Anlage ein Reverse-Proxy die Verschlüsselung übernimmt
+  (z. B. Plesk mit nginx, siehe <code>deploy/plesk-nginx-directives.conf</code>). Nur dann werden
+  dessen Angaben zur echten Herkunft eines Zugriffs ausgewertet — ohne Proxy davor könnte sich sonst
+  jeder Aufrufer eine beliebige Adresse zuschreiben. Wirkt sofort.</p>
+  <label class="checkbox-label">
+    <input type="checkbox" name="trust_proxy" value="on" {{if .TrustProxy}}checked{{end}}>
+    Ein Reverse-Proxy steht davor
+  </label>
+  <p class="hint" style="margin-top: 0.75rem;">
+    Diese Seite wurde gerade
+    {{if .RequestIsHTTPS}}<strong>verschlüsselt (HTTPS)</strong> abgerufen — das Sitzungs-Cookie wird
+    entsprechend als „nur über HTTPS" markiert.{{else}}<strong>unverschlüsselt (HTTP)</strong>
+    abgerufen. Für eine rein lokale Anlage ist das in Ordnung. Ist die Anlage dagegen aus dem Internet
+    erreichbar, sollte hier HTTPS stehen — steht ein Proxy davor, der TLS beendet, muss dafür die
+    Einstellung oben eingeschaltet sein.{{end}}
+  </p>
+</section>
+
+<div class="form-actions">
+  <button type="submit">Speichern</button>
+</div>
+</form>
+{{end}}

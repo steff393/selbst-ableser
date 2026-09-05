@@ -1,0 +1,199 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Verbrauchsinformation</h1>
+    <p class="print-only print-subject">{{.UnitName}} · {{monthLabel .Month}}</p>
+  </div>
+  <button type="button" class="btn-secondary screen-only" id="uvi-print">Als PDF speichern</button>
+</div>
+
+<div class="uvi-nav" id="uvi-nav"
+     {{if .HasPrevMonth}}data-prev-month="{{.PrevLink}}"{{end}}
+     {{if .HasNextMonth}}data-next-month="{{.NextLink}}"{{end}}
+     {{if .HasPrevUnit}}data-prev-unit="{{.PrevUnitLink}}"{{end}}
+     {{if .HasNextUnit}}data-next-unit="{{.NextUnitLink}}"{{end}}>
+  <div class="uvi-nav-group">
+    <span class="uvi-nav-label">Wohnung</span>
+    {{if .HasPrevUnit}}<a class="uvi-nav-btn" href="{{.PrevUnitLink}}" aria-label="Vorherige Wohnung">&#9664;</a>{{else}}<span class="uvi-nav-btn disabled" aria-hidden="true">&#9664;</span>{{end}}
+    <span class="uvi-nav-value">{{.UnitName}}</span>
+    {{if .HasNextUnit}}<a class="uvi-nav-btn" href="{{.NextUnitLink}}" aria-label="Nächste Wohnung">&#9654;</a>{{else}}<span class="uvi-nav-btn disabled" aria-hidden="true">&#9654;</span>{{end}}
+  </div>
+  <div class="uvi-nav-group">
+    <span class="uvi-nav-label">Zeitraum</span>
+    {{if .HasPrevMonth}}<a class="uvi-nav-btn" href="{{.PrevLink}}" aria-label="Vormonat">&#9664;</a>{{else}}<span class="uvi-nav-btn disabled" aria-hidden="true">&#9664;</span>{{end}}
+    <span class="uvi-nav-value">{{monthLabel .Month}}</span>
+    {{if .HasNextMonth}}<a class="uvi-nav-btn" href="{{.NextLink}}" aria-label="Folgemonat">&#9654;</a>{{else}}<span class="uvi-nav-btn disabled" aria-hidden="true">&#9654;</span>{{end}}
+  </div>
+</div>
+
+{{range .Kinds}}
+{{$kind := .Kind}}
+<section class="card meterpoint">
+  <h2>
+    <span class="meterpoint-icon">
+      {{if eq (kindLabel .Kind) "Heizung"}}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 1c1.5 2 2.5 3.5 1 5.5-1 1.3.2 2 .2 2S11 7.5 11 5c1.5 1.7 2 3.3 2 5a5 5 0 1 1-10 0c0-2 1-3.7 2.3-5.2C6 6 6.7 6.5 7 6 7.7 5 7.2 3 8 1Z"/></svg>
+      {{else}}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 1.5S3 7 3 10.2A5 5 0 0 0 13 10.2C13 7 8 1.5 8 1.5Z"/></svg>
+      {{end}}
+    </span>
+    {{kindLabel .Kind}}
+  </h2>
+
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="stat-label">Aktueller Monat</div>
+      <div class="stat-value">{{consumption $kind .CurrentMonth.Consumption}} {{unitLabel $kind}}</div>
+      {{if .KWhApplicable}}<div class="hint">{{printf "%.0f" .KWh}} kWh</div>{{end}}
+    </div>
+    {{if .PriorMonth}}
+    <div class="stat">
+      <div class="stat-label">Vormonat</div>
+      <div class="stat-value">{{consumption $kind .PriorMonth.Consumption}} {{unitLabel $kind}}</div>
+      {{if .PriorMonthPercentOK}}
+        {{if ge .PriorMonthPercent 0.0}}
+        <div class="delta delta-up">▲ {{percent .PriorMonthPercent}}</div>
+        {{else}}
+        <div class="delta delta-down">▼ {{percent .PriorMonthPercent}}</div>
+        {{end}}
+      {{end}}
+    </div>
+    {{end}}
+    {{if .PriorYearMonth}}
+    <div class="stat">
+      <div class="stat-label">Vorjahresmonat</div>
+      <div class="stat-value">{{consumption $kind .PriorYearMonth.Consumption}} {{unitLabel $kind}}</div>
+      {{if .PriorYearMonthPercentOK}}
+        {{if ge .PriorYearMonthPercent 0.0}}
+        <div class="delta delta-up">▲ {{percent .PriorYearMonthPercent}}</div>
+        {{else}}
+        <div class="delta delta-down">▼ {{percent .PriorYearMonthPercent}}</div>
+        {{end}}
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+
+  {{if .ComparisonApplicable}}
+  {{$ownFmt := "%.3f m³/m²"}}{{$avgFmt := "%.3f m³/m²"}}{{if .KWhApplicable}}{{$ownFmt = "%.1f kWh/m²"}}{{$avgFmt = "%.1f kWh/m²"}}{{end}}
+  {{/* Ein Satz, kein Schlüssel-Wert-Paar: die frühere kv-Tabelle hatte nur
+       diese eine Zeile, deren Beschriftung 40 % der Breite nahm, ohne mehr
+       zu sagen als der Satz selbst. Als Absatz liest ihn außerdem ein
+       Screenreader als Fließtext statt als Tabelle mit einer Zelle. */}}
+  <p class="uvi-comparison">
+    Ihr aktueller Verbrauch von {{printf $ownFmt .ComparisonOwnPerM2}} liegt
+    {{if ge .ComparisonPercent 0.0}}<span class="delta delta-up">{{printf "%.0f" (abs .ComparisonPercent)}} % über</span>
+    {{else}}<span class="delta delta-down">{{printf "%.0f" (abs .ComparisonPercent)}} % unter</span>{{end}}
+    dem Verbrauch eines normierten Durchschnittsnutzers ({{printf $avgFmt .ComparisonAvgPerM2}}).
+  </p>
+  {{end}}
+
+  {{range $.Charts}}
+    {{if eq .Kind $kind}}
+    <div class="screen-only">
+      <h3 style="margin-top: 1rem;">Jahresverlauf {{.Year}} im Vergleich zu {{.PriorYear}}</h3>
+      <div class="uvi-chart-container" id="{{.DOMID}}"
+           role="group" aria-label="Jahresverlauf {{kindLabel .Kind}}, interaktives Diagramm; Werte auch als Tabelle unten verfügbar"></div>
+      <details style="margin-top: 0.5rem;">
+        <summary>Werte als Tabelle</summary>
+        <table class="list" style="margin-top: 0.5rem;">
+          <thead><tr><th>Monat</th><th>{{.Year}}</th><th>{{.PriorYear}}</th></tr></thead>
+          <tbody>
+          {{range .Rows}}
+          <tr>
+            <td>{{.MonthName}}</td>
+            <td>{{if .Current.Found}}{{consumption $kind .Current.Value}} {{unitLabel $kind}}{{else}}<span class="hint">–</span>{{end}}</td>
+            <td>{{if .Prior.Found}}{{consumption $kind .Prior.Value}} {{unitLabel $kind}}{{else}}<span class="hint">–</span>{{end}}</td>
+          </tr>
+          {{end}}
+          </tbody>
+        </table>
+      </details>
+    </div>
+    {{end}}
+  {{end}}
+</section>
+{{else}}
+<section class="card">
+  {{if .NoDataForMonth}}
+  <p>Für {{monthLabel .Month}} liegen für diese Wohnung keine Werte vor.</p>
+  <p class="hint">Nutzen Sie die Pfeile oben, um einen anderen Monat zu wählen.</p>
+  {{else}}
+  <p>Für diese Wohnung sind keine Zählerplätze hinterlegt.</p>
+  {{end}}
+</section>
+{{end}}
+
+{{if .AllReadings}}
+<section class="card">
+  <h2>Zählerstände</h2>
+  <table class="list" style="margin-bottom: 0;">
+    <thead>
+      <tr><th>Typ</th><th>Raum</th><th>Zähler</th><th>Zählerstand</th><th>Datum</th><th>Zählerstand davor</th><th>Datum davor</th></tr>
+    </thead>
+    <tbody>
+    {{range .AllReadings}}
+    <tr>
+      <td>{{kindLabel .Kind}}</td>
+      <td>{{.Room}}</td>
+      <td>{{.Current.Meter}}</td>
+      <td>{{consumption .Kind .Current.Value}} {{unitLabel .Kind}}</td>
+      <td>{{.Current.Day}}</td>
+      <td>{{if .Previous.Day}}{{consumption .Kind .Previous.Value}} {{unitLabel .Kind}}{{else}}<span class="hint">keine</span>{{end}}</td>
+      <td>{{if .Previous.Day}}{{.Previous.Day}}{{else}}–{{end}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+</section>
+{{end}}
+
+<p class="disclaimer uvi-footnotes">Hinweise zur Verbrauchsinformation:<br>
+<sup>1</sup> Diese Verbrauchsinformation dient der Transparenz über den bisherigen Verbrauch. Sie
+stellt keine Abrechnung dar und begründet keinen Zahlungsanspruch. Der ausgewiesene Verbrauch in
+kWh basiert auf einer rechnerischen Umrechnung von Heizkostenverteiler-Einheiten und dient der
+Verbrauchsinformation. Maßgeblich für die Abrechnung ist die Jahresabrechnung.<br>
+<sup>2</sup> Rein informativ, ohne Einfluss auf die Abrechnung.</p>
+
+<script>
+// Printing is the PDF export (UI-01): the browser's own "Save as PDF"
+// turns this page into a file, so the printed document is by construction
+// the same figures the tenant just looked at, with no second renderer to
+// keep in step. Charts and their collapsed value tables are deliberately
+// left off the printout entirely (see .screen-only in style.css) rather
+// than forced open — a chart doesn't survive onto paper as anything more
+// than a static picture, and the interactive value tables it stands in
+// for on screen made for a page count and layout that varied depending
+// on which sections happened to have a chart, not a predictable document.
+(function () {
+  var btn = document.getElementById('uvi-print');
+  if (btn) btn.addEventListener('click', function () { window.print(); });
+})();
+</script>
+<script>
+(function () {
+  var nav = document.getElementById('uvi-nav');
+  if (!nav) return;
+  document.addEventListener('keydown', function (e) {
+    var active = document.activeElement;
+    var tag = active && active.tagName ? active.tagName.toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea' || (active && active.isContentEditable)) return;
+
+    var url = null;
+    if (e.key === 'ArrowLeft') url = nav.dataset.prevMonth;
+    else if (e.key === 'ArrowRight') url = nav.dataset.nextMonth;
+    else if (e.key === 'ArrowUp') url = nav.dataset.prevUnit;
+    else if (e.key === 'ArrowDown') url = nav.dataset.nextUnit;
+
+    if (url) {
+      e.preventDefault();
+      window.location.href = url;
+    }
+  });
+})();
+</script>
+{{if .Charts}}
+<script>window.SA_UVI_CHARTS = [{{range $i, $c := .Charts}}{{if $i}},{{end}}{{$c.JSON}}{{end}}];</script>
+<script src="/static/uvi_chart.js"></script>
+{{end}}
+{{end}}

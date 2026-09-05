@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wartung – selbst-ableser</title>
+<style>
+  :root {
+    color-scheme: light dark;
+
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --border: #e3e6eb;
+    --fg: #161b22;
+    --fg-muted: #5b6672;
+    --accent: #2455c9;
+    --accent-fg: #ffffff;
+
+    --shadow-md: 0 2px 8px rgba(20, 25, 35, 0.07), 0 1px 2px rgba(20, 25, 35, 0.05);
+    --radius-lg: 0.875rem;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0f16;
+      --surface: #121822;
+      --border: #232d3d;
+      --fg: #e7ebf1;
+      --fg-muted: #97a2b3;
+      --accent: #5b8cf0;
+      --accent-fg: #0b0f16;
+
+      --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    font-family: var(--font);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--fg);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 26rem;
+    width: 100%;
+    text-align: center;
+  }
+
+  .brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.75rem;
+    background: var(--accent);
+    color: var(--accent-fg);
+    margin-bottom: 0.75rem;
+  }
+  /* 74%, matching the running application's own mark (see the note in
+     evaluator/web/templates/layout.html): at 60% the curve inside the
+     house stopped being readable at small sizes. */
+  .brand-mark svg { width: 74%; height: 74%; }
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.15rem;
+  }
+
+  /* Matches the login page's treatment: larger than body text, with the
+     weight only on the name rather than the whole sentence. */
+  .slogan {
+    color: var(--accent);
+    font-size: 1.125rem;
+    font-weight: 400;
+    line-height: 1.4;
+    margin: 0.1rem 0 1.75rem;
+  }
+  .slogan strong { font-weight: 700; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: 2rem 1.75rem;
+  }
+  .card p { color: var(--fg-muted); margin: 0; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <span class="brand-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/><path d="M8.5 16.5l2.5-3 2.5 2 2-2.5"/></svg>
+    </span>
+    <h1>Kurze Wartungspause</h1>
+    <p class="slogan"><strong>selbst-ableser</strong> – weil deine Daten dir gehören.</p>
+    <div class="card">
+      <p>Der Server ist gerade nicht erreichbar.<br>In Kürze sind wir wieder für Sie da.</p>
+    </div>
+  </div>
+</body>
+</html>

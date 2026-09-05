@@ -1,0 +1,8 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>
+{{if .Draft}}
+<p class="flash">Diese Angaben sind noch nicht vollständig ausgefüllt. Der Betreiber trägt sie
+unter Benachrichtigungen → Rechtliche Angaben ein.</p>
+{{end}}
+<div class="legal-text legal-body">{{.Text}}</div>
+{{end}}

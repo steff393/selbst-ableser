@@ -1,0 +1,81 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Zugänge</h1>
+    <p class="page-sub">Zugangscodes für Mieter verwalten.</p>
+  </div>
+</div>
+
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+
+<section class="card">
+  <div class="card-head">
+    <h2>Zugänge</h2>
+  </div>
+  <p class="hint">Der Zugangscode wird erst beim Speichern erzeugt. Wohnung als ID angeben (siehe
+  Stammdaten). Ende leer lassen für einen unbefristeten Zugang.</p>
+
+  <form method="post" action="/operator/access" id="access-grid-form">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="accesses_json" id="access-json">
+
+    <div class="grid-scroll">
+    <table id="access-grid">
+      <thead>
+        <tr><th>Zugangscode</th><th>Wohnung</th><th>Beginn</th><th>Ende</th><th>E-Mail</th><th></th></tr>
+      </thead>
+      <tbody id="access-grid-body"></tbody>
+    </table>
+    </div>
+    <button type="button" id="access-add-row" class="btn-secondary btn-sm">+ Zeile</button>
+    <button type="submit" class="btn btn-sm" style="margin-top: 0.75rem;">Speichern</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Betreiber-Passwort</h2>
+  <p class="hint">Entschlüsselt die Stammdaten und damit alle Zählerschlüssel. <span class="text-danger">Geht es verloren,
+  sind die Daten nicht wiederherstellbar</span> — notieren Sie es an einem sicheren Ort. Das aktuelle
+  Passwort lässt sich hier bewusst nicht anzeigen; es kann nur durch ein neues ersetzt werden.</p>
+
+  <form method="post" action="/operator/access/password">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row form-row-bottom">
+      <label>Neues Passwort
+        <input type="text" name="new_password" autocomplete="new-password" minlength="12" required spellcheck="false">
+      </label>
+      <button type="submit" class="btn-secondary">Passwort ändern</button>
+    </div>
+    <p class="hint">Mindestens 12 Zeichen. Sie bleiben angemeldet, alle anderen Sitzungen (auch andere
+    Betreiber-Anmeldungen und alle Mieter) werden sofort beendet.</p>
+  </form>
+
+  <form method="post" action="/operator/access/delete-backups" style="margin-top: 0.75rem;"
+        onsubmit="return confirm('Alle alten Stammdaten-Backups unwiderruflich löschen?');">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button type="submit" class="btn-secondary btn-sm">Lösche alte Stammdaten-Backups</button>
+    <p class="hint">Ein Passwortwechsel oben verschlüsselt nur die aktuelle Datei neu — ältere
+    Sicherungskopien bleiben mit dem alten Passwort lesbar, bis sie hier gelöscht werden. Sinnvoll
+    vor allem, wenn das alte Passwort kompromittiert gewesen sein könnte.</p>
+  </form>
+</section>
+
+<script src="/static/grid.js"></script>
+<script>
+(function () {
+  "use strict";
+  SAGrid.create({
+    gridId: "access-grid", bodyId: "access-grid-body", addRowId: "access-add-row",
+    formId: "access-grid-form", hiddenInputId: "access-json",
+    readOnlyColumns: ["token"],
+    columns: ["unit_id", "start", "end", "email"],
+    // start/end are plain text, not <input type="date">: a native date
+    // input's .value is locked to ISO, so pasting a column of dates
+    // copied out of Excel (DD.MM.YYYY) silently failed. parseGridDay on
+    // the server accepts either form (see masterdata_handlers.go).
+    placeholders: {start: "TT.MM.JJJJ", end: "TT.MM.JJJJ (optional)", email: "mieter@example.org (optional)"},
+    initial: {{.AccessGridJSON}}
+  });
+})();
+</script>
+{{end}}

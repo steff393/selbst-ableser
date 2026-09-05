@@ -1,0 +1,70 @@
+[Unit]
+Description=selbst-ableser evaluator (web application)
+After=network.target
+
+[Service]
+Type=simple
+User=selbst
+Group=selbst
+ExecStart=/opt/selbst-ableser/saEvaluator /var/lib/selbst-ableser
+
+# The directory above is the installation: all five of its files live
+# there under fixed names, and pointing this at a different directory is
+# the whole of running a different data set.
+#
+# It must already be an installation before this unit is enabled. Run
+# `/opt/selbst-ableser/saEvaluator /var/lib/selbst-ableser` once by hand
+# from a terminal first: that sets the directory up and shows the
+# generated operator password once (see docs/install.md /
+# docs/quickstart-vps.md). Started here without that having happened, it
+# fails with a clear message instead — a password printed into this
+# unit's journal would reach a much longer-lived and more widely readable
+# place than a terminal somebody is watching.
+#
+# BETRIEB-03: restart on crash, limited filesystem access. The evaluator
+# needs to read and write its one data directory — nothing else. That
+# directory holds config.json/secrets.json too, not just the databases:
+# the Collector and Mail settings pages save push_secret, SMTP
+# credentials, and collector polling settings back into them while the
+# service is running, not just at the one-time `bootstrap` step — so this
+# can never be read-only. Only the program binary itself lives elsewhere
+# (/opt/selbst-ableser), replaceable without touching this directory. The
+# evaluator is never given a code path to a wM-Bus receiver or a USB
+# backup stick (see docs/architektur.md) — telegram reception is a separate
+# binary/module (saCollector) entirely.
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/selbst-ableser
+PrivateTmp=true
+
+# Defense-in-depth beyond the above: the process needs nothing these
+# remove access to (no devices, no kernel tunables/modules, no elevated
+# capabilities — it listens on a port above 1024, so not even
+# CAP_NET_BIND_SERVICE). MemoryDenyWriteExecute is deliberately left out:
+# it has occasionally caused problems with the Go runtime, so only add it
+# after testing a restart with it on.
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

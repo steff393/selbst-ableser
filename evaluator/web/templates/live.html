@@ -1,0 +1,113 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Live-Ansicht</h1>
+    <p class="page-sub">Vom Collector per Sofort-Push übertragene Telegramme, eine Zeile je Zähler und Telegrammlänge (der jeweils zuletzt empfangene Stand) — ein Zähler, der zwischen Formaten wechselt, taucht also mit jeder Länge einmal auf. Aktualisiert automatisch jede Sekunde.</p>
+  </div>
+  <div class="form-row" style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;">
+    <form method="post" action="/operator/live/toggle" class="inline">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      {{if .LiveActive}}
+        <input type="hidden" name="enabled" value="">
+        <button type="submit" class="btn-secondary">Live-Ansicht beenden</button>
+      {{else}}
+        <input type="hidden" name="enabled" value="1">
+        <button type="submit">Live-Ansicht starten</button>
+      {{end}}
+    </form>
+    <form method="post" action="/operator/collector/trigger-push" class="inline">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn-secondary" title="Fordert von jedem Collector einmalig eine vollständige Meldung an, wie beim täglichen Push — wirkt spätestens beim nächsten Abholen der Einstellungen. Der reguläre tägliche Push läuft davon unberührt weiter.">Push jetzt auslösen</button>
+    </form>
+    <form method="post" action="/operator/live/delete-today" class="inline"
+          onsubmit="return confirm('Alle heute bereits archivierten Werte unwiderruflich löschen?');">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn-secondary" title="Löscht die heutigen Archiveinträge aller Zähler. Nötig, wenn ein Test-Push oben den heutigen Tag schon endgültig geschrieben hat — sonst lehnt der reguläre tägliche Push (Uhrzeit auf der Collector-Seite einstellbar) seinen eigenen, aktuelleren Stand als Widerspruch ab.">Heutige Werte löschen</button>
+    </form>
+    <form method="post" action="/operator/live/clear-buffer" class="inline">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn-secondary" title="Leert nur diese Anzeige (die letzten 200 empfangenen Telegramme) — nichts davon war archiviert. Nützlich nach einer Filteränderung oder einem neu angeschlossenen Empfänger, damit alte Zeilen nicht mit den gerade eintreffenden vermischt bleiben.">Anzeige leeren</button>
+    </form>
+  </div>
+</div>
+
+<p class="{{if .LiveActive}}hint{{else}}flash{{end}}">
+  {{if .LiveActive}}
+    Live-Übertragung läuft, automatisches Ende um {{.LiveUntil}} Uhr.
+  {{else}}
+    Live-Übertragung ist aus — der Collector meldet dann nur einmal täglich, die Tabelle
+    bleibt leer. Nach dem Start läuft sie {{.WindowText}} Stunden und endet dann von selbst.
+    Unabhängig davon überträgt ein frisch gestarteter Collector die ersten fünf Minuten
+    immer live, damit sich ein neu angeschlossener Empfänger ohne Umweg prüfen lässt.
+  {{end}}
+</p>
+
+<p class="disclaimer">Jeweils frisch entschlüsselt für diese Anzeige — nirgends gespeichert. Zähler, die hier
+auftauchen, aber nicht als <strong>bekannt</strong> markiert sind, stehen nicht in den Stammdaten
+(Nachbargerät oder vergessener eigener Zähler). Der Pfeil öffnet das empfangene Rohtelegramm
+zur Gegenprüfung bei einem externen Analysedienst (wmbusmeters.org).</p>
+
+<div class="grid-scroll">
+<table class="list" id="live-table" data-sortable>
+  <thead>
+  <tr>
+    <th>Zähler</th>
+    <th data-sort="number" title="Länge des Rohtelegramms in Byte — bei einem Zähler, der zwischen Formaten wechselt, der einfachste Anhaltspunkt für eine Filterregel (Collector-Einstellungen)">Länge</th>
+    <th title="Gerätetyp laut Telegramm (EN 13757-3), unabhängig von der Zuordnung in den Stammdaten">Typ</th>
+    <th title="Hersteller laut Telegramm">Herst.</th>
+    <th>Bekannt?</th>
+    <th>Empfangen</th>
+    <th title="Abstand zum vorherigen Telegramm dieses Zählers (unabhängig von der Länge) — nur innerhalb der aktuell im Puffer gehaltenen Telegramme, keine dauerhaft verfolgte Statistik.">Intervall</th>
+    <th data-sort="number">RSSI</th>
+    <th title="Verschlüsselungsstatus laut Telegramm">AES</th>
+    <th>Wert</th>
+    <th></th>
+  </tr>
+  </thead>
+  <tbody id="live-rows">
+  {{range .Rows}}
+  <tr>
+    <td>{{.MeterID}}</td>
+    <td>{{.Length}}</td>
+    <td title="{{.DeviceTypeName}}">{{.DeviceType}}</td>
+    <td title="{{.ManufacturerName}}">{{.Manufacturer}}</td>
+    <td>{{if .KnownMeter}}<span class="badge badge-success">ja</span>{{else}}<span class="badge badge-danger">nein</span>{{end}}</td>
+    <td>{{.ReceivedAt}}</td>
+    <td>{{if .Interval}}{{.Interval}}{{else}}<span class="empty-row" title="Nur ein Telegramm dieses Zählers im aktuellen Puffer, kein Vergleichswert.">–</span>{{end}}</td>
+    <td>{{.RSSI}} dBm <span class="hint">({{.RSSIQuality}})</span></td>
+    <td title="{{.AESTitle}}">{{.AESIcon}}</td>
+    <td>{{if .Evaluable}}{{.Value}}{{else}}<span class="empty-row" title="nicht auswertbar">{{.Value}}</span>{{end}}</td>
+    <td><a class="analyze-link" href="{{.DecodeURL}}" target="_blank" rel="noopener noreferrer" title="Zur Prüfung bei wmbusmeters.org öffnen" aria-label="Zur Prüfung bei wmbusmeters.org öffnen">↗</a></td>
+  </tr>
+  {{else}}
+  <tr><td colspan="11" class="empty-row">Noch keine Telegramme empfangen.</td></tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+<script src="/static/sortable-table.js"></script>
+<script>
+(function () {
+  var POLL_MS = 1000;
+  var refreshing = false;
+  function refresh() {
+    if (refreshing) return; // a slow request in flight — skip this tick rather than pile up
+    refreshing = true;
+    fetch(location.pathname + location.search, {credentials: "same-origin"})
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        var fresh = new DOMParser().parseFromString(html, "text/html").getElementById("live-rows");
+        var current = document.getElementById("live-rows");
+        if (fresh && current) {
+          current.innerHTML = fresh.innerHTML;
+          var table = document.getElementById("live-table");
+          if (table && window.SATable) window.SATable.reapply(table);
+        }
+      })
+      .catch(function () { /* transient network hiccup — next tick retries */ })
+      .finally(function () { refreshing = false; });
+  }
+  setInterval(refresh, POLL_MS);
+})();
+</script>
+{{end}}

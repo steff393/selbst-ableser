@@ -1,0 +1,1030 @@
+/* selbst-ableser — design system
+   Self-contained, no external fonts/CDN (long-lived offline deployment). */
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-alt: #f0f2f5;
+  --border: #e3e6eb;
+  --border-strong: #cdd3db;
+
+  --fg: #161b22;
+  --fg-muted: #5b6672;
+  --fg-faint: #8a94a1;
+
+  --accent: #2455c9;
+  --accent-hover: #1d47ab;
+  --accent-fg: #ffffff;
+  --accent-tint: #e8eefc;
+
+  --success: #14804a;
+  --success-tint: #e3f6ec;
+  --warning: #a5620a;
+  --warning-tint: #fbf0dd;
+  --danger: #c22c3a;
+  --danger-tint: #fbe9eb;
+  --neutral-tint: #eef0f3;
+
+  /* Categorical chart series — fixed order, never cycled (see the
+     readings chart, internal/webapp/readings_chart.go). Validated
+     palette: worst adjacent CVD contrast 9.1 (light), floor is 8. */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #008300;
+  --chart-7: #4a3aa7;
+  --chart-8: #e34948;
+  --chart-grid: #e1e0d9;
+  --chart-axis: #c3c2b7;
+  --chart-muted: #898781;
+
+  --shadow-sm: 0 1px 2px rgba(20, 25, 35, 0.05);
+  --shadow-md: 0 2px 8px rgba(20, 25, 35, 0.07), 0 1px 2px rgba(20, 25, 35, 0.05);
+  --shadow-lg: 0 12px 32px rgba(20, 25, 35, 0.12);
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0f16;
+    --surface: #121822;
+    --surface-alt: #161e2b;
+    --border: #232d3d;
+    --border-strong: #324158;
+
+    --fg: #e7ebf1;
+    --fg-muted: #97a2b3;
+    --fg-faint: #6c7789;
+
+    --accent: #5b8cf0;
+    --accent-hover: #7ba2f5;
+    --accent-fg: #0b0f16;
+    --accent-tint: #16233d;
+
+    --success: #3fc481;
+    --success-tint: #10291d;
+    --warning: #e0a63d;
+    --warning-tint: #2e2210;
+    --danger: #f0707e;
+    --danger-tint: #2f1418;
+    --neutral-tint: #1b2331;
+
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-3: #199e70;
+    --chart-4: #c98500;
+    --chart-5: #d55181;
+    --chart-6: #008300;
+    --chart-7: #9085e9;
+    --chart-8: #e66767;
+    --chart-grid: #2c2c2a;
+    --chart-axis: #383835;
+    --chart-muted: #898781;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 2px 10px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.5);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 0.9375rem;
+  color: var(--fg);
+  background: var(--bg);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { line-height: 1.25; margin: 0 0 0.75rem; font-weight: 650; letter-spacing: -0.01em; }
+h1 { font-size: 1.5rem; }
+h2 { font-size: 1.0625rem; }
+h3 { font-size: 0.9375rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+p { margin: 0 0 0.75rem; }
+a { color: var(--accent); }
+
+/* ---------- header / nav ---------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0 1.25rem;
+  height: 3.5rem;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 700;
+  font-size: 1rem;
+  text-decoration: none;
+  color: var(--fg);
+  white-space: nowrap;
+}
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+/* The overflow menu: only ever present when layout.html's script has found
+   links that do not fit, so it is never a dead button. Without JavaScript
+   it stays hidden and .topbar-nav keeps every link reachable by scrolling.
+   .nav-more-wrap needs its own display:none for [hidden], since the rule
+   below would otherwise win over the user agent's. */
+.nav-more-wrap { position: relative; flex-shrink: 0; }
+.nav-more-wrap[hidden] { display: none; }
+
+.nav-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  color: var(--fg);
+}
+.nav-toggle:hover { background: var(--surface-alt); }
+/* The current page's link is inside the menu, so the bar shows no active
+   tab — the button carries that state instead. */
+.nav-toggle.has-active { border-color: var(--accent); color: var(--accent); }
+
+.nav-more {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 11rem;
+  padding: 0.35rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+.nav-more[hidden] { display: none; }
+.nav-more a {
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.nav-more a:hover { background: var(--surface-alt); color: var(--fg); }
+.nav-more a.active { background: var(--accent-tint); color: var(--accent); }
+
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.topbar-nav::-webkit-scrollbar { display: none; }
+
+.topbar-nav a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.7rem;
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.topbar-nav a:hover { background: var(--surface-alt); color: var(--fg); }
+.topbar-nav a.active { background: var(--accent-tint); color: var(--accent); }
+
+.topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: auto;
+  padding-left: 1rem;
+  border-left: 1px solid var(--border);
+}
+.user-role {
+  font-size: 0.8125rem;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+.topbar-user form button {
+  background: none;
+  color: var(--fg-muted);
+  border: 1px solid var(--border-strong);
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.65rem;
+}
+.topbar-user form button:hover { background: var(--surface-alt); color: var(--fg); opacity: 1; }
+
+/* No breakpoint decides how many tabs are shown any more: layout.html
+   measures what actually fits and moves the rest into .nav-more, which
+   holds at every width — a fixed breakpoint could only guess, and guessed
+   wrong in both directions as tabs were added or renamed. What is left
+   here is the room the narrow end needs to make for that: less padding,
+   and below 30rem the wordmark gives way to the logo alone, so brand,
+   menu button and the sign-out block still share one line. */
+@media (max-width: 52rem) {
+  .topbar { gap: 0.75rem; padding: 0 0.75rem; }
+  .topbar-user { padding-left: 0.75rem; }
+}
+@media (max-width: 30rem) {
+  .brand span:last-child { display: none; }
+}
+
+/* ---------- layout ---------- */
+
+main { max-width: 68rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+
+footer {
+  text-align: center;
+  padding: 1.5rem 1rem 2rem;
+  font-size: 0.8125rem;
+  color: var(--fg-faint);
+}
+footer a { color: var(--fg-muted); text-decoration: none; }
+footer a:hover { color: var(--accent); }
+.footer-slogan { margin: 0 0 0.4rem; color: var(--fg-muted); }
+.footer-slogan strong { font-weight: 650; color: var(--fg); }
+
+/* ---------- cards & sections ---------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.card > h2:first-child, .card > h3:first-child { margin-top: 0; }
+
+/* Breaks a card out of main's 68rem reading-width cap, up to the full
+   viewport width (minus the same side margin main itself uses) — for a
+   wide data grid where more horizontal room means less scrolling, unlike
+   prose content, which benefits from the cap elsewhere on the page. The
+   50%/50vw pairing centers on the viewport regardless of where main's own
+   max-width happens to land, as long as main stays centered (margin: 0
+   auto) — the usual "full-bleed section inside a centered layout" trick. */
+.card-wide {
+  width: calc(100vw - 2.5rem);
+  max-width: calc(100vw - 2.5rem);
+  margin-left: calc(50% - 50vw + 1.25rem);
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+.card-head h2 { margin: 0; }
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+.page-head h1 { margin: 0; }
+.page-sub { color: var(--fg-muted); font-size: 0.875rem; margin: 0.2rem 0 0; }
+
+/* ---------- stat grid (dashboard) ---------- */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.25rem;
+}
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 1rem 1.1rem;
+}
+.stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+.stat-value { font-size: 1.375rem; font-weight: 700; letter-spacing: -0.01em; }
+.stat-value.small { font-size: 1.0625rem; }
+
+/* ---------- tables ---------- */
+
+table.kv, table.list, table.history { width: 100%; border-collapse: collapse; }
+
+table.kv th, table.kv td { text-align: left; padding: 0.55rem 0.25rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.kv tr:last-child th, table.kv tr:last-child td { border-bottom: none; }
+table.kv th { width: 40%; font-weight: 500; color: var(--fg-muted); }
+table.kv td { font-weight: 550; }
+
+/* Der Gebäudevergleich auf der UVI: früher die einzige Zeile einer
+   kv-Tabelle, jetzt ein Absatz über die volle Breite. Gewicht und
+   senkrechter Abstand übernehmen, was die Tabellenzelle hatte, damit sich
+   an der Seite sonst nichts verschiebt. */
+.uvi-comparison { padding: 0.55rem 0.25rem; margin: 0; font-weight: 550; }
+
+table.list { font-size: 0.875rem; }
+table.list th {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--fg-muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+table.list td { text-align: left; padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--border); }
+table.list tbody tr:hover td, table.list tr:hover td { background: var(--surface-alt); }
+table.list tr:last-child td { border-bottom: none; }
+
+th.sortable-col {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+th.sortable-col:hover { color: var(--fg); }
+th.sortable-col::after { content: "\2195"; margin-left: 0.3rem; opacity: 0.35; font-size: 0.9em; }
+th.sortable-col.sorted-asc::after { content: "\2191"; opacity: 1; color: var(--accent); }
+th.sortable-col.sorted-desc::after { content: "\2193"; opacity: 1; color: var(--accent); }
+
+table.history { font-size: 0.8125rem; text-align: center; }
+table.history th, table.history td { padding: 0.5rem 0.4rem; border-bottom: 1px solid var(--border); }
+table.history th { color: var(--fg-muted); font-weight: 600; }
+table.history tr:last-child td { font-weight: 650; }
+
+.analyze-link {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.analyze-link:hover { text-decoration: underline; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.8125em;
+  background: var(--surface-alt);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+  word-break: break-all;
+}
+
+/* ---------- masterdata grid ---------- */
+
+.grid-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
+#meters-grid { border-collapse: collapse; min-width: 60rem; width: 100%; font-size: 0.875rem; }
+#meters-grid th {
+  position: sticky; top: 0;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border-strong);
+  padding: 0.5rem 0.5rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+#meters-grid td { border-bottom: 1px solid var(--border); padding: 0; }
+#meters-grid tbody tr:hover td { background: var(--surface-alt); }
+#meters-grid input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0.45rem 0.5rem;
+  border-radius: 0;
+}
+#meters-grid input:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--accent-tint); }
+#meters-grid td:last-child { text-align: center; }
+#meters-grid td:last-child button { padding: 0.25rem 0.5rem; font-size: 0.75rem; background: none; color: var(--fg-faint); border: none; }
+#meters-grid td:last-child button:hover { color: var(--danger); opacity: 1; }
+.fill-down {
+  margin-left: 0.35rem;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  background: var(--surface);
+  color: var(--fg-muted);
+  border: 1px solid var(--border-strong);
+  vertical-align: middle;
+}
+.fill-down:hover { color: var(--accent); border-color: var(--accent); background: var(--surface); opacity: 1; }
+
+#meters-add-row { margin: 0.75rem 0; }
+
+/* ---------- forms ---------- */
+
+label { display: block; margin: 0 0 0.85rem; font-size: 0.875rem; font-weight: 550; }
+label > input, label > select, label > textarea { margin-top: 0.35rem; }
+
+input, select, textarea {
+  font: inherit;
+  font-size: 0.9375rem;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+input::placeholder { color: var(--fg-faint); }
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0 1rem;
+}
+/* Grid items stretch to the row's full height by default, which is set by
+   the tallest column — a label's own text sits above its input, so a plain
+   button beside it would stretch well past the input's height. This aligns
+   such a button to the row's bottom edge instead, where the input is,
+   so its own (unstretched) height can match the input's. */
+.form-row-bottom { align-items: end; }
+/* A label's own margin-bottom (spacing for stacked fields) would otherwise
+   extend past its input, so align-items:end above still lands the button
+   below the input rather than flush with it. */
+.form-row-bottom label { margin-bottom: 0; }
+/* A button next to a label+input stretches to its grid column's width
+   (grid's default item alignment) otherwise — the column exists for the
+   input, not the button beside it. */
+.form-row > button,
+.form-row > .btn,
+.form-row > .btn-secondary,
+.form-row > .btn-danger {
+  justify-self: start;
+}
+
+button, .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: var(--accent-fg);
+  cursor: pointer;
+  width: auto;
+  transition: background-color 0.12s ease, opacity 0.12s ease, border-color 0.12s ease;
+}
+button:hover, .btn:hover { background: var(--accent-hover); opacity: 1; }
+button:active, .btn:active { transform: translateY(1px); }
+
+button.btn-secondary, .btn-secondary {
+  background: var(--surface);
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+button.btn-secondary:hover { background: var(--surface-alt); }
+
+button.btn-danger, .btn-danger {
+  background: var(--surface);
+  color: var(--danger);
+  border-color: var(--border-strong);
+}
+button.btn-danger:hover { background: var(--danger-tint); border-color: var(--danger); }
+
+button.btn-sm { padding: 0.35rem 0.7rem; font-size: 0.8125rem; }
+button:disabled { opacity: 0.45; cursor: default; }
+button.btn-secondary:disabled:hover { background: var(--surface); }
+
+form.inline { display: inline; }
+
+/* ---------- badges / status ---------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.badge-dot { width: 0.4rem; height: 0.4rem; border-radius: 999px; background: currentColor; flex-shrink: 0; }
+.badge-success { background: var(--success-tint); color: var(--success); }
+.badge-warning { background: var(--warning-tint); color: var(--warning); }
+.badge-danger  { background: var(--danger-tint); color: var(--danger); }
+.badge-neutral { background: var(--neutral-tint); color: var(--fg-muted); }
+.badge-accent  { background: var(--accent-tint); color: var(--accent); }
+
+.delta { font-weight: 650; font-size: 0.8125rem; }
+.delta-up { color: var(--danger); }
+.delta-down { color: var(--success); }
+
+/* ---------- alerts / flash / hints ---------- */
+
+.text-danger { color: var(--danger); }
+
+.error {
+  color: var(--danger);
+  background: var(--danger-tint);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 550;
+  margin-bottom: 1rem;
+}
+.hint { color: var(--fg-muted); font-size: 0.8437rem; }
+.flash {
+  background: var(--accent-tint);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 550;
+  margin-bottom: 1rem;
+}
+
+.empty-row { color: var(--fg-faint); font-style: italic; }
+
+/* ---------- readings chart ---------- */
+
+.readings-chart { width: 100%; height: auto; display: block; }
+.readings-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin-top: 0.5rem;
+}
+.readings-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8437rem;
+  color: var(--fg-muted);
+}
+.readings-selectable-row { cursor: pointer; }
+.readings-selectable-row.selected-row td { background: var(--accent-tint); }
+
+/* ---------- Excel-style column filters (Zähler table) ---------- */
+
+.col-filter-btn {
+  background: none;
+  border: none;
+  color: var(--fg-faint);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0 0.15rem;
+  line-height: 1;
+}
+.col-filter-btn:hover { color: var(--fg-muted); }
+.col-filter-btn.active { color: var(--accent); }
+
+.col-filter-popover {
+  position: fixed;
+  z-index: 50;
+  width: 15rem;
+  max-width: calc(100vw - 1rem);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  padding: 0.5rem;
+}
+.col-filter-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.4rem;
+}
+.col-filter-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.col-filter-actions button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  padding: 0;
+}
+.col-filter-actions button:hover { text-decoration: underline; }
+.col-filter-list {
+  max-height: 14rem;
+  overflow-y: auto;
+}
+.col-filter-item {
+  font-size: 0.8437rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.col-filter-item:hover { background: var(--surface-alt); }
+.col-filter-item.selected { background: var(--accent-tint); color: var(--accent); font-weight: 550; }
+
+.readings-chart-swatch {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  flex: none;
+}
+
+/* ---------- tokens (access codes) ---------- */
+
+.token {
+  display: inline-block;
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  background: var(--accent-tint);
+  color: var(--accent);
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* The Zugänge grid's read-only Zugangscode column (grid.js's
+   readOnlyColumns, see access.html) — same monospace stack as .token-cell
+   so every code lines up at the same character width. */
+#access-grid td span[data-col="token"] {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.token-cell {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.875rem;
+  letter-spacing: 0.02em;
+}
+
+/* ---------- details/summary (masterdata accordions) ---------- */
+
+details { margin-top: 0.9rem; }
+details summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 0.4rem 0;
+}
+details summary::-webkit-details-marker { display: none; }
+details summary::before { content: "+"; display: inline-block; width: 1rem; text-align: center; }
+details[open] summary::before { content: "\2212"; }
+details form {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: var(--surface-alt);
+  border-radius: var(--radius-md);
+}
+
+/* ---------- Wohnung/Zeitraum navigation (UVI report) ---------- */
+
+.uvi-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.75rem;
+  margin-bottom: 1.25rem;
+}
+.uvi-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.uvi-nav-label {
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.uvi-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--fg);
+  text-decoration: none;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+.uvi-nav-btn:hover { background: var(--surface-alt); border-color: var(--accent); color: var(--accent); }
+.uvi-nav-btn.disabled { opacity: 0.35; }
+.uvi-nav-value {
+  min-width: 8rem;
+  text-align: center;
+  font-weight: 650;
+  font-size: 0.9375rem;
+}
+
+/* ---------- UVI year-over-year chart (uvi_chart.js) ---------- */
+
+.uvi-chart-container { position: relative; margin-top: 0.25rem; }
+.uvi-chart-svg { width: 100%; height: auto; display: block; }
+.uvi-chart-svg rect[tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.uvi-chart-tooltip {
+  position: absolute;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 0.6rem 0.75rem;
+  font-size: 0.8125rem;
+  pointer-events: none;
+  z-index: 10;
+  min-width: 12rem;
+  white-space: nowrap;
+}
+.uvi-chart-tooltip-title { font-weight: 650; color: var(--fg); margin-bottom: 0.35rem; }
+.uvi-chart-tooltip-row { display: flex; align-items: center; gap: 0.4rem; padding: 0.15rem 0; }
+.uvi-chart-tooltip-key { width: 0.6rem; height: 0.15rem; flex: none; border-radius: 999px; }
+.uvi-chart-tooltip-value { font-weight: 650; color: var(--fg); }
+.uvi-chart-tooltip-label { color: var(--fg-muted); margin-left: auto; font-size: 0.75rem; }
+.uvi-chart-tooltip-delta { margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px solid var(--border); font-size: 0.75rem; }
+
+.uvi-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.25rem;
+  margin-top: 0.6rem;
+}
+.uvi-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8125rem;
+  color: var(--fg-muted);
+}
+
+.meterpoint-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
+  background: var(--accent-tint);
+  color: var(--accent);
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+.meterpoint h2 { display: flex; align-items: center; }
+
+.disclaimer {
+  font-size: 0.8125rem;
+  color: var(--fg-muted);
+  background: var(--surface-alt);
+  border-radius: var(--radius-md);
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 1.25rem;
+}
+.disclaimer strong { color: var(--fg); }
+
+/* ---------- login ---------- */
+
+.login-wrap {
+  max-width: 26rem;
+  margin: 2.5rem auto 0;
+}
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+.login-brand .brand-mark { width: 2.75rem; height: 2.75rem; border-radius: 0.75rem; font-size: 1.125rem; margin-bottom: 0.75rem; }
+.login-brand h1 { margin-bottom: 0.15rem; }
+.login-brand p { color: var(--fg-muted); font-size: 0.875rem; margin: 0; }
+/* The slogan carries the page now that the descriptive line under it is
+   gone: larger than body text, and weighted only on the name so the
+   emphasis reads as the product's rather than the whole sentence being
+   shouted. Still below the h1, which remains the page's actual title. */
+.login-brand .login-slogan {
+  color: var(--accent);
+  font-size: 1.125rem;
+  font-weight: 400;
+  line-height: 1.4;
+  margin: 0.1rem 0 0;
+}
+.login-brand .login-slogan strong { font-weight: 700; }
+
+.login-card { box-shadow: var(--shadow-md); }
+.login-card label { margin-bottom: 0.35rem; }
+.login-card input[type="text"] { margin-bottom: 0.5rem; }
+.login-card .hint { margin: 0 0 1rem; }
+.login-card button { width: 100%; margin-top: 0.25rem; }
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: var(--fg-muted);
+  font-size: 0.875rem;
+  margin-bottom: 1.1rem;
+  cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ---------- state / legal pages ---------- */
+
+.state-message {
+  max-width: 30rem;
+  margin: 3rem auto 0;
+  text-align: center;
+}
+.state-message h1 { margin-bottom: 0.5rem; }
+.state-message p { color: var(--fg-muted); }
+.state-mark { width: 3rem; height: 3rem; border-radius: 0.875rem; margin-bottom: 1rem; }
+
+.legal-text { font-size: 0.9375rem; }
+.legal-text p { margin-bottom: 1rem; }
+
+/* The stored notices are plain text the operator typed, newlines and all,
+   so they are rendered as-is rather than being asked to contain markup. */
+.legal-body {
+  white-space: pre-wrap;
+  max-width: 46rem;
+  line-height: 1.65;
+}
+
+/* The legal editors are long documents, not one-line fields. */
+textarea[name="imprint_text"],
+textarea[name="privacy_policy_text"] {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+/* ---------- print / "Als PDF speichern" ---------- */
+
+/* On screen the print-only heading is redundant with the navigation bar,
+   which already names the unit and month; in print that bar is gone, so
+   the document has to say for whom and for when it was made. */
+.print-only { display: none; }
+
+@media print {
+  /* Ink, not theme: a printout has no dark mode, and a page painted for
+     one wastes toner and reads badly on paper. */
+  :root, :root[data-theme="dark"] {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-alt: #ffffff;
+    --fg: #000000;
+    --fg-muted: #333333;
+    --border: #999999;
+  }
+
+  @page { size: A4 portrait; margin: 16mm 14mm; }
+
+  /* Anything that only exists to navigate or act has no meaning on paper.
+     .uvi-nav-label ("Wohnung"/"Zeitraum") is redundant on paper with
+     .print-subject above it, which already spells out the same unit and
+     month in one line. */
+  .topbar, footer, .screen-only, .uvi-nav-btn, .nav-toggle, .topbar-user,
+  .uvi-nav-label { display: none !important; }
+
+  .print-only { display: block; }
+  .print-subject { font-size: 1.05rem; font-weight: 600; margin-top: 0.2rem; }
+
+  body { background: #fff; }
+  main { padding: 0; max-width: none; }
+
+  /* Cards become plain sections: borders and shadows are screen affordances
+     that only add clutter once the page is flat. */
+  .card {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0 0 1.1rem;
+  }
+
+  /* A Verbrauchsart's own summary is short and self-contained (no chart,
+     no value table — see .screen-only on the UVI page), so keeping it off
+     a page break is cheap and reliably possible. The Zählerstände table
+     further down deliberately does NOT get this: it can run to many rows,
+     and forcing a long table to stay unbroken is exactly what produced a
+     large blank gap or a clipped table before — rows and headers below
+     are what keep *that* one readable across a page break instead. */
+  section.meterpoint { break-inside: avoid; }
+
+  table { border-collapse: collapse; width: 100%; }
+  table.list th, table.list td { border-bottom: 1px solid var(--border); }
+  thead { display: table-header-group; } /* repeat headers across pages */
+  tr { break-inside: avoid; }
+  /* break-after: avoid on thead itself is not reliably honored for
+     table-header-group boxes in Chromium's print layout — the header
+     still ends up alone at a page's bottom with the first row pushed to
+     a repeated-header page 2. break-before on the row works instead
+     (tr's break-inside above already proves row-level break control
+     works here), forcing the header to move down with it. */
+  tbody tr:first-child { break-before: avoid; }
+
+  a { text-decoration: none; color: inherit; }
+}
+
+/* ---------- audit log ---------- */
+
+.audit-log td:first-child { white-space: nowrap; }
+.audit-log tr.row-flagged { background: var(--warning-tint); }
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 40rem) {
+  main { padding: 1.1rem 1rem 2.5rem; }
+  .card { padding: 1rem; border-radius: var(--radius-md); }
+  table.kv th, table.kv td { display: block; width: 100%; padding: 0.3rem 0; }
+  table.kv tr { display: block; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+  table.kv tr:last-child { border-bottom: none; }
+  table.kv th { border-bottom: none; padding-bottom: 0.1rem; }
+  .page-head { flex-direction: column; align-items: flex-start; }
+  .login-wrap { margin-top: 1rem; }
+}

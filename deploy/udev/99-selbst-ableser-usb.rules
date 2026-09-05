@@ -1,0 +1,14 @@
+# Mounts/unmounts a plugged-in USB stick at a fixed path for saCollector's
+# backup fallback (DATEN-06). Only relevant on a headless install: without
+# a desktop session, nothing else on the machine mounts removable media
+# automatically. See deploy/scripts/selbst-ableser-usb-*.sh and
+# docs/install.md's collector setup step for the full install procedure —
+# these scripts must be installed to /usr/local/bin first, and udisks2
+# disabled, or this rule fires against a script that isn't there.
+#
+# systemd-run detaches the mount/unmount work from udev's own event
+# processing, which must return quickly; RUN+= would otherwise block (or
+# be killed for taking too long) if the mount script itself runs at
+# device-add time.
+ACTION=="add",SUBSYSTEM=="block",ENV{ID_BUS}=="usb",ENV{DEVTYPE}=="partition",RUN+="/bin/systemd-run --no-block /usr/local/bin/selbst-ableser-usb-mount.sh %E{DEVNAME}"
+ACTION=="remove",SUBSYSTEM=="block",ENV{ID_BUS}=="usb",ENV{DEVTYPE}=="partition",RUN+="/bin/systemd-run --no-block /usr/local/bin/selbst-ableser-usb-umount.sh"

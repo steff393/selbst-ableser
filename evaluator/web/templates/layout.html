@@ -1,0 +1,200 @@
+{{/* Haus mit Verbrauchskurve. 74% rather than the 60% this started at: the
+     topbar tile is 1.75rem, so at 60% the glyph was 17px and the curve
+     inside the house collapsed into a smudge — those four pixels are what
+     keep it readable. Any change here belongs in two more places: the
+     favicon below, which is the same drawing written out for a 32-box,
+     and deploy/bad_gateway.html, which carries its own copy because it is
+     served by nginx when this program is not running at all. */}}
+{{define "brandmark"}}<svg viewBox="0 0 24 24" width="74%" height="74%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/><path d="M8.5 16.5l2.5-3 2.5 2 2-2.5"/></svg>{{end}}
+{{define "layout"}}
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — selbst-ableser</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232455c9'/%3E%3Cg fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7.1 15.5 16 8.1l8.9 7.4'/%3E%3Cpath d='M9.6 14v9.9h12.8V14'/%3E%3Cpath d='M12.5 20.4l2.5-3 2.5 2 2-2.5'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">
+    <span class="brand-mark">{{template "brandmark"}}</span>
+    <span>selbst-ableser</span>
+  </a>
+  {{if .Session}}
+    <nav class="topbar-nav" id="topbar-nav">
+      {{if eq .Session.Role 1}}
+        <a href="/operator">Übersicht</a>
+        <a href="/uvi">UVI</a>
+        <a href="/operator/masterdata">Stammdaten</a>
+        <a href="/operator/access">Zugänge</a>
+        <a href="/operator/meterstatus">Zählerstatus</a>
+        <a href="/operator/live">Live-Ansicht</a>
+        <a href="/operator/collector">Collector</a>
+        <a href="/operator/readings">Zählerstände</a>
+        <a href="/operator/archive">Archiv</a>
+        <a href="/operator/backup">Backup</a>
+        <a href="/operator/security">Sicherheit</a>
+        <a href="/operator/notify">Mail</a>
+        <a href="/operator/audit">Protokoll</a>
+      {{else}}
+        <a href="/uvi">Meine Werte</a>
+      {{end}}
+    </nav>
+    {{/* Hidden until the script finds something that does not fit, so it is
+         never a dead button: without JavaScript every link stays reachable in
+         the scrolling row above instead. */}}
+    <div class="nav-more-wrap" id="nav-more-wrap" hidden>
+      <button type="button" class="nav-toggle" id="nav-toggle"
+              aria-label="Weitere Menüpunkte" aria-expanded="false" aria-controls="nav-more">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 4.5h14M2 9h14M2 13.5h14"/></svg>
+      </button>
+      <nav class="nav-more" id="nav-more" hidden></nav>
+    </div>
+    <div class="topbar-user" id="topbar-user">
+      <span class="user-role">{{if eq .Session.Role 1}}Betreiber{{else}}Wohnung {{.Session.UnitID}}{{end}}</span>
+      <form method="post" action="/logout" class="inline">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <button type="submit">Abmelden</button>
+      </form>
+    </div>
+  {{end}}
+</header>
+<main>
+{{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
+{{template "content" .}}
+</main>
+<footer>
+  <p class="footer-slogan"><strong>selbst-ableser</strong> – weil deine Daten dir gehören.</p>
+  <a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a>
+</footer>
+<script>
+(function () {
+  var nav = document.getElementById("topbar-nav");
+  if (!nav) return;
+
+  // The canonical order, captured once: every later layout pass rebuilds
+  // from this list, so links never drift out of order by being shuffled
+  // between the two containers repeatedly.
+  var links = Array.prototype.slice.call(nav.querySelectorAll("a"));
+
+  // Highlight the single link that best matches the current path. A plain
+  // prefix check would also match "/operator" (Übersicht) against every
+  // other "/operator/..." page, since it's a literal prefix of all of
+  // them — matching only at a "/" boundary, and keeping just the longest
+  // match, picks exactly one link even for a nested page with no nav
+  // entry of its own (e.g. /operator/archive/download).
+  var here = location.pathname;
+  var active = null;
+  links.forEach(function (a) {
+    var href = a.getAttribute("href");
+    if (here === href || here.indexOf(href + "/") === 0) {
+      if (!active || href.length > active.getAttribute("href").length) active = a;
+    }
+  });
+  if (active) active.classList.add("active");
+
+  var wrap = document.getElementById("nav-more-wrap");
+  var toggle = document.getElementById("nav-toggle");
+  var panel = document.getElementById("nav-more");
+  if (!wrap || !toggle || !panel) return;
+
+  // Fewer than this many links left in the bar isn't worth the split: a
+  // lone tab or two beside a menu holding everything else reads as an
+  // accident rather than a choice, so below it the bar gives up its space
+  // entirely and the menu takes all of them.
+  var MIN_INLINE = 4;
+  // Kept clear to the right of the last visible link, so it never sits
+  // flush against the menu button.
+  var BREATHING_ROOM = 24;
+
+  function closePanel() {
+    panel.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+  }
+
+  function layout() {
+    closePanel();
+    // Measure from the state where everything is inline: widths are only
+    // meaningful while the links are actually laid out in the bar.
+    links.forEach(function (a) { nav.appendChild(a); });
+    wrap.hidden = true;
+
+    // .topbar-nav is the flex child that absorbs the leftover width, so
+    // its own clientWidth is exactly the space available for links, and
+    // scrollWidth is what they need. The few px of slack absorb sub-pixel
+    // rounding; real overflow is off by far more than that.
+    if (nav.scrollWidth <= nav.clientWidth + 8) return;
+
+    // Something has to move, so the button is here to stay — show it
+    // before measuring again, since it takes width from the same row.
+    wrap.hidden = false;
+
+    var widths = links.map(function (a) { return a.getBoundingClientRect().width; });
+    var gap = parseFloat(getComputedStyle(nav).columnGap) || 0;
+    var available = nav.clientWidth - BREATHING_ROOM;
+
+    var fits = 0;
+    var used = 0;
+    for (var i = 0; i < links.length; i++) {
+      used += widths[i] + (i > 0 ? gap : 0);
+      if (used > available) break;
+      fits++;
+    }
+    if (fits < MIN_INLINE) fits = 0;
+
+    for (var j = fits; j < links.length; j++) {
+      panel.appendChild(links[j]);
+    }
+    // With the current page's link tucked away, the bar shows no active
+    // state at all; mark the button instead so the menu still says "you
+    // are somewhere in here".
+    toggle.classList.toggle("has-active", !!active && active.parentNode === panel);
+  }
+
+  toggle.addEventListener("click", function () {
+    var open = panel.hidden;
+    panel.hidden = !open;
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  document.addEventListener("click", function (e) {
+    if (!panel.hidden && !wrap.contains(e.target)) closePanel();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closePanel();
+  });
+
+  // Re-run whenever the bar's own width changes, which a window resize is
+  // only one cause of: a page growing tall enough for a scrollbar takes
+  // width away without any resize event at all, and so does a zoom change.
+  // Guarding on the width also keeps this from re-entering itself, since
+  // layout() moves links inside the bar without changing its size.
+  var bar = nav.parentNode;
+  var lastWidth = -1;
+  function relayout() {
+    var width = bar.clientWidth;
+    if (width === lastWidth) return;
+    lastWidth = width;
+    layout();
+  }
+
+  relayout();
+  // Held in a variable on purpose: an observer reachable only from the
+  // element it observes can be garbage-collected, and then simply stops
+  // firing — which it did, after exactly one callback. The closure keeps
+  // it alive as long as the listeners below are registered.
+  var observer = null;
+  if (window.ResizeObserver) {
+    observer = new ResizeObserver(relayout);
+    observer.observe(bar);
+  }
+  // Kept alongside the observer rather than as its fallback: between the
+  // two, every engine reports a width change through at least one of
+  // them, and the width guard above makes the duplicate free.
+  window.addEventListener("resize", relayout);
+})();
+</script>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,124 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Collector</h1>
+    <p class="page-sub">Einstellungen, die jeder Collector über <code>POST /collector/config</code> abholt, statt sie lokal zu pflegen — dieselbe Anfrage meldet seinen Status zurück.</p>
+  </div>
+</div>
+
+<section class="card">
+  <h2>Gemeldete Collectors</h2>
+  {{if .Collectors}}
+  <table class="list">
+      <thead>
+      <tr>
+        <th>Name</th>
+        <th>Zustand</th>
+        <th>Empfänger</th>
+        <th>USB-Stick</th>
+        <th>Version</th>
+        <th>Läuft seit</th>
+      </tr>
+      </thead>
+      <tbody>
+      {{range .Collectors}}
+      <tr>
+        <td><strong>{{.Name}}</strong></td>
+        <td><span class="badge {{.StatusClass}}"><span class="badge-dot"></span>{{.StatusText}}</span></td>
+        <td><span class="badge {{.ReceiverClass}}"><span class="badge-dot"></span>{{.ReceiverText}}</span></td>
+        <td><span class="badge {{.BackupClass}}"><span class="badge-dot"></span>{{.BackupText}}</span></td>
+        <td>{{.Version}}</td>
+        <td>{{.StartedAt}}</td>
+      </tr>
+      {{end}}
+      </tbody>
+  </table>
+  {{else}}
+  <p class="hint">Noch kein Collector hat sich gemeldet. Jeder meldet sich beim Abholen seiner
+  Einstellungen, also spätestens eine Minute nach dem Start — beider Seiten.</p>
+  {{end}}
+</section>
+
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+
+<section class="card">
+  <h2>Telegrammfilter</h2>
+  <p class="hint">Telegramme, deren Rohdaten mit einem der Präfixe beginnen, werden von jedem Collector verworfen, bevor sie gepuffert, angezeigt oder gemeldet werden — für Zähler, die abwechselnd mehrere Formate senden und nur eines davon auswertbar ist.</p>
+  {{if .FilterRules}}
+  <table class="list" style="margin-bottom: 0.75rem;">
+    <thead><tr><th>Zähler</th><th>Blockierte Präfixe (Hex)</th><th></th></tr></thead>
+    <tbody>
+    {{range .FilterRules}}
+    <tr>
+      <td>{{.MeterID}}</td>
+      <td><code>{{.BlockedPrefixes}}</code></td>
+      <td>
+        <form method="post" action="/operator/collector/filter-rules/remove" class="inline">
+          <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+          <input type="hidden" name="index" value="{{.Index}}">
+          <button type="submit" class="btn-danger btn-sm">Entfernen</button>
+        </form>
+      </td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="hint">Keine Filterregeln aktiv.</p>
+  {{end}}
+  <form method="post" action="/operator/collector/filter-rules">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <label>Zähler <input type="text" name="meter_id" placeholder="* für alle Zähler"></label>
+      <label>Blockierte Präfixe (Hex, kommagetrennt) <input type="text" name="blocked_prefixes" placeholder="384493440a,384493441a" required></label>
+    </div>
+    <button type="submit" class="btn-secondary btn-sm">Regel hinzufügen</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Gemeinsames Übertragungsgeheimnis</h2>
+  <p class="hint">Authentifiziert jeden Collector bei diesem Evaluator (<code>-secret</code> beim Start von <code>saCollector</code>). Ohne gesetztes Secret werden nur Anfragen von diesem Rechner selbst angenommen (Loopback), alle anderen abgelehnt — <strong>außer</strong> dieser Evaluator läuft hinter einem Reverse Proxy (<code>trust_proxy</code>): dann trägt jede Anfrage die Adresse des Proxys statt die des echten Aufrufers, „lokal“ ist nicht mehr feststellbar, und es werden <em>alle</em> Meldungen abgelehnt, bis hier ein Secret gesetzt ist.</p>
+  {{if .SecretSet}}
+  <p class="token">{{.Secret}}</p>
+  {{else}}
+  <p class="hint">Kein Secret gesetzt.</p>
+  {{end}}
+  <form method="post" action="/operator/collector/secret" class="form-row">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="text" name="secret" placeholder="neues Secret" style="flex: 1;">
+    <button type="submit" class="btn-secondary btn-sm">Speichern</button>
+  </form>
+  <form method="post" action="/operator/collector/secret/generate" class="inline" style="margin-top: 0.5rem;">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button type="submit" class="btn-secondary btn-sm">Neu erzeugen</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Einstellungen</h2>
+  <p class="hint">Werte, die im Normalfall nicht geändert werden müssen.</p>
+  <form method="post" action="/operator/collector/advanced">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <table class="kv">
+      <tr>
+        <th><label for="report_interval_seconds">Live-Ansicht: Intervall (Sekunden, 1–300)</label></th>
+        <td><input type="number" id="report_interval_seconds" name="report_interval_seconds" min="1" max="300" value="{{.ReportIntervalSeconds}}"></td>
+      </tr>
+      <tr>
+        <th><label for="daily_push_hour">Stunde für den täglichen Push (0–23)</label></th>
+        <td><input type="number" id="daily_push_hour" name="daily_push_hour" min="0" max="23" value="{{.DailyPushHour}}"></td>
+      </tr>
+      <tr>
+        <th><label for="idle_reconnect_seconds">Wartezeit bis Neuverbindungsversuch (Sekunden, 10–3600)</label></th>
+        <td><input type="number" id="idle_reconnect_seconds" name="idle_reconnect_seconds" min="10" max="3600" value="{{.IdleReconnectSeconds}}"></td>
+      </tr>
+      <tr>
+        <th><label for="config_poll_seconds">Abfrage-Intervall für Einstellungen (Sekunden, 5–3600)</label></th>
+        <td><input type="number" id="config_poll_seconds" name="config_poll_seconds" min="5" max="3600" value="{{.ConfigPollSeconds}}"></td>
+      </tr>
+    </table>
+    <button type="submit" style="margin-top: 0.75rem;">Speichern</button>
+  </form>
+</section>
+{{end}}

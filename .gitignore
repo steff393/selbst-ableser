@@ -1,10 +1,24 @@
-snapshots/
-__pycache__/
-venv/
-wmbusBlocklist.json
-locations.json.enc
-locations.xlsx
-users.json
-email.json
-email.log
-upload-token.txt
+/bin/
+/dist/
+data/
+test/*
+evaluator/dataTest/
+*.exe
+go.work.sum
+*.db
+*.db-wal
+*.db-shm
+*.enc
+*.log
+secrets.json
+.DS_Store
+
+# test/ is otherwise a gitignored, per-user runtime data directory (see
+# docs/quickstart-win.md) — these two are the exception: a checked-in demo
+# dataset so a fresh clone works without any setup (operator password
+# TEST-TEST-TEST-TEST, see docs/quickstart.md). They are the only two an
+# installation cannot produce by itself: config.json has a documented
+# default for every field, secrets.json is written empty on first start,
+# and audit.db plus every *.db-wal/*.db-shm sidecar are runtime-generated.
+!test/archive.db
+!test/masterdata.enc

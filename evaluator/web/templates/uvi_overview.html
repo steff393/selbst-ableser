@@ -1,0 +1,146 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Anlagenübersicht</h1>
+    <p class="page-sub">{{if .BuildingName}}{{.BuildingName}} — alle{{else}}Alle{{end}} Wohnungen im Vergleich.</p>
+    <p class="print-only print-subject">{{if .BuildingName}}{{.BuildingName}} · {{end}}{{monthLabel .Month}}</p>
+  </div>
+  <button type="button" class="btn-secondary screen-only" id="uvi-print">Als PDF speichern</button>
+</div>
+
+<div class="uvi-nav" id="uvi-nav"
+     data-prev-month="{{.PrevLink}}"
+     data-next-month="{{.NextLink}}"
+     {{if .HasUnits}}data-next-unit="{{.FirstUnitLink}}"{{end}}>
+  <div class="uvi-nav-group">
+    <span class="uvi-nav-label">Wohnung</span>
+    <span class="uvi-nav-btn disabled" aria-hidden="true">&#9664;</span>
+    <span class="uvi-nav-value">Gesamte Anlage</span>
+    {{if .HasUnits}}<a class="uvi-nav-btn" href="{{.FirstUnitLink}}" aria-label="Nächste Wohnung">&#9654;</a>{{else}}<span class="uvi-nav-btn disabled" aria-hidden="true">&#9654;</span>{{end}}
+  </div>
+  <div class="uvi-nav-group">
+    <span class="uvi-nav-label">Zeitraum</span>
+    <a class="uvi-nav-btn" href="{{.PrevLink}}" aria-label="Vormonat">&#9664;</a>
+    <span class="uvi-nav-value">{{monthLabel .Month}}</span>
+    <a class="uvi-nav-btn" href="{{.NextLink}}" aria-label="Folgemonat">&#9654;</a>
+  </div>
+</div>
+
+{{if .Kinds}}
+<div class="stat-grid">
+  {{range .Totals}}
+  <div class="stat">
+    <div class="stat-label">{{kindLabel .Kind}}, gesamt</div>
+    <div class="stat-value">{{if .Found}}{{consumption .Kind .Value}} {{unitLabel .Kind}}{{else}}<span class="hint">—</span>{{end}}</div>
+    {{if .Found}}<div class="hint">{{consumption .Kind .PerM2}} {{unitLabel .Kind}} je m²</div>{{end}}
+  </div>
+  {{end}}
+  <div class="stat">
+    <div class="stat-label">Wohnungen mit Werten</div>
+    <div class="stat-value">{{.UnitsReporting}} <span class="hint">von {{.UnitCount}}</span></div>
+    {{if .TotalAreaM2}}<div class="hint">{{number .TotalAreaM2}} m² gesamt</div>{{end}}
+  </div>
+</div>
+
+{{if .Charts}}
+<section class="card">
+  <h2>Jahresverlauf der Gesamtanlage</h2>
+  {{range .Charts}}
+  <div class="screen-only">
+    <h3 style="margin-top: 1rem;">{{kindLabel .Kind}}: {{.Year}} im Vergleich zu {{.PriorYear}}</h3>
+    <div class="uvi-chart-container" id="{{.DOMID}}"
+         role="group" aria-label="Jahresverlauf {{kindLabel .Kind}}, gesamte Anlage, interaktives Diagramm; Werte auch als Tabelle unten verfügbar"></div>
+    <details style="margin-top: 0.5rem;">
+      <summary>Werte als Tabelle</summary>
+      <table class="list" style="margin-top: 0.5rem;">
+        <thead><tr><th>Monat</th><th>{{.Year}}</th><th>{{.PriorYear}}</th></tr></thead>
+        <tbody>
+        {{$kind := .Kind}}
+        {{range .Rows}}
+        <tr>
+          <td>{{.MonthName}}</td>
+          <td>{{if .Current.Found}}{{consumption $kind .Current.Value}}{{else}}<span class="hint">–</span>{{end}}</td>
+          <td>{{if .Prior.Found}}{{consumption $kind .Prior.Value}}{{else}}<span class="hint">–</span>{{end}}</td>
+        </tr>
+        {{end}}
+        </tbody>
+      </table>
+    </details>
+  </div>
+  {{end}}
+</section>
+{{end}}
+
+<section class="card">
+  <h2>Wohnungen</h2>
+  <p class="hint">Der Prozentwert vergleicht den flächennormierten Verbrauch der Wohnung mit dem
+  Hausdurchschnitt desselben Monats. Ein Klick öffnet die Verbrauchsinformation der Wohnung.</p>
+  <table class="list" style="margin-bottom: 0;">
+    <thead>
+      <tr>
+        <th>Wohnung</th>
+        <th>Fläche</th>
+        {{range .Kinds}}<th>{{kindLabel .}}</th><th>ggü. Ø</th>{{end}}
+      </tr>
+    </thead>
+    <tbody>
+    {{range .Units}}
+    <tr>
+      <td><a href="{{.Link}}">{{if .Name}}{{.Name}}{{else}}{{.UnitID}}{{end}}</a></td>
+      <td>{{if .AreaM2}}{{number .AreaM2}} m²{{else}}<span class="hint">—</span>{{end}}</td>
+      {{range .Cells}}
+      <td>
+        {{if .Found}}{{consumption .Kind .Value}} {{unitLabel .Kind}}
+          {{if .KWhFound}}<div class="hint">{{printf "%.0f" .KWh}} kWh</div>{{end}}
+        {{else}}<span class="hint">—</span>{{end}}
+      </td>
+      <td>
+        {{if .HasAverage}}
+          {{if .AboveAverage}}<span class="delta delta-up">▲ {{percent .PercentOfAvg}}</span>
+          {{else}}<span class="delta delta-down">▼ {{percent .PercentOfAvg}}</span>{{end}}
+        {{else}}<span class="hint">—</span>{{end}}
+      </td>
+      {{end}}
+    </tr>
+    {{else}}
+    <tr><td colspan="99" class="empty-row">Noch keine Wohnungen angelegt.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</section>
+{{else}}
+<section class="card">
+  <p>Für {{monthLabel .Month}} liegen keine Werte vor.</p>
+  <p class="hint">Nutzen Sie die Pfeile oben, um einen anderen Monat zu wählen.</p>
+</section>
+{{end}}
+
+<script>
+(function () {
+  var btn = document.getElementById('uvi-print');
+  if (btn) btn.addEventListener('click', function () { window.print(); });
+
+  var nav = document.getElementById('uvi-nav');
+  if (!nav) return;
+  document.addEventListener('keydown', function (e) {
+    var active = document.activeElement;
+    var tag = active && active.tagName ? active.tagName.toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea' || (active && active.isContentEditable)) return;
+
+    var url = null;
+    if (e.key === 'ArrowLeft') url = nav.dataset.prevMonth;
+    else if (e.key === 'ArrowRight') url = nav.dataset.nextMonth;
+    else if (e.key === 'ArrowDown') url = nav.dataset.nextUnit;
+
+    if (url) {
+      e.preventDefault();
+      window.location.href = url;
+    }
+  });
+})();
+</script>
+{{if .Charts}}
+<script>window.SA_UVI_CHARTS = [{{range $i, $c := .Charts}}{{if $i}},{{end}}{{$c.JSON}}{{end}}];</script>
+<script src="/static/uvi_chart.js"></script>
+{{end}}
+{{end}}

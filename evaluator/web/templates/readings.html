@@ -1,0 +1,79 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Zählerstände</h1>
+    <p class="page-sub">Alle im Archiv gespeicherten Telegramme.</p>
+  </div>
+</div>
+
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+
+<section class="card">
+  <form method="get" action="/operator/readings" id="readings-filter-form">
+    <div class="form-row">
+      <label>Von <input type="date" name="from" value="{{.Filter.From}}" onchange="this.form.submit()"></label>
+      <label>Bis <input type="date" name="to" value="{{.Filter.To}}" onchange="this.form.submit()"></label>
+    </div>
+  </form>
+  <label class="checkbox-label" style="margin-top: 0.5rem;">
+    <input type="checkbox" id="known-only-checkbox">
+    Nur bekannte Zähler
+  </label>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2>Zähler (<span id="meters-count">{{len .MeterSummary}}</span>)</h2>
+    <button type="button" id="clear-filters-btn" class="btn btn-secondary btn-sm">Filter zurücksetzen</button>
+  </div>
+  <p class="hint">Auf den Trichter <span aria-hidden="true">▾</span> in einer Spaltenüberschrift klicken, um nach dieser Spalte zu filtern — wie in Excel. Auf eine Zeile klicken, um sie im Diagramm und in den Telegrammen unten anzuzeigen; mehrere Zeilen schränken die Telegramme auf genau diese Zähler ein.</p>
+  <div class="grid-scroll">
+  <table class="list" id="meters-select-table">
+    <thead><tr>
+      <th>Wohnung <button type="button" class="col-filter-btn" data-field="unit_name" aria-label="Nach Wohnung filtern">▾</button></th>
+      <th>Zählerplatz <button type="button" class="col-filter-btn" data-field="meter_point_id" aria-label="Nach Zählerplatz filtern">▾</button></th>
+      <th>Zählernummer <button type="button" class="col-filter-btn" data-field="meter_id" aria-label="Nach Zählernummer filtern">▾</button></th>
+      <th title="Gerätetyp laut Telegramm (EN 13757-3), unabhängig von der Zuordnung in den Stammdaten">Typ <button type="button" class="col-filter-btn" data-field="device_type" aria-label="Nach Typ filtern">▾</button></th>
+      <th title="Hersteller laut Telegramm">Hersteller <button type="button" class="col-filter-btn" data-field="manufacturer" aria-label="Nach Hersteller filtern">▾</button></th>
+    </tr></thead>
+    <tbody id="meters-select-body"></tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Diagramm</h2>
+  <p class="hint">Rohe Zählerstände über Zeit, als Diagnosewerkzeug — nicht die berechnete Verbrauchsmenge (die zeigt die UVI). HKV-Zähler setzen sich jährlich zum Stichtag zurück, ein sägezahnförmiger Verlauf ist also normal. Am aussagekräftigsten beim Vergleich gleichartiger Zähler.</p>
+  <div id="readings-chart-container"><p class="hint">Oben in der Zähler-Tabelle eine oder mehrere Zeilen anklicken, um sie hier darzustellen.</p></div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2>Telegramme (<span id="readings-count">{{.RowCount}}</span>)</h2>
+    <a class="btn btn-secondary btn-sm" id="readings-export-link" href="/operator/readings/export?{{.Filter.QueryString}}">Als CSV exportieren</a>
+  </div>
+  <div class="grid-scroll">
+  <table class="list" data-sortable id="readings-table">
+    <thead>
+      <tr>
+        <th>Zählerplatz</th><th>Wohnung</th><th>Raum</th>
+        <th title="Gerätetyp laut Telegramm (EN 13757-3), unabhängig von der Zuordnung in den Stammdaten">Typ</th>
+        <th title="Hersteller laut Telegramm">Herst.</th>
+        <th>Zähler</th>
+        <th>Empfangen</th><th data-sort="number">RSSI</th>
+        <th data-sort="number">Wert</th><th></th>
+      </tr>
+    </thead>
+    <tbody id="readings-body"></tbody>
+  </table>
+  </div>
+</section>
+
+<script>
+window.SA_READINGS = {{.RowsJSON}};
+window.SA_METER_SUMMARY = {{.MeterSummaryJSON}};
+window.SA_READINGS_RANGE = {from: "{{.Filter.From}}", to: "{{.Filter.To}}"};
+</script>
+<script src="/static/sortable-table.js"></script>
+<script src="/static/readings.js"></script>
+{{end}}

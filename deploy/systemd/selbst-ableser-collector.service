@@ -1,0 +1,85 @@
+[Unit]
+Description=selbst-ableser collector (radio receiver only, saCollector)
+After=network.target
+
+[Service]
+Type=simple
+User=selbst
+Group=selbst
+# -evaluator and -secret are installation-specific — fill in the real
+# evaluator address and the secret shown on its "Collector"-Einstellungen
+# page before enabling this unit. -port is a manual override, only
+# needed if more than one matching receiver is attached to this machine;
+# leave it out to auto-detect.
+#
+# On a separate machine from the evaluator, -evaluator MUST be the public
+# HTTPS address (the same one tenants use), not a raw http://host:8226 —
+# see docs/install.md, "Reaching the evaluator from a separate collector
+# machine": an http:// connection between two machines sends the secret
+# below, and the meter data itself, in the clear.
+#
+# -name is optional and only matters once a second collector reports to
+# the same evaluator: it is the key of the "Gemeldete Collectors" table
+# there, and without it the hostname is used — which two freshly imaged
+# Pis share ("raspberrypi"), so they would collapse into one row.
+#
+# -path, unlike the two above, needs no editing — it's already pointed at
+# ReadWritePaths below, so settings-cache.json and backup.db both land
+# there with their names unchanged. Its own built-in default is relative
+# ("data"), which would resolve against this unit's working directory
+# (the root directory, since none is set here) and fail under
+# ProtectSystem=strict: no fatal error, just permanently failed settings
+# caching and a backup.db fallback that silently never actually writes
+# anywhere. See docs/install.md's collector setup step for the matching
+# `mkdir`/`chown` this path needs — it must exist and be owned by the
+# user this service runs as before it helps.
+ExecStart=/opt/selbst-ableser-collector/saCollector \
+  -evaluator https://YOUR-DOMAIN.EXAMPLE \
+  -secret CHANGE-ME \
+  -path /var/lib/selbst-ableser-collector
+
+# BETRIEB-03: restart on crash, and never with more filesystem access
+# than its own data directory (settings cache, internal backup.db
+# fallback). saCollector has no code path to key material, master data,
+# or access tokens by construction — it lives in its own Go module and
+# cannot import the packages that provide them (see docs/architektur.md) —
+# so no access to the evaluator's own /var/lib/selbst-ableser is needed
+# or granted here at all.
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/selbst-ableser-collector
+PrivateTmp=true
+
+# The backup USB stick (if used) is found dynamically at whatever mount
+# point it actually has — saCollector reads /proc/mounts itself rather
+# than assuming a fixed path in code. ProtectSystem=strict makes every
+# path read-only inside this service's sandbox unless listed here,
+# independent of ordinary Unix permissions, so that mount point needs
+# covering too, or writes to it fail invisibly. /media/usb is the fixed
+# mount point deploy/udev/99-selbst-ableser-usb.rules and its two mount
+# scripts always use on a headless install (see docs/install.md's collector
+# setup step) — systemd's bind mount here is recursive, so a stick
+# mounted after this service already started is still covered, as long
+# as /media/usb already existed as a directory the first time this
+# service started (the install step's mkdir handles that; the leading
+# "-" only guards against /media/usb never having been created at all,
+# e.g. the udev hotplug step was skipped). Not using the udev setup at
+# all is fine too: the internal backup.db fallback in ReadWritePaths
+# above already handles "no stick present" on its own.
+ReadWritePaths=-/media/usb
+
+# The USB wM-Bus receiver itself (/dev/ttyUSB0-style) is normally owned
+# root:dialout, mode 0660 on Debian/Raspberry Pi OS — without this, the
+# dedicated `selbst` user (a plain useradd --system, no group memberships
+# of its own) gets a permission error opening it, no matter how correct
+# -evaluator/-secret/-path are. This is deliberately a supplementary
+# group on the unit, not a permanent `usermod -aG dialout selbst`: the
+# service gets exactly the device access it needs, without changing what
+# the account can reach outside of systemd starting it.
+SupplementaryGroups=dialout
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+{
+  "evaluator": {
+    "addr": "127.0.0.1:8226",
+    "lookback_days": 5,
+    "trust_proxy": true,
+    "allowed_hosts": ["your-domain.example"]
+  },
+  "collector": {},
+  "notify": {
+    "enabled": false,
+    "startup_notification": true,
+    "operator_email": "betreiber@example.org",
+    "base_url": "https://example.org"
+  },
+  "logging": {
+    "level": "info"
+  }
+}

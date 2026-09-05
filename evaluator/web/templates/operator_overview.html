@@ -1,0 +1,112 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Betreiberübersicht</h1>
+    <p class="page-sub">{{if .BuildingName}}{{.BuildingName}} — Status{{else}}Status von Stammdaten und Archiv{{end}} auf einen Blick.</p>
+  </div>
+</div>
+
+{{if .CheckSecuritySettings}}
+<p class="error">Bitte <a href="/operator/security">Sicherheitseinstellungen</a> (Reverse-Proxy) überprüfen.</p>
+{{end}}
+
+<div class="stat-grid">
+  <div class="stat">
+    <div class="stat-label">Zähler gestern empfangen</div>
+    <div class="stat-value">
+      {{if .HasMasterData}}{{.MetersYesterdayKnown}}<span class="hint"> von {{.MetersActive}}</span>
+      {{else}}{{.Stats.MetersYesterday}}{{end}}
+    </div>
+    {{if .HasMasterData}}<div class="hint">{{.Stats.MetersYesterday}} insgesamt empfangen, inkl. fremder Geräte</div>{{end}}
+  </div>
+  <div class="stat">
+    <div class="stat-label">Auffällige Zähler</div>
+    <div class="stat-value">
+      {{if not .HasMasterData}}<span class="hint">—</span>
+      {{else if or .SilentMeters .NeverSeenMeters}}
+        <a href="/operator/meterstatus"><span class="badge badge-warning"><span class="badge-dot"></span>{{add .SilentMeters .NeverSeenMeters}}</span></a>
+      {{else}}<span class="badge badge-success"><span class="badge-dot"></span>keine</span>{{end}}
+    </div>
+    {{if .HasMasterData}}<div class="hint">seit {{.ThresholdDays}}+ Tagen still oder nie empfangen</div>{{end}}
+  </div>
+  <div class="stat">
+    <div class="stat-label">Collector</div>
+    <div class="stat-value">
+      {{if .CollectorsKnown}}
+        {{if eq .CollectorsReporting .CollectorsKnown}}<span class="badge badge-success"><span class="badge-dot"></span>{{.CollectorsReporting}} von {{.CollectorsKnown}} gemeldet</span>
+        {{else}}<span class="badge badge-danger"><span class="badge-dot"></span>{{.CollectorsReporting}} von {{.CollectorsKnown}} gemeldet</span>{{end}}
+      {{else}}<span class="badge badge-warning">noch nicht</span>{{end}}
+    </div>
+    {{if .CollectorSeen}}<div class="hint">zuletzt {{.CollectorLastAt}}</div>{{end}}
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat">
+    <div class="stat-label">Archiv, Zeitraum</div>
+    <div class="stat-value small">{{if .Stats.EarliestDay}}{{.Stats.EarliestDay}} – {{.Stats.LatestDay}}{{else}}leer{{end}}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Archiv, Einträge</div>
+    <div class="stat-value">{{.Stats.TotalEntries}}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Speicherbelegung</div>
+    <div class="stat-value small">{{if .StorageKnown}}{{bytesHuman .StorageBytes}}{{else}}unbekannt{{end}}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Laufende Zugänge</div>
+    <div class="stat-value">{{if .HasMasterData}}{{.AccessesLive}}{{else}}<span class="hint">—</span>{{end}}</div>
+  </div>
+</div>
+
+{{if .HasMasterData}}
+<section class="card">
+  <h2>Anlage</h2>
+  <table class="kv">
+    <tr><th>Wohnungen</th><td>{{.Units}}</td></tr>
+    <tr><th>Wohnfläche</th><td>{{if .AreaM2}}{{number .AreaM2}} m² gesamt{{else}}<span class="hint">—</span>{{end}}</td></tr>
+    <tr><th>Zählerplätze</th><td>{{.MeterPoints}}</td></tr>
+    <tr>
+      <th>Aktive Zähler</th>
+      <td>
+        {{.MetersActive}}
+        {{if lt .MetersWithKey .MetersActive}}
+          <span class="hint">· {{sub .MetersActive .MetersWithKey}} ohne hinterlegten Schlüssel</span>
+        {{end}}
+      </td>
+    </tr>
+  </table>
+</section>
+{{end}}
+
+{{if .LastEvents}}
+<section class="card">
+  <h2>Letzte Ereignisse</h2>
+  <table class="kv">
+    {{range .LastEvents}}
+    <tr><th>{{.Label}}</th><td>{{if .At}}{{.At}}{{else}}<span class="hint">n.a.</span>{{end}}</td></tr>
+    {{end}}
+  </table>
+</section>
+{{end}}
+
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+
+{{if .Locked}}
+<section class="card">
+  <h2>Entsperren</h2>
+  <p class="hint">Ohne entsperrte Stammdaten sind keine Verbrauchswerte lesbar — auch nicht für die Mieter.</p>
+  <form method="post" action="/operator/unlock">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <label for="password">Stammdaten-Passwort</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required>
+    <button type="submit">Entsperren</button>
+  </form>
+</section>
+{{end}}
+
+{{if .Version}}
+<p class="hint">Programmversion: <span class="token-cell">{{.Version}}</span></p>
+{{end}}
+{{end}}

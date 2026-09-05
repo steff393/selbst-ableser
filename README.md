@@ -1,70 +1,80 @@
-
 # selbst-ableser
 
-**selbst-ableser** ist ein plattformübergreifendes Python-Projekt zum lokalen Auslesen von Funkzählern (wM-Bus / OMS).
+**selbst-ableser** liest Funkzähler (wM-Bus / OMS) lokal aus, archiviert die verschlüsselten
+Telegramme und wertet sie zu einer monatlichen Verbrauchsinformation (UVI) für Heizkostenverteiler,
+Warmwasser- und Kaltwasserzähler aus.  
 
-Das Projekt richtet sich an Eigentümer & Mieter, die ihre Verbrauchsdaten **selbst**, **lokal** und **datenschutzfreundlich** erfassen möchten – ohne Cloud-Zwang oder externe Dienste.
+Das Projekt richtet sich an Eigentümer & Mieter, die ihre Verbrauchsdaten **selbst**, **lokal** und **datenschutzfreundlich** erfassen möchten – ohne Cloud-Zwang oder externe Dienste.  
 
-Webseite: [selbst-ableser.de](https://www.selbst-ableser.de)  
+Webseite: [selbst-ableser.de](https://www.selbst-ableser.de)
 
 ---
 
 ## Funktionen
 
-* 📡 Auslesen von Funkzählern nach **wM-Bus** / **OMS**
-* 🐍 Implementiert in **Python**
-* 🪟 Läuft unter **Windows** und **Linux**
-* 🔒 Lokale Verarbeitung der Daten (keine automatische Cloud-Anbindung)
+* 📡 Empfang von Funkzählern nach **wM-Bus** / **OMS**
+* 🐹 Vollständig in **Go** geschrieben — ein statisches Binary, keine Laufzeit-Abhängigkeiten
+* 🍓 Für den Dauerbetrieb auf einem **Raspberry Pi** ausgelegt (SD-Karten-schonend)
+* 🧮 Verbrauchsberechnung inkl. HKV-Stichtagsreset, kc-Faktoren, Warmwasser-/Kaltwasserzählern
+* 🌐 Weboberfläche für Zugriff, Auswertung und Betriebsparameter
 * 🧩 Modular erweiterbar (weitere Zählertypen, Ausgaben, Schnittstellen)
+* 🏠 Ein oder mehrere Empfänger, ein oder mehrere Geräte — vom Einzelhaushalt bis zur
+  räumlich verteilten Anlage
 
 ---
 
-## Unterstützte Zähler
+## Architektur in Kürze
 
-* wM-Bus-kompatible Funkzähler
-* C1 und T1 Modus
+Zwei eigenständige Go-Module, ausschließlich über eine authentifizierte Netzwerkschnittstelle
+gekoppelt — keine gemeinsame Datenbank, kein gemeinsamer Dateizugriff:
+
+* **Collector** — empfängt Telegramme, prüft Rahmen, meldet sie an den Evaluator. Besitzt
+  strukturell kein Schlüsselmaterial, keine Stammdaten, keine Zugangsdaten.
+* **Evaluator** — entschlüsselt das Archiv, berechnet Verbräuche, stellt die Weboberfläche
+  bereit und verwaltet die Betriebsparameter jedes Collectors.
+
+
+Details, Bedrohungsmodell und Entwurfsentscheidungen: [docs/architektur.md](docs/architektur.md).
 
 ---
 
 ## Voraussetzungen
 
-* Python **3.x**
-* Unterstützter wM-Bus Funkadapter: [iU891A-XL](https://shop.imst.de/wireless-solutions/usb-radio-products/89/bundle-iu891a-xl-wireless-m-bus-usb-adapter-868-mhz-w.-antenna)
-* Betriebssystem:
-  * Windows
-  * Linux
+* Go **1.26+** (alternativ: fertige Binaries, siehe Releases)
+* Unterstützter wM-Bus-Funkadapter: [iU891A-XL](https://shop.imst.de/wireless-solutions/usb-radio-products/89/bundle-iu891a-xl-wireless-m-bus-usb-adapter-868-mhz-w.-antenna)
+* Windows oder Linux 
 
 ---
 
 ## Installation und erste Schritte
-[Installation](docs/installation.md)  
-[Security-Konzept](docs/security.md)
+
+[Schnellstart Windows](docs/quickstart.md)
 
 ---
 
-## Datenschutz & Philosophie
+## Sicherheit & Datenschutz
 
 **selbst-ableser** verfolgt einen klaren Ansatz:
 
-* 📉 Datensparsamkeit
-* 🏠 Lokale Verarbeitung
+* 📉 Datensparsamkeit — keine personenbezogenen Daten nötig für Erfassung und Auswertung
+* 🏠 Lokale Verarbeitung, keine automatische Cloud-Anbindung
 * 🔐 Volle Kontrolle über die eigenen Messdaten
 
-Ideal für private Anwender, Vermieter oder Bastler, die ihre Zählerdaten selbst auslesen möchten.
+Ideal für private Anwender, Vermieter oder Bastler, die ihre Zählerdaten selbst auslesen möchten.  
 
----
-
-## Screenshots
-<img alt="wM-Bus Dashboard" src="https://github.com/user-attachments/assets/7023a887-8551-421c-a673-d3840cfd78ae" />
-<br><br>
-<img alt="Nutzerverwaltung" src="https://github.com/user-attachments/assets/90840f0c-931c-4924-9c85-d67c420a477d" />
 ---
 
 ## Projektstatus
 
-🚧 **In Entwicklung**
-
+🚧 **In Entwicklung** — vollständig neu geschrieben in Go (vormals Python-Prototyp).
 Funktionen und Schnittstellen können sich noch ändern.
+
+---
+
+## Lizenz
+
+Siehe [LICENSE](LICENSE): freie Nutzung für private, nicht-kommerzielle Zwecke. Für
+kommerzielle Nutzung ist eine gesonderte Lizenz beim Autor erforderlich.
 
 ---
 

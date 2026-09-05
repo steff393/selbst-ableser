@@ -1,0 +1,69 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Sicherheitsprotokoll</h1>
+    <p class="page-sub">Anmeldungen, Entsperrversuche, Änderungen an Stammdaten und Zugängen, Datenübernahmen.</p>
+  </div>
+</div>
+
+{{if .Unavailable}}
+<section class="card">
+  <p>Für diese Installation ist kein Sicherheitsprotokoll eingerichtet.</p>
+</section>
+{{else}}
+
+<section class="card">
+  <form method="get" action="/operator/audit">
+    <div class="form-row">
+      <label>Von <input type="date" name="from" value="{{.From}}"></label>
+      <label>Bis <input type="date" name="to" value="{{.To}}"></label>
+      <label>Ereignis
+        <select name="type">
+          {{range .TypeOptions}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select>
+      </label>
+      <label>Anzahl
+        <select name="limit">
+          {{range .LimitOptions}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Value}}</option>{{end}}
+        </select>
+      </label>
+      <button type="submit" class="btn-sm">Anzeigen</button>
+      <a class="btn-secondary btn-sm" href="/operator/audit">Zurücksetzen</a>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <p class="hint" style="margin-top: 0;">
+    {{if eq .Total 0}}Keine Einträge für diese Auswahl.
+    {{else if .Truncated}}{{.Shown}} von {{.Total}} Einträgen angezeigt (neueste zuerst). Grenzen Sie den Zeitraum ein oder erhöhen Sie die Anzahl, um ältere zu sehen.
+    {{else}}{{.Total}} {{if eq .Total 1}}Eintrag{{else}}Einträge{{end}} (neueste zuerst).{{end}}
+  </p>
+
+  {{if .Events}}
+  <table class="list audit-log" style="margin-bottom: 0;">
+    <thead>
+      <tr><th>Zeitpunkt</th><th>Ereignis</th><th>Akteur</th><th>Details</th></tr>
+    </thead>
+    <tbody>
+    {{range .Events}}
+    <tr{{if .Noteworthy}} class="row-flagged"{{end}}>
+      <td>{{.At}}</td>
+      <td>{{if .Noteworthy}}<span class="badge badge-warning">{{.TypeLabel}}</span>{{else}}{{.TypeLabel}}{{end}}</td>
+      <td class="token-cell">{{.Actor}}</td>
+      <td>{{.Detail}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{end}}
+</section>
+
+<p class="hint">Der Akteur ist eine Kennung je Anmeldung, kein Name — Ereignisse derselben Sitzung
+tragen dieselbe Kennung, ohne dass sich daraus die Sitzung selbst rekonstruieren lässt. Bei
+Mieter-Anmeldungen steht die Wohnungs-ID mit darin, und das mit Absicht: nur so lässt sich
+nachvollziehen, welcher Zugang betroffen war, falls ein Zugangscode missbraucht wurde. Namen
+speichert dieses System ohnehin nirgends; Geheimnisse und Zählerstände stehen ebenfalls nicht im
+Protokoll.</p>
+{{end}}
+{{end}}

@@ -1,0 +1,52 @@
+{{define "content"}}
+<div class="login-wrap">
+  <div class="login-brand">
+    <span class="brand-mark">{{template "brandmark"}}</span>
+    <h1>Anmelden</h1>
+    <p class="login-slogan"><strong>selbst-ableser</strong> – weil deine Daten dir gehören.</p>
+  </div>
+
+  {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+  {{if .Notice}}<p class="flash">{{.Notice}}</p>{{end}}
+
+  <div class="card login-card">
+    <form method="post" action="/login" id="login-form">
+      <label for="credential">Passwort oder Zugangscode</label>
+      <input type="text" id="credential" name="credential" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+      <p class="hint">Betreiber: Stammdaten-Passwort. Mieter: der erhaltene Zugangscode (z. B. XXXX-XXXX-XXXX).</p>
+      <label class="checkbox-label">
+        <input type="checkbox" id="remember" style="width: auto;">
+        Auf diesem Gerät merken
+      </label>
+      <button type="submit">Anmelden</button>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var STORAGE_KEY = "sa_credential";
+  var field = document.getElementById("credential");
+  var remember = document.getElementById("remember");
+  var form = document.getElementById("login-form");
+  if (!field || !remember || !form) return;
+
+  var saved = window.localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    field.value = saved;
+    remember.checked = true;
+  }
+
+  remember.addEventListener("change", function () {
+    if (!remember.checked) window.localStorage.removeItem(STORAGE_KEY);
+  });
+
+  form.addEventListener("submit", function () {
+    if (remember.checked) {
+      window.localStorage.setItem(STORAGE_KEY, field.value);
+    } else {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+  });
+})();
+</script>
+{{end}}

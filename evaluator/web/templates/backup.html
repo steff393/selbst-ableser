@@ -1,0 +1,70 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Backup</h1>
+    <p class="page-sub">Dienst neu starten, eine vollständige Sicherung herunterladen, oder eine
+    frühere wiederherstellen.</p>
+  </div>
+</div>
+
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+{{if .Restored}}
+<p class="flash">Wiederherstellung erfolgreich. Der Dienst startet jetzt neu — diese Seite in
+ein paar Sekunden neu laden, danach ist die Anmeldung wieder möglich.</p>
+{{end}}
+{{if .Restarting}}
+<p class="flash">Der Dienst startet jetzt neu — diese Seite in ein paar Sekunden neu laden, danach
+ist die Anmeldung wieder möglich.</p>
+{{end}}
+
+<section class="card">
+  <h2>Dienst neu starten</h2>
+  <p class="hint">Für einen hängenden Zustand, oder um ein neues, per SCP eingespieltes Kompilat zu
+  übernehmen — ersetzt dabei selbst keine Datei, sondern startet nur den bereits vorhandenen Prozess
+  neu, genau wie <code>systemctl restart</code> auf der Konsole. Für ein bis zwei Sekunden nicht
+  erreichbar, und die Stammdaten müssen danach erneut entsperrt werden.</p>
+  <form method="post" action="/operator/restart"
+        onsubmit="return confirm('Dienst jetzt neu starten? Für ein bis zwei Sekunden nicht erreichbar.');">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button type="submit" class="btn-secondary">Dienst neu starten</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Sicherung herunterladen</h2>
+  <p class="hint">Enthält alle fünf Dateien der Installation: Archiv, Stammdaten (inklusive aller
+  AES-Zählerschlüssel), Sicherheitsprotokoll, sowie — falls vorhanden — <code>config.json</code>
+  und <code>secrets.json</code>. Letztere enthält SMTP-Passwort und Push-Secret im Klartext (alles
+  andere in der Sicherung bleibt verschlüsselt) — die heruntergeladene Datei entsprechend
+  behandeln, nicht unverschlüsselt weitergeben oder öffentlich ablegen.</p>
+  <p class="stat-value small" style="margin-bottom: 0.75rem;">
+    Letzte Sicherung:
+    {{if .HasLastBackup}}<span class="badge badge-success"><span class="badge-dot"></span>{{.LastBackupAt}}</span>
+    {{else}}<span class="badge badge-warning">noch keine</span>{{end}}
+  </p>
+  <form method="post" action="/operator/backup/download">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button type="submit">Sicherung herunterladen (.zip)</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Sicherung wiederherstellen</h2>
+  <p class="hint">Ersetzt alle fünf Dateien dieser Installation durch den Inhalt der hochgeladenen
+  Sicherung und startet den Dienst danach neu, damit die Änderung wirkt — für ein bis zwei Sekunden
+  nicht erreichbar. Hilft nicht, wenn ausgerechnet die Stammdaten (<code>masterdata.enc</code>)
+  selbst verloren oder beschädigt sind: die Anmeldung als Betreiber setzt voraus, dass genau diese
+  Datei mit dem aktuellen Passwort entschlüsselt werden kann, um überhaupt bis hierher zu kommen.
+  Für diesen Fall bleibt nur der <code>restore</code>-Befehl auf der Kommandozeile, gegen den
+  gestoppten Dienst. Für alles andere — Archiv oder Protokoll wiederherstellen, oder die gesamte
+  Installation auf einen früheren Stand zurücksetzen — funktioniert es hier.</p>
+  <form method="post" action="/operator/restore" enctype="multipart/form-data"
+        onsubmit="return confirm('Alle aktuellen Daten dieser Installation durch die hochgeladene Sicherung ersetzen und den Dienst neu starten? Das lässt sich nicht rückgängig machen.');">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <input type="file" name="file" accept=".zip" required>
+      <button type="submit" class="btn-danger">Wiederherstellen</button>
+    </div>
+  </form>
+</section>
+{{end}}

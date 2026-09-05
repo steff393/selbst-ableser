@@ -1,0 +1,125 @@
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Archiv</h1>
+    <p class="page-sub">Rohablage der empfangenen, weiterhin verschlüsselten Telegramme.</p>
+  </div>
+</div>
+
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+
+<div class="stat-grid">
+  <div class="stat">
+    <div class="stat-label">Zeitraum</div>
+    <div class="stat-value small">{{if .Stats.EarliestDay}}{{.Stats.EarliestDay}} – {{.Stats.LatestDay}}{{else}}leer{{end}}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Einträge</div>
+    <div class="stat-value">{{.Stats.TotalEntries}}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Speicherbelegung</div>
+    <div class="stat-value small">{{if .StorageKnown}}{{bytesHuman .StorageBytes}}{{else}}unbekannt{{end}}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Sicherung</div>
+    <div class="stat-value small">
+      {{if .HasLastBackup}}<span class="badge badge-success"><span class="badge-dot"></span>{{.LastBackupAt}}</span>
+      {{else}}<span class="badge badge-warning">noch keine</span>{{end}}
+    </div>
+  </div>
+</div>
+
+<section class="card">
+  <h2>Ausschnitt</h2>
+  <form>
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <label>Von <input type="date" name="from" required></label>
+      <label>Bis <input type="date" name="to" required></label>
+    </div>
+
+    <table class="kv" style="margin-top: 0.75rem;">
+      <tr>
+        <td style="width: 1%; white-space: nowrap;">
+          <button type="submit" formmethod="get" formaction="/operator/archive/download"
+                  onclick="this.form.csrf_token.disabled = true;">Herunterladen</button>
+        </td>
+        <td><span class="hint">Der Download enthält ausschließlich weiterhin verschlüsselte Telegramme.</span></td>
+      </tr>
+      <tr>
+        <td style="width: 1%; white-space: nowrap;">
+          <button type="submit" formmethod="post" formaction="/operator/archive/delete" class="btn-danger"
+                  onclick="this.form.csrf_token.disabled = false; return confirm('Alle Telegramme von ' + this.form.from.value + ' bis ' + this.form.to.value + ' unwiderruflich löschen?');">Löschen</button>
+        </td>
+        <td><span class="hint">Entfernt die Einträge dauerhaft aus dem Archiv — z. B. um versehentlich
+        eingespielte Testdaten wieder loszuwerden. Es gibt keine automatische Löschung, nur diesen
+        bewussten, unwiderruflichen Schritt.</span></td>
+      </tr>
+      <tr>
+        <td style="width: 1%; white-space: nowrap;">
+          <button type="submit" formmethod="post" formaction="/operator/archive/compress" class="btn-danger"
+                  onclick="this.form.csrf_token.disabled = false; return confirm('Archiv von ' + this.form.from.value + ' bis ' + this.form.to.value + ' komprimieren? Je Zähler und Monat bleibt nur der letzte Eintrag im Rückschau-Fenster vor Monatsende erhalten, alle anderen Tage werden unwiderruflich gelöscht.');">Komprimieren</button>
+        </td>
+        <td><span class="hint">Behält je Monat und Zähler nur den Eintrag, den die Verbrauchsberechnung für den
+        Monatswert tatsächlich braucht — den letzten innerhalb des Rückschau-Fensters vor Monatsende —
+        und löscht die übrigen Tage dieses Monats unwiderruflich. Nur vollständig im gewählten Zeitraum
+        liegende Monate werden angefasst; fehlt für einen Monat ein Eintrag im Rückschau-Fenster, bleibt
+        er komplett unangetastet. Vor dem Ausführen sollten die UVI-Werte im gewählten Zeitraum als
+        plausibel und lückenlos geprüft worden sein.</span></td>
+      </tr>
+    </table>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Einzelnen Zählerstand korrigieren</h2>
+  <p class="hint">Für einen nachweislich falschen Wert an einem bestimmten Tag. Nur der
+  Zählerstand ändert sich — der Evaluator baut daraus ein neues, zum Zähler passendes Telegramm
+  (verschlüsselt, falls das Original es war) und ersetzt ausschließlich den einen Archiveintrag.
+  Existiert für den Tag noch gar kein Telegramm, wird das nächstgelegene andere des Zählers als
+  Vorlage verwendet, um eine Lücke zu füllen. Ein korrigierter Eintrag bleibt erkennbar: seine RSSI
+  steht auf {{.CorrectionRSSI}}, einem Wert, der bei einem echten Empfang nie vorkommt.</p>
+  <form method="post" action="/operator/archive/correct"
+        onsubmit="return confirm('Zähler ' + this.meter.value + ', Tag ' + this.day.value + ' auf den Wert ' + this.value.value + ' korrigieren? Der bisherige Telegramminhalt für diesen Tag geht dabei unwiderruflich verloren.');">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <label>Zähler <input type="text" name="meter" pattern="[0-9]{8}" maxlength="8" required></label>
+      <label>Tag <input type="date" name="day" required></label>
+      <label>Neuer Zählerstand <input type="number" name="value" min="0" step="1" required></label>
+    </div>
+    <button type="submit" class="btn-danger" style="margin-top: 0.75rem;">Korrigieren</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Datei importieren</h2>
+  <p class="hint">Nimmt eine Archiv-Datenbank entgegen — eine <code>backup.db</code> von <code>saCollector</code>, oder das Archiv einer anderen Installation — und fügt ihren Inhalt in dieses Archiv ein. Bereits vorhandene, abweichende Einträge werden nie überschrieben, sondern als Konflikt gemeldet.</p>
+  <form method="post" action="/operator/archive/import" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <input type="file" name="file" required>
+      <button type="submit">Importieren</button>
+    </div>
+  </form>
+  {{if .ImportReport}}
+  <p class="hint" style="margin-top: 0.75rem;">
+    {{.ImportReport.EntriesInserted}} neu eingefügt, {{.ImportReport.EntriesUnchanged}} bereits vorhanden.
+    {{if .ImportReport.Issues}}{{len .ImportReport.Issues}} Konflikt(e), siehe unten.{{end}}
+  </p>
+  {{if .ImportReport.Issues}}
+  <table class="list">
+    <thead><tr><th>Eintrag</th><th></th></tr></thead>
+    <tbody>
+    {{range .ImportReport.Issues}}
+    <tr>
+      <td>{{.Context}}</td>
+      <td>{{if .Conflict}}weicht vom vorhandenen Eintrag ab{{else}}Fehler beim Import{{end}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{end}}
+  {{end}}
+</section>
+{{end}}
