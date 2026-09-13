@@ -44,8 +44,44 @@ func Validate(md MasterData) Diagnostics {
 			d.Errors = append(d.Errors, fmt.Sprintf("meter point %q: ID is not unique", mp.ID))
 		}
 		meterPointsByID[mp.ID] = mp
-		if _, ok := units[mp.UnitID]; !ok {
-			d.Errors = append(d.Errors, fmt.Sprintf("meter point %q: refers to unknown unit %q", mp.ID, mp.UnitID))
+		if !mp.Kind.Known() {
+			d.Errors = append(d.Errors, fmt.Sprintf("meter point %q: unknown consumption type %d", mp.ID, int(mp.Kind)))
+		}
+		// An empty UnitID is a house meter, not a mistake: it belongs to
+		// no rentable unit and appears in no tenant's consumption
+		// information. Only a unit that was named and does not exist is
+		// an error.
+		if mp.UnitID != "" {
+			if _, ok := units[mp.UnitID]; !ok {
+				d.Errors = append(d.Errors, fmt.Sprintf("meter point %q: refers to unknown unit %q", mp.ID, mp.UnitID))
+			}
+		}
+	}
+
+	// Access grants were the one cross-reference nothing checked. A grant
+	// pointing at a unit that was renamed or deleted does no visible
+	// damage — the tenant simply sees nothing — which is precisely why it
+	// would have gone unnoticed for as long as it took someone to
+	// complain.
+	seenTokens := make(map[string]bool, len(md.Accesses))
+	for _, a := range md.Accesses {
+		label := a.UnitID
+		if label == "" {
+			label = "(no unit)"
+		}
+		if a.Token == "" {
+			d.Errors = append(d.Errors, fmt.Sprintf("access for unit %q: empty token", label))
+			continue
+		}
+		if seenTokens[a.Token] {
+			d.Errors = append(d.Errors, fmt.Sprintf("access for unit %q: token is not unique", label))
+		}
+		seenTokens[a.Token] = true
+		if _, ok := units[a.UnitID]; !ok {
+			d.Errors = append(d.Errors, fmt.Sprintf("access %s: refers to unknown unit %q", shortToken(a.Token), a.UnitID))
+		}
+		if a.End != nil && a.End.Before(a.Start) {
+			d.Errors = append(d.Errors, fmt.Sprintf("access %s: ends (%s) before it starts (%s)", shortToken(a.Token), *a.End, a.Start))
 		}
 	}
 
@@ -65,8 +101,8 @@ func Validate(md MasterData) Diagnostics {
 		if (m.RemovedAt != nil) != (m.EndReading != nil) {
 			d.Errors = append(d.Errors, fmt.Sprintf("meter %q: removal date and end reading must both be set, or neither", m.Number))
 		}
-		if m.ResetMonth != 0 && (m.ResetMonth < 1 || m.ResetMonth > 12) {
-			d.Errors = append(d.Errors, fmt.Sprintf("meter %q: reset month must be between 1 and 12", m.Number))
+		if m.FreezeMonth != 0 && (m.FreezeMonth < 1 || m.FreezeMonth > 12) {
+			d.Errors = append(d.Errors, fmt.Sprintf("meter %q: freeze month must be between 1 and 12", m.Number))
 		}
 
 		metersByPoint[m.MeterPointID] = append(metersByPoint[m.MeterPointID], m)
@@ -126,4 +162,14 @@ func Validate(md MasterData) Diagnostics {
 	}
 
 	return d
+}
+
+// shortToken names an access in a message without printing the token
+// itself: it is a credential, and validation messages end up on screen
+// and in the operator's log (SZ-4).
+func shortToken(token string) string {
+	if len(token) <= 4 {
+		return "…"
+	}
+	return "…" + token[len(token)-4:]
 }

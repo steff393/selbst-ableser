@@ -14,7 +14,7 @@ func wellFormed(t *testing.T) MasterData {
 			{ID: "u1", Name: "Unit 1", AreaM2: 60},
 		},
 		MeterPoints: []MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: KindHeatCostAllocator},
 		},
 		Meters: []Meter{
 			{Number: "90000010", MeterPointID: "mp1", InstalledAt: day(t, "2024-01-01"), RemovedAt: &removed, EndReading: &end},
@@ -108,9 +108,9 @@ func TestValidateBadMeterNumberFormat(t *testing.T) {
 	}
 }
 
-func TestValidateResetMonthOutOfRange(t *testing.T) {
+func TestValidateFreezeMonthOutOfRange(t *testing.T) {
 	md := wellFormed(t)
-	md.Meters[0].ResetMonth = 13
+	md.Meters[0].FreezeMonth = 13
 
 	d := Validate(md)
 	if d.OK() {
@@ -135,7 +135,7 @@ func TestMeterPointWithoutMeterIsAllowed(t *testing.T) {
 	md := MasterData{
 		Units: []Unit{{ID: "u1", Name: "Wohnung 1", AreaM2: 50}},
 		MeterPoints: []MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: KindHeatCostAllocator},
 		},
 	}
 	d := Validate(md)
@@ -144,5 +144,116 @@ func TestMeterPointWithoutMeterIsAllowed(t *testing.T) {
 	}
 	if len(d.Warnings) == 0 {
 		t.Error("it should still be reported as a warning")
+	}
+}
+
+// TestValidateMeterPointWithoutUnit: a meter point with no unit is the
+// house's own device — the heat meter in the boiler room, the gas meter
+// at the connection. It belongs to no rentable unit, appears in no
+// tenant's consumption information, and is not an error.
+func TestValidateMeterPointWithoutUnit(t *testing.T) {
+	md := wellFormed(t)
+	md.MeterPoints = append(md.MeterPoints, MeterPoint{ID: "h1", Room: "Boiler room", Kind: KindHeatMeter})
+	md.Meters = append(md.Meters, Meter{Number: "90000020", MeterPointID: "h1", InstalledAt: day(t, "2024-01-01")})
+
+	d := Validate(md)
+	if !d.OK() {
+		t.Fatalf("a house meter without a unit must be accepted, got %v", d.Errors)
+	}
+}
+
+func TestValidateMeterPointWithUnknownUnitIsStillAnError(t *testing.T) {
+	md := wellFormed(t)
+	md.MeterPoints[0].UnitID = "typo"
+
+	d := Validate(md)
+	if d.OK() {
+		t.Fatal("a named but non-existent unit must still be refused")
+	}
+	if !containsSubstring(d.Errors, "typo") {
+		t.Errorf("errors don't name the unit that does not exist: %v", d.Errors)
+	}
+}
+
+func TestValidateUnknownKind(t *testing.T) {
+	md := wellFormed(t)
+	md.MeterPoints[0].Kind = Kind(99)
+
+	d := Validate(md)
+	if d.OK() {
+		t.Fatal("expected an error for a consumption type that does not exist")
+	}
+}
+
+// TestValidateOpenInstallationDate: an installation taken over from a
+// previous provider has no meaningful installation date for the devices
+// already mounted. An empty date reads as "has been there all along" and
+// must validate — including as the first link of a chain that continues
+// with a real swap.
+func TestValidateOpenInstallationDate(t *testing.T) {
+	md := wellFormed(t)
+	md.Meters[0].InstalledAt = ""
+
+	d := Validate(md)
+	if !d.OK() {
+		t.Fatalf("an open installation date must be accepted, got %v", d.Errors)
+	}
+}
+
+// TestValidateAccessToUnknownUnit pins the cross-reference nothing used
+// to check: a grant left pointing at a unit that was renamed or deleted
+// does no visible damage — the tenant simply sees nothing — which is why
+// it would otherwise stay unnoticed.
+func TestValidateAccessToUnknownUnit(t *testing.T) {
+	md := wellFormed(t)
+	md.Accesses = []Access{{Token: "abcdefghijkl", UnitID: "gone", Start: day(t, "2025-01-01")}}
+
+	d := Validate(md)
+	if d.OK() {
+		t.Fatal("expected an error for an access grant pointing at a unit that does not exist")
+	}
+	if !containsSubstring(d.Errors, "gone") {
+		t.Errorf("errors don't name the unit: %v", d.Errors)
+	}
+	if containsSubstring(d.Errors, "abcdefghijkl") {
+		t.Errorf("the token itself must not appear in a validation message: %v", d.Errors)
+	}
+}
+
+func TestValidateAccessDuplicateToken(t *testing.T) {
+	md := wellFormed(t)
+	md.Accesses = []Access{
+		{Token: "abcdefghijkl", UnitID: "u1", Start: day(t, "2025-01-01")},
+		{Token: "abcdefghijkl", UnitID: "u1", Start: day(t, "2025-06-01")},
+	}
+
+	d := Validate(md)
+	if d.OK() {
+		t.Fatal("expected an error for two grants sharing one token")
+	}
+}
+
+func TestValidateAccessEndsBeforeItStarts(t *testing.T) {
+	md := wellFormed(t)
+	end := day(t, "2024-12-31")
+	md.Accesses = []Access{{Token: "abcdefghijkl", UnitID: "u1", Start: day(t, "2025-01-01"), End: &end}}
+
+	d := Validate(md)
+	if d.OK() {
+		t.Fatal("expected an error for a grant that ends before it starts")
+	}
+}
+
+func TestValidateWellFormedAccessIsAccepted(t *testing.T) {
+	md := wellFormed(t)
+	end := day(t, "2025-12-31")
+	md.Accesses = []Access{
+		{Token: "abcdefghijkl", UnitID: "u1", Start: day(t, "2025-01-01"), End: &end},
+		{Token: "mnopqrstuvwx", UnitID: "u1", Start: day(t, "2026-01-01")},
+	}
+
+	d := Validate(md)
+	if !d.OK() {
+		t.Fatalf("expected the grants to be accepted, got %v", d.Errors)
 	}
 }

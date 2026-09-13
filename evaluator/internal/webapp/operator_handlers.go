@@ -425,7 +425,7 @@ func (a *App) handleMeterStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	meterPoints := make(map[string]meterPointLite, len(md.MeterPoints))
 	for _, mp := range md.MeterPoints {
-		meterPoints[mp.ID] = meterPointLite{Room: mp.Room, UnitName: units[mp.UnitID]}
+		meterPoints[mp.ID] = meterPointLite{Room: mp.Room, UnitName: unitLabel(units, mp.UnitID)}
 	}
 
 	today := a.today()

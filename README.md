@@ -41,7 +41,9 @@ Details, Bedrohungsmodell und Entwurfsentscheidungen: [docs/architektur.md](docs
 ## Voraussetzungen
 
 * Go **1.26+** (alternativ: fertige Binaries, siehe Releases)
-* Unterstützter wM-Bus-Funkadapter: [iU891A-XL](https://shop.imst.de/wireless-solutions/usb-radio-products/89/bundle-iu891a-xl-wireless-m-bus-usb-adapter-868-mhz-w.-antenna)
+* Unterstützte wM-Bus-Funkadapter: 
+  * IMST [iU891A-XL](https://shop.imst.de/wireless-solutions/usb-radio-products/89/bundle-iu891a-xl-wireless-m-bus-usb-adapter-868-mhz-w.-antenna)
+  * Innotas [Mobile Datensammler](https://www.innotas.de/mobile-datensammler), basierend auf Radiocraft RC1180-MBUS3
 * Windows oder Linux 
 
 ---

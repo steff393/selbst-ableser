@@ -3,27 +3,84 @@ package masterdata
 import "selbst-ableser/internal/telegram"
 
 // Kind is the consumption type a meter point measures. It, not the
-// telegram's medium field, decides how a reading is interpreted (see
+// telegram's medium field, decides how a reading is interpreted — the
+// medium field is a device's claim about itself and only good enough to
+// pre-sort suggestions during data entry (see
 // internal/telegram.IdentifyDeviceType).
+//
+// The numbering is part of the stored format: values are appended, never
+// reordered, so an existing installation keeps its meaning.
 type Kind int
 
 const (
-	KindHeating Kind = iota
+	// KindHeatCostAllocator is the German HKV: a dimensionless
+	// evaporation- or electronic allocator on a radiator. It is the only
+	// kind that resets itself once a year (FACH-03).
+	KindHeatCostAllocator Kind = iota
 	KindHotWater
 	KindColdWater
+
+	// KindHeatMeter (WMZ) counts real energy in kWh — heating measured
+	// directly, as in an underfloor-heating circuit with one heat meter
+	// per flat, rather than apportioned through heat cost allocators. At
+	// a meter point with a unit it is part of the consumption information
+	// like any other heating figure; at a meter point without one it is
+	// the house's own device and only watched (see PartOfBilling).
+	//
+	// KindGas counts gas volume. It was added for a house-level meter the
+	// operator wants to watch, is not billed, and has no decoder yet.
+	KindHeatMeter
+	KindGas
 )
 
 func (k Kind) String() string {
 	switch k {
-	case KindHeating:
-		return "heating"
+	case KindHeatCostAllocator:
+		return "heat cost allocator"
 	case KindHotWater:
 		return "hot water"
 	case KindColdWater:
 		return "cold water"
+	case KindHeatMeter:
+		return "heat meter"
+	case KindGas:
+		return "gas"
 	default:
 		return "unknown"
 	}
+}
+
+// Known reports whether k is one of the defined kinds — a stored file or
+// a submitted form could carry anything.
+func (k Kind) Known() bool {
+	return k >= KindHeatCostAllocator && k <= KindGas
+}
+
+// Billable reports whether this kind takes part in the consumption
+// information a tenant sees. Gas does not: a gas meter is the house's
+// supply, watched but never apportioned to a flat.
+func (k Kind) Billable() bool {
+	return k == KindHeatCostAllocator || k == KindHeatMeter || k == KindHotWater || k == KindColdWater
+}
+
+// CountsKWh reports whether this kind's readings already are kilowatt
+// hours. For a heat meter the energy figure a consumption report shows is
+// the reading itself; for a heat cost allocator or hot water it is a
+// conversion with an installation-specific factor. Displays need to know
+// the difference so as not to print the same number twice, or to label a
+// measured figure as a calculated one.
+func (k Kind) CountsKWh() bool {
+	return k == KindHeatMeter
+}
+
+// ResetsAnnually reports whether devices of this kind zero themselves at
+// a yearly Stichtag (FACH-03). Only heat cost allocators do. It lives
+// here as one sentence rather than as a comparison repeated at each call
+// site, because getting it wrong for a heat meter — which counts kWh
+// straight through and is never reset — would not raise an error
+// anywhere; it would quietly produce a wrong number once a year.
+func (k Kind) ResetsAnnually() bool {
+	return k == KindHeatCostAllocator
 }
 
 // Building holds installation-wide settings. JSON field names are lower-
@@ -75,9 +132,16 @@ type Unit struct {
 // MeterPoint is a physical, permanent measuring location ("Zählerplatz"),
 // e.g. "radiator, living room, unit 3". The meter installed at it changes
 // over time (see Meter); the point itself does not.
+//
+// UnitID may be empty. Such a point belongs to no rentable unit — the
+// house's own heat meter, gas meter or main water meter. It is watched
+// like any other, and every path that computes a tenant's consumption
+// information walks units and therefore passes it by on its own, which is
+// exactly why this is expressed as "no unit" rather than as a special
+// unit that every one of those paths would have to know to skip.
 type MeterPoint struct {
 	ID     string // unique, operator-chosen, may be renamed freely
-	UnitID string
+	UnitID string // empty for a house meter that belongs to no unit
 	Room   string
 	Kind   Kind
 }
@@ -90,6 +154,12 @@ type Meter struct {
 	MeterPointID string
 	AESKey       [16]byte
 
+	// InstalledAt may be empty, which reads as "has been there all along"
+	// and compares earlier than any real date (telegram.Day orders as a
+	// string). An installation taken over from a previous service
+	// provider has no meaningful installation date for the devices it
+	// finds already mounted, and inventing one would put a number in the
+	// file that later looks like a fact.
 	InstalledAt  telegram.Day
 	StartReading int64
 
@@ -105,11 +175,50 @@ type Meter struct {
 	// water meters and defaults to 1 (unscaled) when unset.
 	KCFactor float64
 
-	// ResetMonth is the calendar month (1-12) this meter's billing period
-	// resets in ("Stichtag", FACH-03) — meaningful for heat-cost
-	// allocators only; water meters count continuously and never reset.
-	// 0 means unset; EffectiveResetMonth resolves that to January.
-	ResetMonth int
+	// FreezeMonth is the calendar month (1-12) whose last day is this
+	// meter's Stichtag: the day it freezes its reading and starts counting
+	// from zero again (FACH-03). Meaningful for heat-cost allocators only;
+	// water meters count continuously and never reset.
+	//
+	// 0 means unset; EffectiveFreezeMonth resolves that to December, the
+	// common 31 December Stichtag.
+	//
+	// Until 2026-09 this was ResetMonth and held the *first month of the
+	// new period* instead (January for a 31 December Stichtag) while the UI
+	// called it "Stichtag-Monat" — name and meaning disagreed by one month.
+	// The old JSON key is not read: no installation had been distributed,
+	// so a file still carrying it simply shows an empty Stichtag month that
+	// the operator fills in once, rather than a converted value nobody
+	// would think to check.
+	FreezeMonth int
+}
+
+// PartOfBilling reports whether this meter point takes part in what
+// tenants are shown and in the installation-wide figures their own are
+// compared against: it belongs to a rentable unit, and it measures
+// something that is billed at all.
+//
+// Every whole-installation aggregate has to ask this rather than simply
+// walking all meter points. A house's own cold-water meter is a meter
+// point of a billed kind, but summing it into the building total would
+// count the building's consumption twice — once through the flats and
+// once through the main meter — and nothing about the resulting number
+// would look wrong.
+func (mp MeterPoint) PartOfBilling() bool {
+	return mp.UnitID != "" && mp.Kind.Billable()
+}
+
+// InUnit reports whether this meter point belongs to unitID and is part
+// of what that unit is billed for — the question every per-unit figure in
+// the consumption information asks.
+//
+// An empty unitID matches nothing, deliberately. Written as a plain
+// comparison, a lookup that lost its unit on the way would match every
+// house meter instead (they carry no unit either) and present them as one
+// tenant's own consumption. The guard sits here rather than at each
+// caller because it must hold at every one of them.
+func (mp MeterPoint) InUnit(unitID string) bool {
+	return unitID != "" && mp.UnitID == unitID && mp.Kind.Billable()
 }
 
 // Active reports whether the meter is the one considered installed at its
@@ -133,12 +242,13 @@ func (m Meter) EffectiveKCFactor() float64 {
 	return m.KCFactor
 }
 
-// EffectiveResetMonth returns m.ResetMonth, or January if it is unset (zero).
-func (m Meter) EffectiveResetMonth() int {
-	if m.ResetMonth == 0 {
-		return 1
+// EffectiveFreezeMonth returns m.FreezeMonth, or December if it is unset
+// (zero) — the 31 December Stichtag most installations use.
+func (m Meter) EffectiveFreezeMonth() int {
+	if m.FreezeMonth == 0 {
+		return 12
 	}
-	return m.ResetMonth
+	return m.FreezeMonth
 }
 
 // Access is a tenant's access grant ("Zugang"): a token bound to one unit

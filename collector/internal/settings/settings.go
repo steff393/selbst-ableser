@@ -34,12 +34,23 @@ type FilterRule struct {
 // Settings is everything the evaluator hands back to a collector that
 // authenticates to it.
 type Settings struct {
-	// ReportIntervalSeconds governs the frequent live-view push. <= 0
-	// means the live view is switched off entirely — no push happens at
-	// all, not even an infrequent one (the evaluator computes this value
-	// from its own separate enabled/interval pair; see its collector
-	// settings page for why those are kept apart there).
+	// ReportIntervalSeconds paces the frequent live-view push, on its
+	// own — independent of whether that push runs at all (see
+	// LiveViewActive below). <= 0 falls back to the built-in default
+	// (1s). It used to double as the on/off switch too (0 meant "off"),
+	// which made a collector that lost contact with the evaluator hard
+	// to tell apart from one that had genuinely been told to stop:
+	// nothing distinguished "no fresh answer" from "fresh answer of
+	// zero". Splitting the two lets each fail on its own terms.
 	ReportIntervalSeconds int `json:"report_interval_seconds"`
+
+	// LiveViewActive says whether the live-view push should run at all.
+	// Deliberately its own field rather than derived from
+	// ReportIntervalSeconds — see above — and, unlike the rest of
+	// Settings, it must never survive a write to the on-disk cache (see
+	// Cache.Save): an evaluator that goes unreachable mid-window must
+	// not leave a collector pushing indefinitely on stale say-so.
+	LiveViewActive bool `json:"live_view_active"`
 
 	// DailyPushHour is the hour (0-23) the once-a-day durable push runs
 	// at. <= 0 or > 23 falls back to the built-in default (3).
@@ -65,12 +76,6 @@ type Settings struct {
 	TriggerPush bool `json:"trigger_push"`
 
 	FilterRules []FilterRule `json:"filter_rules"`
-}
-
-// LiveViewActive reports whether the frequent live-view push should run
-// at all.
-func (s Settings) LiveViewActive() bool {
-	return s.ReportIntervalSeconds > 0
 }
 
 // ReportInterval is only meaningful while LiveViewActive is true; callers
@@ -199,10 +204,10 @@ func NewCache(path string) *Cache {
 }
 
 // Load reads the cached Settings, if any. found is false the first time a
-// collector ever runs (nothing cached yet), not an error. TriggerPush is
-// always forced false — see Save for why it must never survive a
-// restart, and this guards against a cache file written by an older
-// build that did not yet strip it.
+// collector ever runs (nothing cached yet), not an error. TriggerPush and
+// LiveViewActive are always forced false — see Save for why neither must
+// ever survive a restart, and this guards against a cache file written by
+// an older build that did not yet strip them.
 func (c *Cache) Load() (s Settings, found bool, err error) {
 	data, err := os.ReadFile(c.path)
 	if os.IsNotExist(err) {
@@ -215,23 +220,35 @@ func (c *Cache) Load() (s Settings, found bool, err error) {
 		return Settings{}, false, err
 	}
 	s.TriggerPush = false
+	s.LiveViewActive = false
 	return s, true, nil
 }
 
 // Save writes s to the cache file atomically (temp file, then rename), so
 // a concurrent reader never observes a half-written file.
 //
-// TriggerPush is always written as false, regardless of s: it is a
-// one-shot pulse ("push jetzt auslösen" newly requested), not state, and
-// the evaluator already resets its own copy the moment it serves it once
-// (see collector_settings_handlers.go). Caching it as true would let a
-// stale true survive on disk across a restart or a lost connection; the
-// rising-edge check in cmd/saCollector compares a freshly fetched value
-// against this cached one, so a stale true would make a genuinely new
-// request right after reconnecting look like "no change" and get
-// silently dropped.
+// TriggerPush and LiveViewActive are always written as false, regardless
+// of s — neither is durable state:
+//
+// TriggerPush is a one-shot pulse ("push jetzt auslösen" newly
+// requested), and the evaluator already resets its own copy the moment
+// it serves it once (see collector_settings_handlers.go). Caching it as
+// true would let a stale true survive on disk across a restart or a lost
+// connection; the rising-edge check in cmd/saCollector compares a
+// freshly fetched value against this cached one, so a stale true would
+// make a genuinely new request right after reconnecting look like "no
+// change" and get silently dropped.
+//
+// LiveViewActive reflects whether the evaluator wants the push running
+// right now — a fact about the moment of the last successful poll, not
+// something to keep believing once contact is lost. Caching it as true
+// would let a collector resume pushing at start-up purely because a
+// previous run last heard "on", before this run has asked the evaluator
+// itself (see confirmedActive in cmd/saCollector, which also refuses to
+// trust it without a poll of its own — belt and suspenders).
 func (c *Cache) Save(s Settings) error {
 	s.TriggerPush = false
+	s.LiveViewActive = false
 	if dir := filepath.Dir(c.path); dir != "." {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return fmt.Errorf("settings: creating %s: %w", dir, err)

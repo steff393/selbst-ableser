@@ -195,7 +195,7 @@ func TestLiveSettingsTriggerFiresOnlyOnRisingEdge(t *testing.T) {
 // an unwanted burst of pushes before that's found out.
 func TestConfirmedActiveIgnoresStaleCacheUntilPolled(t *testing.T) {
 	cachePath := filepath.Join(t.TempDir(), "cache.json")
-	if err := settings.NewCache(cachePath).Save(settings.Settings{ReportIntervalSeconds: 5}); err != nil {
+	if err := settings.NewCache(cachePath).Save(settings.Settings{ReportIntervalSeconds: 5, LiveViewActive: true}); err != nil {
 		t.Fatalf("seeding cache: %v", err)
 	}
 
@@ -220,12 +220,22 @@ func TestConfirmedActiveIgnoresStaleCacheUntilPolled(t *testing.T) {
 	if active, _ := live.confirmedActive(); active {
 		t.Fatal("confirmedActive should be false before this run's first poll succeeds, even with an active cached value")
 	}
-	if !live.settings().LiveViewActive() {
-		t.Fatal("the cached value itself should still be loaded (e.g. for filter rules), just not trusted for live-view push yet")
+	// LiveViewActive is never persisted to disk (Cache.Save always writes
+	// it as false, the same way it always writes TriggerPush as false) —
+	// so even though the seeding Save call above passed true, the
+	// reloaded value must already read false, not "true but untrusted".
+	if live.settings().LiveViewActive {
+		t.Fatal("LiveViewActive must never survive a save to the cache file")
+	}
+	if live.settings().ReportIntervalSeconds != 5 {
+		t.Fatal("the rest of the cached settings (e.g. for filter rules) should still be loaded")
 	}
 
+	// Simulate this run's own poll having succeeded with the evaluator
+	// asking for the live view.
 	live.mu.Lock()
 	live.confirmed = true
+	live.cur.LiveViewActive = true
 	live.mu.Unlock()
 	if active, interval := live.confirmedActive(); !active || interval != 5*time.Second {
 		t.Errorf("confirmedActive after a successful poll = (%v, %v), want (true, 5s)", active, interval)
@@ -434,15 +444,12 @@ func TestRunReportLoopSendsNothingWhileLiveViewInactive(t *testing.T) {
 
 	var active atomic.Bool
 	configSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		seconds := 0
-		if active.Load() {
-			seconds = 1
-		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(struct {
-			ReportIntervalSeconds int `json:"report_interval_seconds"`
-			ConfigPollSeconds     int `json:"config_poll_seconds"`
-		}{ReportIntervalSeconds: seconds, ConfigPollSeconds: 1})
+			ReportIntervalSeconds int  `json:"report_interval_seconds"`
+			LiveViewActive        bool `json:"live_view_active"`
+			ConfigPollSeconds     int  `json:"config_poll_seconds"`
+		}{ReportIntervalSeconds: 1, LiveViewActive: active.Load(), ConfigPollSeconds: 1})
 	}))
 	defer configSrv.Close()
 

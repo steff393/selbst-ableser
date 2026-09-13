@@ -109,11 +109,12 @@ type UnitReport struct {
 }
 
 // kindDisplayOrder is UI-01's fixed reading order: heating first (the
-// figure with the most riding on it), then hot water — both required by
-// § 6a HeizkostenV — then cold water last, since it is informational only
+// figure with the most riding on it) — allocators, then heat meters, the
+// two ways heating is measured — then hot water, all required by § 6a
+// HeizkostenV, then cold water last, since it is informational only
 // (outside that law's scope; see FACH-05/FACH-06, which never mention it
 // for the kWh conversion).
-var kindDisplayOrder = []masterdata.Kind{masterdata.KindHeating, masterdata.KindHotWater, masterdata.KindColdWater}
+var kindDisplayOrder = []masterdata.Kind{masterdata.KindHeatCostAllocator, masterdata.KindHeatMeter, masterdata.KindHotWater, masterdata.KindColdWater}
 
 // LatestAvailableMonth finds the most recent day, no later than notAfter,
 // that any of unitID's meters has an archived entry for — a day within
@@ -130,7 +131,7 @@ func LatestAvailableMonth(store *archive.Store, md masterdata.MasterData, unitID
 	var latest telegram.Day
 	found := false
 	for _, mp := range md.MeterPoints {
-		if mp.UnitID != unitID {
+		if !mp.InUnit(unitID) {
 			continue
 		}
 		for _, m := range md.Meters {
@@ -165,7 +166,7 @@ func EarliestAvailableMonth(store *archive.Store, md masterdata.MasterData, unit
 	var earliest telegram.Day
 	found := false
 	for _, mp := range md.MeterPoints {
-		if mp.UnitID != unitID {
+		if !mp.InUnit(unitID) {
 			continue
 		}
 		for _, m := range md.Meters {
@@ -195,7 +196,7 @@ func BuildUnitReport(store *archive.Store, md masterdata.MasterData, building ma
 
 	kindsPresent := map[masterdata.Kind]bool{}
 	for _, mp := range md.MeterPoints {
-		if mp.UnitID == unitID {
+		if mp.InUnit(unitID) {
 			kindsPresent[mp.Kind] = true
 		}
 	}
@@ -216,7 +217,7 @@ func BuildUnitReport(store *archive.Store, md masterdata.MasterData, building ma
 
 	byKind := make(map[masterdata.Kind][]MeterPointReport)
 	for _, mp := range md.MeterPoints {
-		if mp.UnitID != unitID {
+		if !mp.InUnit(unitID) {
 			continue
 		}
 		mpReport, err := buildMeterPointReport(store, md, mp, targetMonth, lookbackDays)
@@ -341,12 +342,12 @@ func seriesForMeterPoint(store *archive.Store, md masterdata.MasterData, mp mast
 		return nil, nil // not enough data yet to report any consumption
 	}
 
-	resetsAnnually := mp.Kind == masterdata.KindHeating
-	resetMonth := func(meterNumber string, day telegram.Day) int {
+	resetsAnnually := mp.Kind.ResetsAnnually()
+	freezeMonth := func(meterNumber string, day telegram.Day) int {
 		if m, ok := md.MeterByNumber(meterNumber, day); ok {
-			return m.EffectiveResetMonth()
+			return m.EffectiveFreezeMonth()
 		}
-		return 1
+		return 12
 	}
 	kcFactor := func(meterNumber string, day telegram.Day) float64 {
 		if m, ok := md.MeterByNumber(meterNumber, day); ok {
@@ -354,7 +355,7 @@ func seriesForMeterPoint(store *archive.Store, md masterdata.MasterData, mp mast
 		}
 		return 1
 	}
-	return CalculateSeries(readings, resetsAnnually, resetMonth, kcFactor, SwapLookupFromMasterData(md, mp.ID))
+	return CalculateSeries(readings, resetsAnnually, freezeMonth, kcFactor, SwapLookupFromMasterData(md, mp.ID))
 }
 
 func buildMeterPointReport(store *archive.Store, md masterdata.MasterData, mp masterdata.MeterPoint, targetMonth telegram.Day, lookbackDays int) (*MeterPointReport, error) {
@@ -464,7 +465,7 @@ type YearSeries struct {
 // calendar year.
 func YearOverYearSeries(store *archive.Store, md masterdata.MasterData, unitID string, kind masterdata.Kind, year int, lookbackDays int) (YearSeries, error) {
 	return yearOverYearSeries(store, md, kind, year, lookbackDays, func(mp masterdata.MeterPoint) bool {
-		return mp.UnitID == unitID
+		return mp.InUnit(unitID)
 	})
 }
 
@@ -474,7 +475,9 @@ func YearOverYearSeries(store *archive.Store, md masterdata.MasterData, unitID s
 // Same fixed-calendar-year rule as YearOverYearSeries applies, for the
 // same reason.
 func BuildingYearOverYearSeries(store *archive.Store, md masterdata.MasterData, kind masterdata.Kind, year int, lookbackDays int) (YearSeries, error) {
-	return yearOverYearSeries(store, md, kind, year, lookbackDays, func(masterdata.MeterPoint) bool { return true })
+	return yearOverYearSeries(store, md, kind, year, lookbackDays, func(mp masterdata.MeterPoint) bool {
+		return mp.PartOfBilling()
+	})
 }
 
 // yearOverYearSeries is the shared core of YearOverYearSeries and
@@ -532,7 +535,7 @@ func BuildingComparisonForMonth(store *archive.Store, md masterdata.MasterData, 
 	targetLabel := string(targetMonth)[:7]
 
 	for _, mp := range md.MeterPoints {
-		if mp.Kind != kind {
+		if mp.Kind != kind || !mp.PartOfBilling() {
 			continue
 		}
 		results, err := seriesForMeterPoint(store, md, mp, rangeStart, targetMonth, lookbackDays)

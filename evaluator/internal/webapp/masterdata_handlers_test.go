@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -20,55 +19,60 @@ func readBody(t *testing.T, resp *http.Response) string {
 	return string(raw)
 }
 
-// postMasterDataGrids submits both grids together, exactly as the browser
-// does (one shared form, one submit) — see handleMasterDataSave for why
-// units and the combined meter-point/meter grid cannot be saved
-// independently.
-func postMasterDataGrids(t *testing.T, client *http.Client, srvURL, csrfToken string, units []unitRow, meterGrid []meterGridRow) string {
+// postMasterDataGrids saves the three tables one after the other, in the
+// order the dependencies run: a meter point needs its unit, a meter needs
+// its meter point. That is how the tabs are used too — each table has its
+// own save button.
+//
+// The bodies are returned joined, so a test can look for its error
+// message without caring which of the three requests produced it.
+func postMasterDataGrids(t *testing.T, client *http.Client, srvURL, csrfToken string, grids masterDataGrids) string {
 	t.Helper()
-	unitsJSON, err := json.Marshal(units)
-	if err != nil {
-		t.Fatal(err)
+	var bodies []string
+	for _, table := range []struct {
+		name string
+		rows interface{}
+	}{
+		{"units", grids.Units},
+		{"meterpoints", grids.MeterPoints},
+		{"meters", grids.Meters},
+	} {
+		raw, err := json.Marshal(table.rows)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := client.PostForm(srvURL+"/operator/masterdata", url.Values{
+			"csrf_token": {csrfToken},
+			"table":      {table.name},
+			"rows":       {string(raw)},
+		})
+		if err != nil {
+			t.Fatalf("POST %s: %v", table.name, err)
+		}
+		bodies = append(bodies, readBody(t, resp))
+		resp.Body.Close()
 	}
-	metersJSON, err := json.Marshal(meterGrid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp, err := client.PostForm(srvURL+"/operator/masterdata", url.Values{
-		"csrf_token":  {csrfToken},
-		"units_json":  {string(unitsJSON)},
-		"meters_json": {string(metersJSON)},
-	})
-	if err != nil {
-		t.Fatalf("POST: %v", err)
-	}
-	defer resp.Body.Close()
-	return readBody(t, resp)
+	return strings.Join(bodies, "; ")
 }
 
-func TestMasterDataSaveCreatesNewMeterPointAndItsFirstMeterTogether(t *testing.T) {
-	// This is exactly the workflow that used to be impossible: a meter
-	// point and its first meter are both brand new, so neither can be
-	// saved before the other exists. Submitted together in one row,
-	// Validate sees a single consistent graph and both are accepted.
-	app, mdPath := newTestApp(t)
-	if err := app.Vault.Unlock(mdPath, testPassword); err != nil {
-		t.Fatalf("Unlock: %v", err)
+// oneMeterGrids is the smallest complete submission: one unit, one meter
+// point, and one meter at it.
+func oneMeterGrids(kind string, meter meterRow) masterDataGrids {
+	meter.MeterPointID = "mp1"
+	return masterDataGrids{
+		Units:       []unitRow{{ID: "u1", Name: "Erdgeschoss", AreaM2: "50"}},
+		MeterPoints: []meterPointRow{{ID: "mp1", UnitID: "u1", Room: "Bad", Kind: kind}},
+		Meters:      []meterRow{meter},
 	}
+}
 
-	srv := httptest.NewServer(app.Routes())
-	defer srv.Close()
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	loginAsOperator(t, client, srv.URL)
-	sess := lookupSession(t, app, jar, srv.URL)
+func TestMasterDataSaveAcceptsTheThreeTablesInOrder(t *testing.T) {
+	// Saved separately but checked together: each table is written on its
+	// own, and masterdata.Validate sees the whole graph every time.
+	app, client, srvURL, csrf := unlockedOperatorClient(t)
 
-	units := []unitRow{{ID: "u1", Name: "Erdgeschoss", AreaM2: "50"}}
-	grid := []meterGridRow{{
-		MeterPointID: "mp1", UnitID: "u1", Room: "Bad", Kind: "hot_water",
-		Number: "10000001", InstalledAt: "01.03.2025",
-	}}
-	body := postMasterDataGrids(t, client, srv.URL, sess.CSRFToken, units, grid)
+	body := postMasterDataGrids(t, client, srvURL, csrf,
+		oneMeterGrids("hot_water", meterRow{Number: "10000001", InstalledAt: "01.03.2025"}))
 	if strings.Contains(body, "Prüfung fehlgeschlagen") {
 		t.Fatalf("expected the combined save to succeed, got: %s", body)
 	}
@@ -81,149 +85,91 @@ func TestMasterDataSaveCreatesNewMeterPointAndItsFirstMeterTogether(t *testing.T
 		t.Fatalf("md after save = %+v, want one of each", md)
 	}
 	if md.Meters[0].InstalledAt != "2025-03-01" {
-		t.Errorf("InstalledAt = %q, want the German-format date converted to 2025-03-01", md.Meters[0].InstalledAt)
+		t.Errorf("InstalledAt = %q, want the German-format date converted", md.Meters[0].InstalledAt)
 	}
 }
 
 func TestMasterDataSaveAllowsEmptyAESKey(t *testing.T) {
-	app, mdPath := newTestApp(t)
-	if err := app.Vault.Unlock(mdPath, testPassword); err != nil {
-		t.Fatalf("Unlock: %v", err)
-	}
+	app, client, srvURL, csrf := unlockedOperatorClient(t)
 
-	srv := httptest.NewServer(app.Routes())
-	defer srv.Close()
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	loginAsOperator(t, client, srv.URL)
-	sess := lookupSession(t, app, jar, srv.URL)
-
-	units := []unitRow{{ID: "u1", Name: "Erdgeschoss", AreaM2: "50"}}
-	grid := []meterGridRow{{
-		MeterPointID: "mp1", UnitID: "u1", Room: "Bad", Kind: "hot_water",
-		Number: "10000001", InstalledAt: "2025-03-01", AESKey: "",
-	}}
-	body := postMasterDataGrids(t, client, srv.URL, sess.CSRFToken, units, grid)
+	body := postMasterDataGrids(t, client, srvURL, csrf,
+		oneMeterGrids("hot_water", meterRow{Number: "10000001", InstalledAt: "2025-03-01", AESKey: ""}))
 	if strings.Contains(body, "AES-Schlüssel muss") {
 		t.Fatalf("expected an empty AES key to be accepted, got: %s", body)
 	}
 
-	md, ok := app.Vault.Get()
-	if !ok {
-		t.Fatal("vault unexpectedly locked after save")
-	}
+	md, _ := app.Vault.Get()
 	if len(md.Meters) != 1 || md.Meters[0].AESKey != ([16]byte{}) {
 		t.Fatalf("meter after save = %+v, want a zero-value AES key", md.Meters)
 	}
 }
 
 func TestMasterDataSaveRejectsBadAESKey(t *testing.T) {
-	app, mdPath := newTestApp(t)
-	if err := app.Vault.Unlock(mdPath, testPassword); err != nil {
-		t.Fatalf("Unlock: %v", err)
-	}
+	_, client, srvURL, csrf := unlockedOperatorClient(t)
 
-	srv := httptest.NewServer(app.Routes())
-	defer srv.Close()
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	loginAsOperator(t, client, srv.URL)
-	sess := lookupSession(t, app, jar, srv.URL)
-
-	units := []unitRow{{ID: "u1", Name: "Erdgeschoss", AreaM2: "50"}}
-	grid := []meterGridRow{{
-		MeterPointID: "mp1", UnitID: "u1", Room: "Bad", Kind: "hot_water",
-		Number: "10000001", InstalledAt: "2025-03-01", AESKey: "not-hex",
-	}}
-	body := postMasterDataGrids(t, client, srv.URL, sess.CSRFToken, units, grid)
+	body := postMasterDataGrids(t, client, srvURL, csrf,
+		oneMeterGrids("hot_water", meterRow{Number: "10000001", InstalledAt: "2025-03-01", AESKey: "not-hex"}))
 	if !strings.Contains(body, "AES-Schlüssel muss leer oder genau 32 Hex-Zeichen sein") {
 		t.Errorf("expected the bad-AES-key error, got: %s", body)
 	}
 }
 
-func TestMasterDataSaveAcceptsResetMonth(t *testing.T) {
-	app, mdPath := newTestApp(t)
-	if err := app.Vault.Unlock(mdPath, testPassword); err != nil {
-		t.Fatalf("Unlock: %v", err)
-	}
+func TestMasterDataSaveAcceptsFreezeMonth(t *testing.T) {
+	app, client, srvURL, csrf := unlockedOperatorClient(t)
 
-	srv := httptest.NewServer(app.Routes())
-	defer srv.Close()
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	loginAsOperator(t, client, srv.URL)
-	sess := lookupSession(t, app, jar, srv.URL)
-
-	units := []unitRow{{ID: "u1", Name: "Erdgeschoss", AreaM2: "50"}}
-	grid := []meterGridRow{{
-		MeterPointID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: "heating",
-		Number: "10000001", InstalledAt: "2025-03-01", ResetMonth: "6",
-	}}
-	body := postMasterDataGrids(t, client, srv.URL, sess.CSRFToken, units, grid)
+	body := postMasterDataGrids(t, client, srvURL, csrf,
+		oneMeterGrids("heating", meterRow{Number: "10000001", InstalledAt: "2025-03-01", FreezeMonth: "6"}))
 	if strings.Contains(body, "Prüfung fehlgeschlagen") || strings.Contains(body, "ungültiger Stichtag-Monat") {
-		t.Fatalf("expected reset month 6 to be accepted, got: %s", body)
+		t.Fatalf("expected freeze month 6 to be accepted, got: %s", body)
 	}
 
-	md, ok := app.Vault.Get()
-	if !ok {
-		t.Fatal("vault unexpectedly locked after save")
-	}
-	if len(md.Meters) != 1 || md.Meters[0].ResetMonth != 6 {
-		t.Fatalf("meter after save = %+v, want ResetMonth 6", md.Meters)
+	md, _ := app.Vault.Get()
+	if len(md.Meters) != 1 || md.Meters[0].FreezeMonth != 6 {
+		t.Fatalf("meter after save = %+v, want FreezeMonth 6", md.Meters)
 	}
 }
 
-func TestMasterDataSaveRejectsResetMonthOutOfRange(t *testing.T) {
-	app, mdPath := newTestApp(t)
-	if err := app.Vault.Unlock(mdPath, testPassword); err != nil {
-		t.Fatalf("Unlock: %v", err)
-	}
+func TestMasterDataSaveRejectsFreezeMonthOutOfRange(t *testing.T) {
+	_, client, srvURL, csrf := unlockedOperatorClient(t)
 
-	srv := httptest.NewServer(app.Routes())
-	defer srv.Close()
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	loginAsOperator(t, client, srv.URL)
-	sess := lookupSession(t, app, jar, srv.URL)
-
-	units := []unitRow{{ID: "u1", Name: "Erdgeschoss", AreaM2: "50"}}
-	grid := []meterGridRow{{
-		MeterPointID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: "heating",
-		Number: "10000001", InstalledAt: "2025-03-01", ResetMonth: "13",
-	}}
-	body := postMasterDataGrids(t, client, srv.URL, sess.CSRFToken, units, grid)
+	body := postMasterDataGrids(t, client, srvURL, csrf,
+		oneMeterGrids("heating", meterRow{Number: "10000001", InstalledAt: "2025-03-01", FreezeMonth: "13"}))
 	if !strings.Contains(body, "ungültiger Stichtag-Monat") {
-		t.Errorf("expected the bad-reset-month error, got: %s", body)
+		t.Errorf("expected the bad-freeze-month error, got: %s", body)
+	}
+}
+
+// TestMasterDataSaveRejectsHalfARemoval: an end reading without a removal
+// date, or the other way round, is half a swap and cannot be evaluated.
+func TestMasterDataSaveRejectsHalfARemoval(t *testing.T) {
+	_, client, srvURL, csrf := unlockedOperatorClient(t)
+
+	body := postMasterDataGrids(t, client, srvURL, csrf,
+		oneMeterGrids("heating", meterRow{Number: "10000001", InstalledAt: "2025-03-01", EndReading: "500"}))
+	if !strings.Contains(body, "gehören zusammen") {
+		t.Errorf("expected the half-removal error, got: %s", body)
 	}
 }
 
 func TestMasterDataSaveAcceptsGermanAndISODates(t *testing.T) {
-	app, mdPath := newTestApp(t)
-	if err := app.Vault.Unlock(mdPath, testPassword); err != nil {
-		t.Fatalf("Unlock: %v", err)
-	}
+	app, client, srvURL, csrf := unlockedOperatorClient(t)
 
-	srv := httptest.NewServer(app.Routes())
-	defer srv.Close()
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	loginAsOperator(t, client, srv.URL)
-	sess := lookupSession(t, app, jar, srv.URL)
-
-	units := []unitRow{{ID: "u1", Name: "Erdgeschoss", AreaM2: "50"}}
-	grid := []meterGridRow{
-		{MeterPointID: "mp1", UnitID: "u1", Room: "Bad", Kind: "hot_water", Number: "10000001", InstalledAt: "15.03.2025"},
-		{MeterPointID: "mp2", UnitID: "u1", Room: "Küche", Kind: "cold_water", Number: "10000002", InstalledAt: "2025-03-15"},
-	}
-	body := postMasterDataGrids(t, client, srv.URL, sess.CSRFToken, units, grid)
+	body := postMasterDataGrids(t, client, srvURL, csrf, masterDataGrids{
+		Units: []unitRow{{ID: "u1", Name: "Erdgeschoss", AreaM2: "50"}},
+		MeterPoints: []meterPointRow{
+			{ID: "mp1", UnitID: "u1", Room: "Bad", Kind: "hot_water"},
+			{ID: "mp2", UnitID: "u1", Room: "Küche", Kind: "cold_water"},
+		},
+		Meters: []meterRow{
+			{Number: "10000001", MeterPointID: "mp1", InstalledAt: "15.03.2025"},
+			{Number: "10000002", MeterPointID: "mp2", InstalledAt: "2025-03-15"},
+		},
+	})
 	if strings.Contains(body, "Prüfung fehlgeschlagen") || strings.Contains(body, "ungültiges Einbaudatum") {
 		t.Fatalf("expected both date formats to be accepted, got: %s", body)
 	}
 
-	md, ok := app.Vault.Get()
-	if !ok {
-		t.Fatal("vault unexpectedly locked after save")
-	}
+	md, _ := app.Vault.Get()
 	for _, m := range md.Meters {
 		if m.InstalledAt != "2025-03-15" {
 			t.Errorf("meter %s InstalledAt = %q, want 2025-03-15", m.Number, m.InstalledAt)
@@ -232,152 +178,94 @@ func TestMasterDataSaveAcceptsGermanAndISODates(t *testing.T) {
 }
 
 func TestMasterDataSaveRejectsEmptyUnitID(t *testing.T) {
-	app, mdPath := newTestApp(t)
-	if err := app.Vault.Unlock(mdPath, testPassword); err != nil {
-		t.Fatalf("Unlock: %v", err)
-	}
+	app, client, srvURL, csrf := unlockedOperatorClient(t)
 
-	srv := httptest.NewServer(app.Routes())
-	defer srv.Close()
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	loginAsOperator(t, client, srv.URL)
-	sess := lookupSession(t, app, jar, srv.URL)
-
-	body := postMasterDataGrids(t, client, srv.URL, sess.CSRFToken,
-		[]unitRow{{ID: "", Name: "ohne ID", AreaM2: "10"}}, nil)
+	body := postMasterDataGrids(t, client, srvURL, csrf, masterDataGrids{
+		Units: []unitRow{{ID: "", Name: "ohne ID", AreaM2: "10"}},
+	})
 	if !strings.Contains(body, "ID darf nicht leer sein") {
 		t.Errorf("expected the empty-ID error, got: %s", body)
 	}
 
-	md, ok := app.Vault.Get()
-	if !ok {
-		t.Fatal("vault unexpectedly locked")
-	}
+	md, _ := app.Vault.Get()
 	if len(md.Units) != 0 {
 		t.Errorf("invalid row must not have been saved, got %+v", md.Units)
 	}
 }
 
 func TestMasterDataSaveRejectsUnknownKind(t *testing.T) {
-	app, mdPath := newTestApp(t)
-	if err := app.Vault.Unlock(mdPath, testPassword); err != nil {
-		t.Fatalf("Unlock: %v", err)
-	}
+	_, client, srvURL, csrf := unlockedOperatorClient(t)
 
-	srv := httptest.NewServer(app.Routes())
-	defer srv.Close()
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	loginAsOperator(t, client, srv.URL)
-	sess := lookupSession(t, app, jar, srv.URL)
-
-	body := postMasterDataGrids(t, client, srv.URL, sess.CSRFToken,
-		nil, []meterGridRow{{MeterPointID: "mp1", UnitID: "u1", Room: "Bad", Kind: "solar", Number: "10000001", InstalledAt: "2025-03-01"}})
+	body := postMasterDataGrids(t, client, srvURL, csrf, masterDataGrids{
+		MeterPoints: []meterPointRow{{ID: "mp1", UnitID: "u1", Room: "Bad", Kind: "solar"}},
+	})
 	if !strings.Contains(body, "unbekannte Verbrauchsart") {
 		t.Errorf("expected the unknown-kind error, got: %s", body)
 	}
 }
 
-// TestMasterDataSaveAcceptsMeterPointWithNoMeter: laying out the rooms
-// before the devices are mounted is a normal working state, so a row that
-// establishes a meter point and names no meter must save as a meter point
-// on its own rather than being rejected (STAMM-02 reports the gap, it
-// does not forbid it).
-func TestMasterDataSaveAcceptsMeterPointWithNoMeter(t *testing.T) {
-	app, mdPath := newTestApp(t)
-	if err := app.Vault.Unlock(mdPath, testPassword); err != nil {
-		t.Fatalf("Unlock: %v", err)
+// TestMasterDataSaveAcceptsMeterPointWithoutMeterOrUnit covers the two
+// states that are normal rather than broken: a meter point whose device
+// is not mounted yet, and one that belongs to no unit at all because it
+// measures the house.
+func TestMasterDataSaveAcceptsMeterPointWithoutMeterOrUnit(t *testing.T) {
+	app, client, srvURL, csrf := unlockedOperatorClient(t)
+
+	body := postMasterDataGrids(t, client, srvURL, csrf, masterDataGrids{
+		Units: []unitRow{{ID: "u1", Name: "Wohnung 1", AreaM2: "50"}},
+		MeterPoints: []meterPointRow{
+			{ID: "mp1", UnitID: "u1", Room: "Bad", Kind: "hot_water"},
+			{ID: "haus", Room: "Heizraum", Kind: "heat_meter"},
+		},
+	})
+	if strings.Contains(body, "Prüfung fehlgeschlagen") {
+		t.Fatalf("both meter points are legitimate, got: %s", body)
 	}
 
-	srv := httptest.NewServer(app.Routes())
-	defer srv.Close()
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	loginAsOperator(t, client, srv.URL)
-	sess := lookupSession(t, app, jar, srv.URL)
-
-	postMasterDataGrids(t, client, srv.URL, sess.CSRFToken,
-		[]unitRow{{ID: "u1", Name: "Wohnung 1", AreaM2: "50"}},
-		[]meterGridRow{{MeterPointID: "mp1", UnitID: "u1", Room: "Bad", Kind: "hot_water"}})
-
-	md, ok := app.Vault.Get()
-	if !ok {
-		t.Fatal("vault should still be unlocked")
-	}
-	if len(md.MeterPoints) != 1 || md.MeterPoints[0].ID != "mp1" {
-		t.Fatalf("the meter point should have been saved, got: %+v", md.MeterPoints)
+	md, _ := app.Vault.Get()
+	if len(md.MeterPoints) != 2 {
+		t.Fatalf("meter points = %+v, want both", md.MeterPoints)
 	}
 	if len(md.Meters) != 0 {
 		t.Errorf("no meter should have been invented, got: %+v", md.Meters)
 	}
 }
 
-func TestMasterDataSaveKeepsMeterHistoryAcrossRowsForSamePoint(t *testing.T) {
-	// Two rows sharing the same MeterPointID represent that point's
-	// meter history, matching how the grid already showed one row per
-	// meter before meter points had their own fields too.
-	app, mdPath := newTestApp(t)
-	if err := app.Vault.Unlock(mdPath, testPassword); err != nil {
-		t.Fatalf("Unlock: %v", err)
-	}
+func TestMasterDataSaveRejectsDuplicateMeterPointID(t *testing.T) {
+	_, client, srvURL, csrf := unlockedOperatorClient(t)
 
-	srv := httptest.NewServer(app.Routes())
-	defer srv.Close()
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	loginAsOperator(t, client, srv.URL)
-	sess := lookupSession(t, app, jar, srv.URL)
-
-	units := []unitRow{{ID: "u1", Name: "Erdgeschoss", AreaM2: "50"}}
-	grid := []meterGridRow{
-		{
-			MeterPointID: "mp1", UnitID: "u1", Room: "Bad", Kind: "hot_water",
-			Number: "10000001", InstalledAt: "01.01.2020", RemovedAt: "01.03.2025", EndReading: "500",
+	body := postMasterDataGrids(t, client, srvURL, csrf, masterDataGrids{
+		Units: []unitRow{{ID: "u1", Name: "Erdgeschoss", AreaM2: "50"}},
+		MeterPoints: []meterPointRow{
+			{ID: "mp1", UnitID: "u1", Room: "Bad", Kind: "hot_water"},
+			{ID: "mp1", UnitID: "u1", Room: "Küche", Kind: "cold_water"},
 		},
-		{
-			MeterPointID: "mp1", UnitID: "u1", Room: "Bad", Kind: "hot_water",
-			Number: "10000002", InstalledAt: "01.03.2025",
-		},
+	})
+	if !strings.Contains(body, "kommt in mehreren Zeilen vor") {
+		t.Errorf("expected the duplicate-ID error, got: %s", body)
 	}
-	body := postMasterDataGrids(t, client, srv.URL, sess.CSRFToken, units, grid)
+}
+
+// TestMasterDataSaveKeepsMeterHistoryAtOnePoint: two devices at the same
+// meter point, the first closed off on the day the second was installed.
+func TestMasterDataSaveKeepsMeterHistoryAtOnePoint(t *testing.T) {
+	app, client, srvURL, csrf := unlockedOperatorClient(t)
+
+	body := postMasterDataGrids(t, client, srvURL, csrf, masterDataGrids{
+		Units:       []unitRow{{ID: "u1", Name: "Erdgeschoss", AreaM2: "50"}},
+		MeterPoints: []meterPointRow{{ID: "mp1", UnitID: "u1", Room: "Bad", Kind: "hot_water"}},
+		Meters: []meterRow{
+			{Number: "10000001", MeterPointID: "mp1", InstalledAt: "01.01.2020", RemovedAt: "01.03.2025", EndReading: "500"},
+			{Number: "10000002", MeterPointID: "mp1", InstalledAt: "01.03.2025"},
+		},
+	})
 	if strings.Contains(body, "Prüfung fehlgeschlagen") {
 		t.Fatalf("expected the two-meter history to be accepted, got: %s", body)
 	}
 
-	md, ok := app.Vault.Get()
-	if !ok {
-		t.Fatal("vault unexpectedly locked after save")
-	}
-	if len(md.MeterPoints) != 1 {
-		t.Fatalf("meter points = %+v, want exactly one (shared by both meters)", md.MeterPoints)
-	}
-	if len(md.Meters) != 2 {
-		t.Fatalf("meters = %+v, want two", md.Meters)
-	}
-}
-
-func TestMasterDataSaveRejectsInconsistentPointFieldsAcrossRows(t *testing.T) {
-	app, mdPath := newTestApp(t)
-	if err := app.Vault.Unlock(mdPath, testPassword); err != nil {
-		t.Fatalf("Unlock: %v", err)
-	}
-
-	srv := httptest.NewServer(app.Routes())
-	defer srv.Close()
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	loginAsOperator(t, client, srv.URL)
-	sess := lookupSession(t, app, jar, srv.URL)
-
-	units := []unitRow{{ID: "u1", Name: "Erdgeschoss", AreaM2: "50"}}
-	grid := []meterGridRow{
-		{MeterPointID: "mp1", UnitID: "u1", Room: "Bad", Kind: "hot_water", Number: "10000001", InstalledAt: "01.01.2020", RemovedAt: "01.03.2025", EndReading: "500"},
-		{MeterPointID: "mp1", UnitID: "u1", Room: "GEÄNDERT", Kind: "hot_water", Number: "10000002", InstalledAt: "01.03.2025"},
-	}
-	body := postMasterDataGrids(t, client, srv.URL, sess.CSRFToken, units, grid)
-	if !strings.Contains(body, "stimmen nicht") {
-		t.Errorf("expected the inconsistent-point-fields error, got: %s", body)
+	md, _ := app.Vault.Get()
+	if len(md.MeterPoints) != 1 || len(md.Meters) != 2 {
+		t.Fatalf("md = %d meter points, %d meters, want 1 and 2", len(md.MeterPoints), len(md.Meters))
 	}
 }
 

@@ -19,26 +19,54 @@ var templateFuncs = template.FuncMap{
 	"sub":       func(a, b int) int { return a - b },
 	"kindLabel": kindLabel,
 	"unitLabel": kindValueUnit,
-	// consumption formats a heating (dimensionless HKV units, no decimals)
-	// or water (stored/computed in liters, shown as m³ with 3 decimals —
-	// i.e. down to the liter, matching what a physical water meter's dial
-	// actually shows) reading or consumption figure for display. v may be
-	// float64 (a computed consumption/comparison figure) or int64 (a raw
-	// meter reading) — both occur in the UVI view.
+	// consumption formats a heating (dimensionless HKV units or a heat
+	// meter's kWh, no decimals) or water (stored/computed in liters, shown
+	// as m³ with 3 decimals — i.e. down to the liter, matching what a
+	// physical water meter's dial actually shows) reading or consumption
+	// figure for display. v may be float64 (a computed consumption/
+	// comparison figure) or int64 (a raw meter reading) — both occur in
+	// the UVI view.
 	"consumption": consumptionLabel,
+	// heating is true for both ways heating is measured, allocator and
+	// heat meter — the UVI gives both the same symbol.
+	"heating": func(k masterdata.Kind) bool {
+		return k == masterdata.KindHeatCostAllocator || k == masterdata.KindHeatMeter
+	},
+	"isAllocator": func(k masterdata.Kind) bool { return k == masterdata.KindHeatCostAllocator },
+	"countsKWh":   func(k masterdata.Kind) bool { return k.CountsKWh() },
 	"monthLabel":  germanMonthLabel,
 	"bytesHuman":  bytesHuman,
 }
 
-// kindValueUnit is the display unit for a consumption kind. Named rather
-// than inlined into templateFuncs because the chart handler needs the
-// exact same answer (see buildChartView): a chart labelled in different
-// units than the table under it would be worse than no chart.
-func kindValueUnit(k masterdata.Kind) string {
-	if k == masterdata.KindHeating {
-		return "Einheiten"
+// unitLabel names the unit a meter point belongs to, for display. A meter
+// point with no unit is the house's own device (a heat meter, the gas
+// meter, the main water meter); it must read as that rather than as an
+// empty cell, which looks like missing data.
+func unitLabel(names map[string]string, unitID string) string {
+	if unitID == "" {
+		return "Hauszähler"
 	}
-	return "m³" // FACH-05: water's display unit is m³, not the liters it's stored/computed in
+	if name, ok := names[unitID]; ok && name != "" {
+		return name
+	}
+	return unitID
+}
+
+// kindValueUnit is the display unit for a consumption kind. Named rather
+// than inlined into templateFuncs because the chart handlers need the
+// exact same answer (see chartScale): a chart labelled in different units
+// than the table under it would be worse than no chart.
+func kindValueUnit(k masterdata.Kind) string {
+	switch k {
+	case masterdata.KindHeatCostAllocator:
+		return "Einheiten"
+	case masterdata.KindHeatMeter:
+		return "kWh"
+	default:
+		// Water (FACH-05: displayed in m³, not the liters it is stored
+		// and computed in) and gas, which is metered in m³ as well.
+		return "m³"
+	}
 }
 
 func consumptionLabel(k masterdata.Kind, v any) string {
@@ -49,10 +77,8 @@ func consumptionLabel(k masterdata.Kind, v any) string {
 	case int64:
 		f = float64(n)
 	}
-	if k == masterdata.KindHeating {
-		return fmt.Sprintf("%.0f", f)
-	}
-	return fmt.Sprintf("%.3f", f/1000)
+	divisor, decimals := chartScale(k)
+	return fmt.Sprintf("%.*f", decimals, f/divisor)
 }
 
 // kindLabel is the German display label for a consumption kind, shared
@@ -61,8 +87,13 @@ func consumptionLabel(k masterdata.Kind, v any) string {
 // a second copy of this mapping.
 func kindLabel(k masterdata.Kind) string {
 	switch k {
-	case masterdata.KindHeating:
+	case masterdata.KindHeatCostAllocator:
 		return "Heizung"
+	case masterdata.KindHeatMeter:
+		// Still "Heizung" first — it is the same Verbrauchsart to a tenant
+		// — but told apart from the allocator figure, which a house with
+		// both radiators and underfloor heating shows alongside it.
+		return "Heizung (Wärmemenge)"
 	case masterdata.KindHotWater:
 		return "Warmwasser"
 	case masterdata.KindColdWater:

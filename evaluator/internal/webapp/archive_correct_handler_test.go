@@ -24,7 +24,7 @@ func setupCorrectionMeter(t *testing.T, app *App, mdPath string, key [16]byte) {
 	}
 	md, _ := app.Vault.Get()
 	md.Units = append(md.Units, masterdata.Unit{ID: "u1", Name: "Erdgeschoss", AreaM2: 50})
-	md.MeterPoints = append(md.MeterPoints, masterdata.MeterPoint{ID: "mp1", UnitID: "u1", Room: "Bad", Kind: masterdata.KindHeating})
+	md.MeterPoints = append(md.MeterPoints, masterdata.MeterPoint{ID: "mp1", UnitID: "u1", Room: "Bad", Kind: masterdata.KindHeatCostAllocator})
 	md.Meters = append(md.Meters, masterdata.Meter{
 		Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDayT(t, "2025-01-01"),
 	})

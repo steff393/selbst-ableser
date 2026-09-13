@@ -91,7 +91,7 @@
       {{range .Cells}}
       <td>
         {{if .Found}}{{consumption .Kind .Value}} {{unitLabel .Kind}}
-          {{if .KWhFound}}<div class="hint">{{printf "%.0f" .KWh}} kWh</div>{{end}}
+          {{if and .KWhFound (not (countsKWh .Kind))}}<div class="hint">{{printf "%.0f" .KWh}} kWh</div>{{end}}
         {{else}}<span class="hint">—</span>{{end}}
       </td>
       <td>

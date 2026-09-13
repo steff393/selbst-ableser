@@ -18,11 +18,16 @@ import (
 )
 
 type liveRow struct {
-	MeterID          string
-	Length           int // raw telegram length in bytes
-	ReceivedAt       string
-	RSSI             int
-	RSSIQuality      string
+	MeterID     string
+	Length      int // raw telegram length in bytes
+	ReceivedAt  string
+	RSSI        int
+	RSSIQuality string
+	// RSSIReported distinguishes "no signal strength measured" from a
+	// reading that happens to be zero: not every receiver delivers one
+	// (see telegram.ClassifyRSSI), and showing those as "0 dBm" would
+	// invent a measurement that was never taken.
+	RSSIReported     bool
 	DeviceType       string
 	DeviceTypeName   string
 	Manufacturer     string
@@ -144,13 +149,14 @@ func meterIntervals(entries []livepush.Telegram) map[string]time.Duration {
 // per-length grouping and passes it through rather than decoding twice).
 func (a *App) buildLiveRow(e livepush.Telegram, raw []byte, md masterdata.MasterData, unlocked bool) liveRow {
 	row := liveRow{
-		MeterID:     e.MeterID,
-		Length:      len(raw),
-		ReceivedAt:  e.ReceivedAt.Format("2006-01-02 15:04:05"),
-		RSSI:        e.RSSI,
-		RSSIQuality: telegram.ClassifyRSSI(e.RSSI).String(),
-		Value:       "n.a.",
-		DecodeURL:   wmbusmetersURL(e.RawHex, [16]byte{}),
+		MeterID:      e.MeterID,
+		Length:       len(raw),
+		ReceivedAt:   e.ReceivedAt.Format("2006-01-02 15:04:05"),
+		RSSI:         e.RSSI,
+		RSSIQuality:  telegram.ClassifyRSSI(e.RSSI).String(),
+		RSSIReported: telegram.ClassifyRSSI(e.RSSI) != telegram.SignalUnknown,
+		Value:        "n.a.",
+		DecodeURL:    wmbusmetersURL(e.RawHex, [16]byte{}),
 	}
 	if len(raw) < 11 {
 		return row
@@ -158,10 +164,6 @@ func (a *App) buildLiveRow(e livepush.Telegram, raw []byte, md masterdata.Master
 
 	row.Manufacturer = telegram.Manufacturer(binary.LittleEndian.Uint16(raw[2:4]))
 	row.ManufacturerName, _ = telegram.ManufacturerName(row.Manufacturer)
-	if dt, ok := telegram.IdentifyDeviceType(raw[9]); ok {
-		row.DeviceType = dt.Abbr
-		row.DeviceTypeName = dt.Name
-	}
 	row.AESIcon, row.AESTitle = aesLockIcon(raw[10])
 
 	var key [16]byte
@@ -172,6 +174,14 @@ func (a *App) buildLiveRow(e livepush.Telegram, raw []byte, md masterdata.Master
 		}
 	}
 	row.DecodeURL = wmbusmetersURL(e.RawHex, key)
+
+	// Classified after the key is resolved, not before: deviceMedium can
+	// read a device's real medium out of the application layer, which for
+	// an encrypted telegram needs that key.
+	if dt, ok := telegram.IdentifyDeviceType(deviceMedium(raw, key)); ok {
+		row.DeviceType = dt.Abbr
+		row.DeviceTypeName = dt.Name
+	}
 
 	if reading, found, err := billing.ReadValue(archive.Entry{RawHex: e.RawHex}, key); err == nil && found {
 		row.Evaluable = true

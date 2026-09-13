@@ -260,3 +260,44 @@ func (s *Store) LastSeen(meterID string) (telegram.Day, bool, error) {
 	}
 	return telegram.Day(day.String), true, nil
 }
+
+// SeenMeter is one meter the archive has heard from, together with the
+// raw telegram of the most recent day it was heard on — enough to read
+// the header fields (manufacturer, medium) without loading a history.
+type SeenMeter struct {
+	ID      string
+	LastDay telegram.Day
+	RawHex  string
+}
+
+// MetersSeenSince lists every meter with an archived entry on or after
+// from, whether or not the master data knows it — that is the whole point
+// of asking the archive rather than the master data. The collector never
+// learns which meters are known (ARCH-01), so it archives every meter it
+// receives, and a device that has started transmitting but has not been
+// entered anywhere is visible here and nowhere else.
+func (s *Store) MetersSeenSince(from telegram.Day) ([]SeenMeter, error) {
+	const stmt = `
+SELECT t.meter_id, t.day, t.raw_hex
+FROM telegrams t
+JOIN (
+	SELECT meter_id, MAX(day) AS last_day FROM telegrams WHERE day >= ? GROUP BY meter_id
+) newest ON t.meter_id = newest.meter_id AND t.day = newest.last_day
+ORDER BY t.meter_id;`
+
+	rows, err := s.db.Query(stmt, string(from))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var seen []SeenMeter
+	for rows.Next() {
+		var m SeenMeter
+		if err := rows.Scan(&m.ID, &m.LastDay, &m.RawHex); err != nil {
+			return nil, err
+		}
+		seen = append(seen, m)
+	}
+	return seen, rows.Err()
+}

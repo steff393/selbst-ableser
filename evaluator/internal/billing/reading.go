@@ -66,10 +66,7 @@ func ReadValue(entry archive.Entry, key [16]byte) (decode.Reading, bool, error) 
 		return decode.Reading{}, false, nil
 	}
 
-	records, ok, err := decode.Standard(frame.CI, result.Payload)
-	if err != nil {
-		return decode.Reading{}, false, err
-	}
+	records, ok, walkErr := decode.Standard(frame.CI, result.Payload)
 	if !ok {
 		// Manufacturer-specific (CI 0xA0-0xB7): no self-describing records
 		// to walk, so fall back to whatever decoder is registered for this
@@ -77,8 +74,23 @@ func ReadValue(entry archive.Entry, key [16]byte) (decode.Reading, bool, error) 
 		return decode.ManufacturerSpecific(telegram.Manufacturer(frame.M), result.Payload)
 	}
 	reading, found, err := decode.CurrentValue(records)
-	if err != nil || !found {
+	if err != nil {
 		return decode.Reading{}, false, err
 	}
-	return reading, true, nil
+	if !found {
+		// No standard value record: the value may still sit in a
+		// manufacturer-specific record among the standard ones (a Qundis
+		// heat meter's measurement block), decoded by whatever is
+		// registered for this manufacturer.
+		reading, _, found, err = decode.ManufacturerRecordValue(telegram.Manufacturer(frame.M), records)
+		if err != nil {
+			return decode.Reading{}, false, err
+		}
+	}
+	if found {
+		// A walk that ran aground behind this record does not make the
+		// record any less readable — see decode.Standard.
+		return reading, true, nil
+	}
+	return decode.Reading{}, false, walkErr
 }

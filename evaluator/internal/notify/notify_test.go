@@ -245,7 +245,7 @@ func TestComputeWeeklyStatus_NeverReceivedAndSilentAndOK(t *testing.T) {
 	md := masterdata.MasterData{
 		Units: []masterdata.Unit{{ID: "u1", Name: "Unit 1", AreaM2: 50}},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Kind: masterdata.KindHeatCostAllocator},
 			{ID: "mp2", UnitID: "u1", Kind: masterdata.KindColdWater},
 			{ID: "mp3", UnitID: "u1", Kind: masterdata.KindHotWater},
 		},

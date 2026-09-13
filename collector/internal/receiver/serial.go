@@ -1,11 +1,8 @@
 package receiver
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"sync/atomic"
 	"time"
@@ -26,20 +23,6 @@ type Port interface {
 // on every (re)connect attempt, so it must perform any device discovery or
 // fixed-path opening itself.
 type PortOpener func() (Port, string, error)
-
-// Receiver initialization sequence for the IMST iU891A-XL (and compatible
-// devices): wake-up padding, a device-info request/response, and a
-// request to configure combined C1/T1 reception. These exact byte
-// sequences are not documented publicly and were determined by
-// measurement; they must be preserved as given.
-var (
-	wakeUpSequence = bytes.Repeat([]byte{0xC0}, 30)
-
-	deviceInfoRequest   = []byte{0xC0, 0x01, 0x03, 0x04, 0x24, 0xC0}
-	deviceInfoPrefix    = []byte{0x01, 0x04, 0x00}
-	configureC1T1Req    = []byte{0xC0, 0x09, 0x03, 0x03, 0x0E, 0x00, 0x00, 0x00, 0x32, 0x00, 0xA0, 0xBB, 0x0D, 0x00, 0xAF, 0x61, 0xC0}
-	configureC1T1Prefix = []byte{0x09, 0x04, 0x00}
-)
 
 // idleTimeoutNanos governs the fallback recovery path for a connection
 // that looks fine but has gone quietly dead: on Windows, a USB-serial
@@ -94,14 +77,16 @@ func idleCheckInterval() time.Duration {
 	return time.Second // currentIdleTimeout() is always positive in practice; defensive only
 }
 
-// frameReader incrementally extracts SLIP-delimited frames from a Port. It
-// retains any bytes read past the end of one frame for the next call, so
-// that multiple frames delivered by a single underlying Read are not lost
-// — a real serial port (and a test double) can easily deliver more than
-// one frame's worth of bytes at once.
+// frameReader incrementally extracts frames from a Port using the
+// connected device's own framing. It retains any bytes read past the end
+// of one frame for the next call, so that multiple frames delivered by a
+// single underlying Read are not lost — a real serial port (and a test
+// double) can easily deliver more than one frame's worth of bytes at
+// once.
 type frameReader struct {
-	port Port
-	buf  []byte
+	port  Port
+	split func([]byte) ([]byte, int, error)
+	buf   []byte
 
 	// lastDataAt, if set, is stamped (UnixNano) every time Read returns
 	// any bytes at all, valid frame or not — watchConnection uses it to
@@ -110,22 +95,34 @@ type frameReader struct {
 	lastDataAt *atomic.Int64
 }
 
-func newFrameReader(port Port, lastDataAt *atomic.Int64) *frameReader {
-	return &frameReader{port: port, lastDataAt: lastDataAt}
+func newFrameReader(port Port, split func([]byte) ([]byte, int, error), lastDataAt *atomic.Int64) *frameReader {
+	return &frameReader{port: port, split: split, lastDataAt: lastDataAt}
 }
 
-// next returns the next frame's unescaped content (without delimiters,
-// including its trailing checksum), blocking on port reads as needed.
+// Write sends bytes straight to the port, for a device's handshake (see
+// Conn).
+func (r *frameReader) Write(p []byte) (int, error) { return r.port.Write(p) }
+
+// NextFrame is next, under the name a Device's Init uses it by.
+func (r *frameReader) NextFrame(ctx context.Context) ([]byte, error) { return r.next(ctx) }
+
+// next returns the next frame as the device's framing defines it,
+// blocking on port reads as needed.
 //
-// An error other than telegram.ErrMalformedEscape means the underlying
-// port itself failed (disconnect, I/O error, EOF, or watchConnection
-// force-closing it) and must be treated as a connection loss;
-// ErrMalformedEscape means only this one frame is corrupt.
+// An error other than ErrCorruptFrame means the underlying port itself
+// failed (disconnect, I/O error, EOF, or watchConnection force-closing
+// it) and must be treated as a connection loss; ErrCorruptFrame means
+// only these bytes were unusable.
 func (r *frameReader) next(ctx context.Context) ([]byte, error) {
 	for {
-		frame, consumed, err := telegram.SplitFrame(r.buf)
-		if err != telegram.ErrIncompleteFrame {
-			r.buf = r.buf[consumed:]
+		frame, consumed, err := r.split(r.buf)
+		// Applied for every outcome, incomplete included: a device that
+		// can tell junk from the start of a real frame reports the junk
+		// as consumed even while waiting for the rest, which is what
+		// keeps the buffer from growing on a noisy line. A splitter with
+		// nothing to discard simply reports zero.
+		r.buf = r.buf[consumed:]
+		if !errors.Is(err, telegram.ErrIncompleteFrame) {
 			return frame, err
 		}
 		if err := ctx.Err(); err != nil {
@@ -145,109 +142,17 @@ func (r *frameReader) next(ctx context.Context) ([]byte, error) {
 	}
 }
 
-// initReceiver performs the wake-up and configuration handshake, reading
-// responses through reader so any bytes it buffers past the handshake
-// (e.g. the start of a radio telegram arriving right afterwards) remain
-// available to the caller afterwards.
-//
-// onResponse, if not nil, is called once per handshake step that gets a
-// validated response — with the full content (prefix included), not just
-// the fact that it matched — so a caller can surface it for
-// troubleshooting (firmware/hardware identification from the device-info
-// bytes beyond the fixed prefix this package itself checks, or confirming
-// what the receiver actually echoed back for the C1/T1 configuration).
-// Never called for a step that fails; the returned error already carries
-// whatever was received in that case (see sendAndExpect).
-func initReceiver(ctx context.Context, reader *frameReader, onResponse func(step string, raw []byte)) error {
-	if _, err := reader.port.Write(wakeUpSequence); err != nil {
-		return fmt.Errorf("receiver: wake-up write failed: %w", err)
-	}
-	info, err := sendAndExpect(ctx, reader, deviceInfoRequest, deviceInfoPrefix)
-	if err != nil {
-		return fmt.Errorf("receiver: device-info handshake failed: %w", err)
-	}
-	if onResponse != nil {
-		onResponse("device info", info)
-	}
-	cfg, err := sendAndExpect(ctx, reader, configureC1T1Req, configureC1T1Prefix)
-	if err != nil {
-		return fmt.Errorf("receiver: C1/T1 configuration handshake failed: %w", err)
-	}
-	if onResponse != nil {
-		onResponse("C1/T1 configuration", cfg)
-	}
-	return nil
-}
-
-// handshakeStepRetries bounds how many times a single handshake step (one
-// request/response exchange) is retried after getting a response that
-// fails validation, before giving up and letting the caller tear the
-// whole connection down and reconnect from scratch. On real hardware, a
-// single bad response right after connecting, or right after the
-// previous step's response, has turned out to be the receiver still
-// settling — its own USB-serial bridge, or the device still finishing
-// the previous exchange — far more often than a genuinely broken link,
-// and clears up on an immediate retry much faster than a full reconnect
-// (with its own port reset and backoff delay) would.
-const handshakeStepRetries = 3
-
-// handshakeStepRetryDelay is a var, not a const, so tests can shrink it.
-var handshakeStepRetryDelay = 200 * time.Millisecond
-
-// sendAndExpect returns the validated response's full content (prefix
-// included) on success, so a caller can look at what follows the fixed
-// prefix this function itself checks. It retries the exchange itself
-// (see handshakeStepRetries) rather than failing on the first bad
-// response — both requests this is used for (device info, C1/T1
-// configuration) are plain queries/settings with no side effect that
-// resending would double up on.
-func sendAndExpect(ctx context.Context, reader *frameReader, request, wantPrefix []byte) ([]byte, error) {
-	var lastErr error
-	for attempt := 1; attempt <= handshakeStepRetries; attempt++ {
-		if attempt > 1 {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(handshakeStepRetryDelay):
-			}
-		}
-		content, err := trySendAndExpect(ctx, reader, request, wantPrefix)
-		if err == nil {
-			return content, nil
-		}
-		lastErr = err
-	}
-	return nil, lastErr
-}
-
-func trySendAndExpect(ctx context.Context, reader *frameReader, request, wantPrefix []byte) ([]byte, error) {
-	if _, err := reader.port.Write(request); err != nil {
-		return nil, err
-	}
-	frame, err := reader.next(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if len(frame) < 2 {
-		return nil, fmt.Errorf("control frame too short")
-	}
-	content := frame[:len(frame)-2]
-	gotCRC := binary.LittleEndian.Uint16(frame[len(frame)-2:])
-	if telegram.CRC16(content) != gotCRC {
-		return nil, fmt.Errorf("control frame checksum mismatch")
-	}
-	if len(content) < len(wantPrefix) || !bytes.Equal(content[:len(wantPrefix)], wantPrefix) {
-		return nil, fmt.Errorf("unexpected response % X", content)
-	}
-	return content, nil
-}
-
 // SerialSource receives telegrams from a wM-Bus receiver connected over a
 // serial link. It reconnects automatically (with backoff) if the
 // connection is lost, and discards any frame that fails validation without
 // interrupting reception.
+//
+// Everything model-specific — how the device is brought up, where a frame
+// ends, what wraps the telegram — lives behind the Device it is given
+// (see device.go); nothing in here knows which receiver is plugged in.
 type SerialSource struct {
 	open       PortOpener
+	device     Device
 	port       Port
 	reader     *frameReader
 	watchDone  chan struct{} // closed to stop the goroutine watching ctx for the current connection
@@ -283,10 +188,17 @@ type SerialSource struct {
 	OnDeviceInfo func(step string, raw []byte)
 }
 
-// NewSerialSource creates a SerialSource that uses open to (re)connect.
-func NewSerialSource(open PortOpener) *SerialSource {
+// NewSerialSource creates a SerialSource that uses open to (re)connect to
+// the given receiver model. Passing nil for device is the default one
+// (see DefaultDeviceName), so a caller that has no reason to care keeps
+// working unchanged.
+func NewSerialSource(open PortOpener, device Device) *SerialSource {
+	if device == nil {
+		device = imstDevice{}
+	}
 	return &SerialSource{
 		open:       open,
+		device:     device,
 		backoff:    time.Second,
 		maxBackoff: 30 * time.Second,
 	}
@@ -300,19 +212,13 @@ func (s *SerialSource) Next(ctx context.Context) (Telegram, error) {
 
 		frame, err := s.reader.next(ctx)
 		if err == nil {
-			f, perr := telegram.Parse(frame)
+			t, perr := s.device.ParseFrame(frame)
 			if perr != nil {
 				continue // fails a protocol check: discard, keep receiving
 			}
-			meterID, _ := f.MeterNumber() // already validated by Parse
-			return Telegram{
-				MeterID:    meterID,
-				ReceivedAt: time.Now(),
-				RSSI:       f.Header.RSSI,
-				Raw:        f.Raw,
-			}, nil
+			return t, nil
 		}
-		if errors.Is(err, telegram.ErrMalformedEscape) {
+		if errors.Is(err, ErrCorruptFrame) {
 			continue // one corrupt frame: discard, keep receiving
 		}
 
@@ -341,11 +247,11 @@ func (s *SerialSource) ensureConnected(ctx context.Context) error {
 		port, path, err := s.open()
 		if err == nil {
 			s.lastDataAt.Store(time.Now().UnixNano()) // fresh grace period for this connection
-			reader := newFrameReader(port, &s.lastDataAt)
+			reader := newFrameReader(port, s.device.SplitFrame, &s.lastDataAt)
 			watchDone := make(chan struct{})
 			go watchConnection(ctx, port, watchDone, &s.lastDataAt)
 
-			ierr := initReceiver(ctx, reader, s.OnDeviceInfo)
+			ierr := s.device.Init(ctx, reader, s.OnDeviceInfo)
 			if ierr == nil {
 				s.port = port
 				s.reader = reader

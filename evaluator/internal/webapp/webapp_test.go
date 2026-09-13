@@ -82,24 +82,37 @@ func TestTemplatesRenderWithMinimalData(t *testing.T) {
 		"state.html":             StateMessage{Base: base, Heading: "H", Message: "M"},
 		"uvi.html":               uviPageData{Base: base, Month: "2025-06"},
 		"operator_overview.html": overviewPageData{Base: base},
-		"access.html":            accessPageData{Base: base},
-		"masterdata.html":        masterDataPageData{Base: base, MeterGridJSON: template.JS("[]")},
-		"meterstatus.html":       meterStatusPageData{Base: base},
-		"legal.html":             legalPageData{Base: base},
-		"live.html":              livePageData{Base: base},
-		"archive.html":           archivePageData{Base: base},
-		"readings.html":          readingsPageData{Base: base, RowsJSON: template.JS("[]"), MeterSummaryJSON: template.JS("[]")},
-		"audit.html":             auditPageData{Base: base},
-		"uvi_overview.html":      buildingOverviewData{Base: base, Month: "2026-06"},
-		"notify.html":            notifySettingsPageData{Base: base, Encryption: "starttls"},
-		"security.html":          securitySettingsPageData{Base: base, CurrentHost: "localhost:8226"},
+		"masterdata.html":        masterDataPageData{Base: base, Tab: tabOverview, Kinds: kindOptions(), MeterPointsJSON: template.JS("[]"), MetersJSON: template.JS("[]"), UnitsJSON: template.JS("[]")},
+		// Every tab is a separate template branch; rendering only one
+		// would leave the others' mistakes to be found by a human.
+		"masterdata.html#anlage":      masterDataPageData{Base: base, Tab: tabBuilding, Kinds: kindOptions()},
+		"masterdata.html#units":       masterDataPageData{Base: base, Tab: tabUnits, Kinds: kindOptions(), UnitsJSON: template.JS("[]")},
+		"masterdata.html#meterpoints": masterDataPageData{Base: base, Tab: tabMeterPoints, Kinds: kindOptions(), MeterPointsJSON: template.JS("[]")},
+		"masterdata.html#meters":      masterDataPageData{Base: base, Tab: tabMeters, Kinds: kindOptions(), MetersJSON: template.JS("[]")},
+		"masterdata.html#swap":        masterDataPageData{Base: base, Tab: tabSwap, Kinds: kindOptions()},
+		"masterdata.html#access":      masterDataPageData{Base: base, Tab: tabAccess, Kinds: kindOptions(), AccessGridJSON: template.JS("[]")},
+		"meterstatus.html":            meterStatusPageData{Base: base},
+		"legal.html":                  legalPageData{Base: base},
+		"live.html":                   livePageData{Base: base},
+		"archive.html":                archivePageData{Base: base},
+		"readings.html":               readingsPageData{Base: base, RowsJSON: template.JS("[]"), MeterSummaryJSON: template.JS("[]")},
+		"audit.html":                  auditPageData{Base: base},
+		"uvi_overview.html":           buildingOverviewData{Base: base, Month: "2026-06"},
+		"notify.html":                 notifySettingsPageData{Base: base, Encryption: "starttls"},
+		"security.html":               securitySettingsPageData{Base: base, CurrentHost: "localhost:8226"},
 	}
 
 	for name, data := range cases {
 		t.Run(name, func(t *testing.T) {
-			tmpl, ok := templates[name]
+			// A "#suffix" only distinguishes two cases for the same
+			// template — it is not part of the file name.
+			file := name
+			if i := strings.IndexByte(file, '#'); i >= 0 {
+				file = file[:i]
+			}
+			tmpl, ok := templates[file]
 			if !ok {
-				t.Fatalf("no template loaded for %s", name)
+				t.Fatalf("no template loaded for %s", file)
 			}
 			var buf bytes.Buffer
 			if err := tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {
@@ -186,7 +199,7 @@ func TestTenantLoginAndUVI(t *testing.T) {
 	md := masterdata.MasterData{
 		Units: []masterdata.Unit{{ID: "u1", Name: "Wohnung 1", AreaM2: 50}},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
 			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDayT(t, "2024-01-01")},

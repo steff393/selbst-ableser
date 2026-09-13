@@ -78,12 +78,42 @@ func TestCacheLoadMissingFileIsNotFoundNotError(t *testing.T) {
 	}
 }
 
-func TestLiveViewInactiveWhenReportIntervalUnset(t *testing.T) {
-	if (Settings{}).LiveViewActive() {
-		t.Error("LiveViewActive() should be false when ReportIntervalSeconds is unset (0) — the live view is off by default")
+// TestCacheNeverPersistsLiveViewActive mirrors
+// TestCacheNeverPersistsTriggerPush: LiveViewActive is a fact about the
+// moment of the last successful poll, not durable state, so it must never
+// round-trip through the cache file as true.
+func TestCacheNeverPersistsLiveViewActive(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cache.json")
+	c := NewCache(path)
+
+	if err := c.Save(Settings{ReportIntervalSeconds: 5, LiveViewActive: true}); err != nil {
+		t.Fatalf("Save: %v", err)
 	}
-	if !(Settings{ReportIntervalSeconds: 1}).LiveViewActive() {
-		t.Error("LiveViewActive() should be true once ReportIntervalSeconds is positive")
+	got, found, err := c.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !found {
+		t.Fatal("Load: found = false after Save")
+	}
+	if got.LiveViewActive {
+		t.Error("LiveViewActive should never round-trip through the cache as true")
+	}
+	if got.ReportIntervalSeconds != 5 {
+		t.Errorf("ReportIntervalSeconds = %d, want 5 — the rest of the cached settings must still round-trip", got.ReportIntervalSeconds)
+	}
+
+	// Simulate a cache file written by an older build that didn't strip
+	// it yet: Load alone must still clear it.
+	if err := os.WriteFile(path, []byte(`{"live_view_active": true}`), 0o600); err != nil {
+		t.Fatalf("writing raw cache file: %v", err)
+	}
+	got, _, err = c.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.LiveViewActive {
+		t.Error("Load should clear LiveViewActive even from a pre-existing cache file that has it set")
 	}
 }
 

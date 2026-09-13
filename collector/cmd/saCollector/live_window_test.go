@@ -32,7 +32,7 @@ func TestAfterStartupWindowTheEvaluatorDecides(t *testing.T) {
 	}
 
 	l.confirmed = true
-	l.cur = settings.Settings{ReportIntervalSeconds: 7}
+	l.cur = settings.Settings{ReportIntervalSeconds: 7, LiveViewActive: true}
 	active, interval := l.confirmedActive()
 	if !active || interval != 7*time.Second {
 		t.Errorf("with the evaluator asking for it: active=%v interval=%v, want true/7s", active, interval)

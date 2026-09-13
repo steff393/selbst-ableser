@@ -21,7 +21,7 @@ type meterJSON struct {
 	RemovedAt    *telegram.Day `json:"removed_at,omitempty"`
 	EndReading   *int64        `json:"end_reading,omitempty"`
 	KCFactor     float64       `json:"kc_factor,omitempty"`
-	ResetMonth   int           `json:"reset_month,omitempty"`
+	FreezeMonth  int           `json:"freeze_month,omitempty"`
 }
 
 func (m Meter) MarshalJSON() ([]byte, error) {
@@ -34,7 +34,7 @@ func (m Meter) MarshalJSON() ([]byte, error) {
 		RemovedAt:    m.RemovedAt,
 		EndReading:   m.EndReading,
 		KCFactor:     m.KCFactor,
-		ResetMonth:   m.ResetMonth,
+		FreezeMonth:  m.FreezeMonth,
 	})
 }
 
@@ -59,6 +59,6 @@ func (m *Meter) UnmarshalJSON(data []byte) error {
 	m.RemovedAt = mj.RemovedAt
 	m.EndReading = mj.EndReading
 	m.KCFactor = mj.KCFactor
-	m.ResetMonth = mj.ResetMonth
+	m.FreezeMonth = mj.FreezeMonth
 	return nil
 }

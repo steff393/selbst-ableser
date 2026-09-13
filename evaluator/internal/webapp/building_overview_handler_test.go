@@ -25,8 +25,8 @@ func twoUnitInstallation(t *testing.T) (*App, *http.Client, string) {
 			{ID: "u2", Name: "Wohnung B", AreaM2: 50},
 		},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeating},
-			{ID: "mp2", UnitID: "u2", Room: "Wohnzimmer", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeatCostAllocator},
+			{ID: "mp2", UnitID: "u2", Room: "Wohnzimmer", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
 			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDayT(t, "2024-01-01")},

@@ -295,3 +295,34 @@ func TestLastSeen(t *testing.T) {
 		t.Errorf("LastSeen = %s, ok=%v, err=%v, want 2025-02-01", day, ok, err)
 	}
 }
+
+// TestMetersSeenSince: one row per meter, carrying the raw telegram of
+// its most recent day, and nothing from before the window — the meter
+// suggestions on the master-data page are built entirely from this.
+func TestMetersSeenSince(t *testing.T) {
+	s := openTestStore(t)
+	for _, e := range []Entry{
+		{MeterID: "m1", Day: mustDay(t, "2025-01-01"), RawHex: "aa"},
+		{MeterID: "m1", Day: mustDay(t, "2025-01-04"), RawHex: "bb"},
+		{MeterID: "m2", Day: mustDay(t, "2025-01-03"), RawHex: "cc"},
+		{MeterID: "m3", Day: mustDay(t, "2024-12-20"), RawHex: "dd"},
+	} {
+		if _, err := s.InsertHistorical(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	seen, err := s.MetersSeenSince(mustDay(t, "2025-01-01"))
+	if err != nil {
+		t.Fatalf("MetersSeenSince: %v", err)
+	}
+	if len(seen) != 2 {
+		t.Fatalf("seen = %+v, want m1 and m2 (m3 is older than the window)", seen)
+	}
+	if seen[0].ID != "m1" || seen[0].LastDay != mustDay(t, "2025-01-04") || seen[0].RawHex != "bb" {
+		t.Errorf("seen[0] = %+v, want m1 on 2025-01-04 with its newest telegram", seen[0])
+	}
+	if seen[1].ID != "m2" || seen[1].RawHex != "cc" {
+		t.Errorf("seen[1] = %+v, want m2", seen[1])
+	}
+}

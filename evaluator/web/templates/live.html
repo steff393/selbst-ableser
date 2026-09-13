@@ -74,7 +74,7 @@ zur Gegenprüfung bei einem externen Analysedienst (wmbusmeters.org).</p>
     <td>{{if .KnownMeter}}<span class="badge badge-success">ja</span>{{else}}<span class="badge badge-danger">nein</span>{{end}}</td>
     <td>{{.ReceivedAt}}</td>
     <td>{{if .Interval}}{{.Interval}}{{else}}<span class="empty-row" title="Nur ein Telegramm dieses Zählers im aktuellen Puffer, kein Vergleichswert.">–</span>{{end}}</td>
-    <td>{{.RSSI}} dBm <span class="hint">({{.RSSIQuality}})</span></td>
+    <td>{{if .RSSIReported}}{{.RSSI}} dBm <span class="hint">({{.RSSIQuality}})</span>{{else}}<span class="empty-row" title="Dieser Empfänger liefert keine Empfangsstärke mit.">–</span>{{end}}</td>
     <td title="{{.AESTitle}}">{{.AESIcon}}</td>
     <td>{{if .Evaluable}}{{.Value}}{{else}}<span class="empty-row" title="nicht auswertbar">{{.Value}}</span>{{end}}</td>
     <td><a class="analyze-link" href="{{.DecodeURL}}" target="_blank" rel="noopener noreferrer" title="Zur Prüfung bei wmbusmeters.org öffnen" aria-label="Zur Prüfung bei wmbusmeters.org öffnen">↗</a></td>

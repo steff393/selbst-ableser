@@ -130,15 +130,18 @@ type chartData struct {
 }
 
 // chartScale converts a kind's internally computed consumption into the
-// figure actually shown, and says how many decimals it wants — the same
-// conversion templates.go's "consumption" func applies, kept in step with
-// it so a chart's numbers and the table beneath it can never disagree.
-// Water is computed in liters throughout and displayed in m³.
+// figure actually shown, and says how many decimals it wants. It is the
+// one place that decision is made: templates.go's "consumption" func
+// calls it too, so a chart's numbers and the table beneath it can never
+// disagree. Water is computed in liters throughout and displayed in m³;
+// heat-cost-allocator units and a heat meter's kWh are shown as counted.
 func chartScale(k masterdata.Kind) (divisor float64, decimals int) {
-	if k == masterdata.KindHeating {
+	switch k {
+	case masterdata.KindHeatCostAllocator, masterdata.KindHeatMeter:
 		return 1, 0
+	default:
+		return 1000, 3
 	}
-	return 1000, 3
 }
 
 func toChartPoints(pts [12]billing.YearPoint, divisor float64) []chartPoint {
@@ -153,7 +156,7 @@ func toChartPoints(pts [12]billing.YearPoint, divisor float64) []chartPoint {
 // share the UVI page now, so the id has to distinguish them.
 func chartDOMID(k masterdata.Kind) string {
 	switch k {
-	case masterdata.KindHeating:
+	case masterdata.KindHeatCostAllocator:
 		return "uvi-chart-heating"
 	case masterdata.KindHotWater:
 		return "uvi-chart-hotwater"
@@ -409,7 +412,7 @@ func (a *App) handleUVI(w http.ResponseWriter, r *http.Request) {
 // need different wording on an otherwise identical empty page.
 func unitHasMeterPoints(md masterdata.MasterData, unitID string) bool {
 	for _, mp := range md.MeterPoints {
-		if mp.UnitID == unitID {
+		if mp.InUnit(unitID) {
 			return true
 		}
 	}

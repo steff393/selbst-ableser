@@ -78,6 +78,14 @@ func SwapLookupFromMasterData(md masterdata.MasterData, meterPointID string) Swa
 // month with no active meter, or with no evaluable telegram found within
 // the lookback window, is simply absent from the result (FACH-08).
 func MonthlyReadingsForMeterPoint(store *archive.Store, md masterdata.MasterData, meterPointID string, monthEnds []telegram.Day, lookbackDays int) ([]MonthlyValue, error) {
+	var resetsAnnually bool
+	for _, mp := range md.MeterPoints {
+		if mp.ID == meterPointID {
+			resetsAnnually = mp.Kind.ResetsAnnually()
+			break
+		}
+	}
+
 	var out []MonthlyValue
 	for _, day := range monthEnds {
 		meter, ok := md.ActiveMeter(meterPointID, day)
@@ -88,6 +96,24 @@ func MonthlyReadingsForMeterPoint(store *archive.Store, md masterdata.MasterData
 		if err != nil {
 			return nil, err
 		}
+
+		// The last month of a billing period closes on the value the device
+		// itself froze, not on whatever telegram arrived last before the
+		// period ended — see billing_reset.go for why that difference
+		// cannot be made up later. It is also the one case where a month
+		// with no telegram of its own still yields a reading, because the
+		// frozen value is carried in the telegrams that follow it.
+		if resetsAnnually && day.Month() == meter.EffectiveFreezeMonth() {
+			frozen, ok, err := FindBillingReset(store, meter.Number, meter.AESKey, day, 0)
+			if err != nil {
+				return nil, err
+			}
+			if ok && (!found || frozen.Value >= reading.Value) {
+				reading = MonthlyValue{Meter: meter.Number, Day: day, Value: frozen.Value}
+				found = true
+			}
+		}
+
 		if !found {
 			continue
 		}

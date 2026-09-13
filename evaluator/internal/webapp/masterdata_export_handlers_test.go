@@ -66,7 +66,7 @@ func newExportTestMasterData(t *testing.T) (*App, string) {
 		Building: masterdata.Building{Name: "Musterhaus", HeatingKWhPerUnit: 1.42},
 		Units:    []masterdata.Unit{{ID: "u1", Name: "Wohnung 1", AreaM2: 60}},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
 			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDayT(t, "2024-01-01")},

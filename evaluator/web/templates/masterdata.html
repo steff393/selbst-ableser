@@ -2,12 +2,23 @@
 <div class="page-head">
   <div>
     <h1>Stammdaten</h1>
-    <p class="page-sub">Wohnungen, Zählerplätze und Zähler pflegen.</p>
+    <p class="page-sub">Wohnungen, Zählerplätze, Zähler und Zugänge pflegen.</p>
   </div>
 </div>
 
 {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
 
+<nav class="sa-tabs">
+  <a href="/operator/masterdata?tab=anlage"{{if eq .Tab "anlage"}} class="current" aria-current="page"{{end}}>Anlage</a>
+  <a href="/operator/masterdata?tab=uebersicht"{{if eq .Tab "uebersicht"}} class="current" aria-current="page"{{end}}>Gesamtansicht</a>
+  <a href="/operator/masterdata?tab=units"{{if eq .Tab "units"}} class="current" aria-current="page"{{end}}>Wohnungen</a>
+  <a href="/operator/masterdata?tab=meterpoints"{{if eq .Tab "meterpoints"}} class="current" aria-current="page"{{end}}>Zählerplätze</a>
+  <a href="/operator/masterdata?tab=meters"{{if eq .Tab "meters"}} class="current" aria-current="page"{{end}}>Zähler</a>
+  <a href="/operator/masterdata?tab=swap"{{if eq .Tab "swap"}} class="current" aria-current="page"{{end}}>Zählerwechsel</a>
+  <a href="/operator/masterdata?tab=access"{{if eq .Tab "access"}} class="current" aria-current="page"{{end}}>Zugänge</a>
+</nav>
+
+{{if eq .Tab "anlage"}}
 <section class="card">
   <h2>Anlage</h2>
   <p class="hint">Umrechnungsfaktoren für die kWh-Anzeige — je Abrechnungsperiode aus
@@ -24,223 +35,780 @@
   </form>
 </section>
 
-<form method="post" action="/operator/masterdata" id="masterdata-grids-form">
-<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-<input type="hidden" name="units_json" id="units-json">
-<input type="hidden" name="meterpoints_json" id="meterpoints-json">
-<input type="hidden" name="meters_json" id="meters-json">
-
-<section class="card">
-  <div class="card-head">
-    <h2>Wohnungen</h2>
-  </div>
-  <p class="hint">Zeilen einfügen (auch mehrspaltig aus einer Tabellenkalkulation), mit
-  „+ Zeile“ ergänzen, mit dem Pfeil-Knopf einen Wert nach unten ausfüllen. Eine Zeile entfernen
-  und speichern löscht die Wohnung.</p>
-
-  <div class="grid-scroll">
-  <table id="units-grid">
-    <thead>
-      <tr><th>ID</th><th>Bezeichnung</th><th>Fläche (m²)</th><th></th></tr>
-    </thead>
-    <tbody id="units-grid-body"></tbody>
-  </table>
-  </div>
-  <button type="button" id="units-add-row" class="btn-secondary btn-sm">+ Zeile</button>
-  <button type="submit" class="btn btn-sm">Wohnungen, Zählerplätze und Zähler speichern</button>
-</section>
-
-<section class="card card-wide">
-  <div class="card-head">
-    <h2>Zählerplätze &amp; Zähler</h2>
-  </div>
-  <p class="hint">Ein Zählerplatz und sein Zähler sind eine Zeile — ein neuer Zählerplatz braucht
-  keinen eigenen Zwischenschritt, sein erster Zähler wird gleich mit eingetragen. Mehrere Zeilen
-  mit derselben Zählerplatz-ID sind die Zählerhistorie dieses Platzes (siehe „Zählerwechsel“
-  unten). Zeilen einfügen (auch mehrspaltig aus einer Tabellenkalkulation), mit „+ Zeile“
-  ergänzen, mit dem Pfeil-Knopf einen Wert nach unten ausfüllen. AES-Schlüssel darf leer bleiben,
-  wenn der Zähler unverschlüsselt sendet. Einbau als TT.MM.JJJJ. Stichtag-Monat (1-12) nur für
-  Heizungs-Zählerplätze relevant, leer bedeutet Januar. Anfangsstand/Endstand als roher
-  Gerätewert: bei Heizung die dimensionslose Einheiten-Anzeige des Zählers (nicht kWh), bei
-  Warmwasser/Kaltwasser Liter (nicht m³, auch wenn der Zähler selbst m³ anzeigt).</p>
-
-  <div class="grid-scroll">
-  <table id="meters-grid">
-    <thead>
-      <tr>
-        <th>Zählerplatz</th><th>Wohnung</th><th>Raum</th><th>Typ</th><th>Zählernummer</th>
-        <th>AES-Schlüssel (hex)</th><th>Einbau</th><th>Anfangsstand</th><th>Endstand</th><th>kc-Faktor</th><th>Stichtag-Monat</th><th></th>
-      </tr>
-    </thead>
-    <tbody id="meters-grid-body"></tbody>
-  </table>
-  </div>
-  <button type="button" id="meters-add-row" class="btn-secondary btn-sm">+ Zeile</button>
-  <button type="button" id="meters-zaehlerwechsel" class="btn-secondary btn-sm">Zählerwechsel</button>
-  <p class="hint" style="margin-top: 0.5rem;">Zähler ausgebaut: Endstand(e) eintragen und auf
-  „Zählerwechsel“ klicken, nicht auf Speichern — das leert Zählernummer, AES-Schlüssel, Einbau,
-  Anfangsstand, Endstand, kc-Faktor und Stichtag-Monat der betroffenen Zeilen (nur in der Ansicht,
-  noch nichts gespeichert), damit sofort der jeweils neue Zähler eingetragen werden kann. Erst „Speichern“
-  legt dafür wirklich alten und neuen Zähler an. Wird für eine Zeile kein neuer Zähler eingetragen,
-  bleibt beim Speichern der alte unverändert stehen und der Endstand wird wieder verworfen.</p>
-</section>
-
-<button type="submit" class="btn btn-sm" style="margin-bottom: 1.5rem;">Wohnungen, Zählerplätze und Zähler speichern</button>
-</form>
-
 <section class="card">
   <h2>Export</h2>
-
   <h3>Vollständige Stammdaten</h3>
   <p class="hint">Enthält alle AES-Schlüssel im Klartext. Datei sicher aufbewahren, nicht
   unverschlüsselt weitergeben — dient der Datenhoheit und als lesbare Sicherung
   neben der regulären Archiv-Sicherung.</p>
   <a class="btn btn-secondary btn-sm" href="/operator/masterdata/export">Stammdaten exportieren (JSON)</a>
 </section>
+{{end}}
+
+{{if eq .Tab "uebersicht"}}
+<div class="sa-filter">
+  <label class="sa-search">Suchen
+    <input type="search" id="sa-search" placeholder="Zählernummer, Zählerplatz, Raum, Wohnung"
+           autocomplete="off"></label>
+  <span class="sa-filter-title">Was fehlt noch?</span>
+  <label><input type="checkbox" id="sa-no-meter"> ohne Zähler</label>
+  <label><input type="checkbox" id="sa-no-key"> ohne Schlüssel</label>
+  <label><input type="checkbox" id="sa-never-seen"> nie empfangen</label>
+  <span class="sa-filter-count" id="sa-filter-count"></span>
+</div>
+
+{{range .Units}}
+<details class="sa-unit"{{if .Empty}} open{{end}}>
+  <summary>
+    <span class="sa-unit-name">Wohnung
+      <button type="button" class="sa-idlink" data-dialog="unit"
+              data-id="{{.ID}}" data-name="{{.Name}}" data-area="{{.Area}}">{{.ID}}</button>
+      {{if .Name}}· {{.Name}}{{end}}</span>
+    <span class="sa-unit-meta">{{.Area}} m² · {{len .Places}} Zählerplätze{{if .Empty}} · {{.Empty}} ohne Zähler{{end}}</span>
+  </summary>
+
+  <div class="sa-places">
+    {{range .Places}}{{template "sa-place" .}}{{end}}
+    <div class="sa-place sa-place-add">
+      <div></div>
+      <div><button type="button" class="linklike" data-dialog="meterpoint"
+                   data-unit="{{.ID}}">+ Zählerplatz in dieser Wohnung</button></div>
+      <div></div>
+    </div>
+  </div>
+</details>
+{{else}}
+<p class="hint">Noch keine Wohnung angelegt. Damit fängt eine Anlage an.</p>
+{{end}}
+
+<p class="row-actions">
+  <button type="button" class="btn-secondary btn-sm" data-dialog="unit">+ Wohnung</button>
+</p>
+
+<section class="card">
+  <div class="card-head"><h2>Zähler ohne Wohnung</h2></div>
+  <p class="hint">Hauszähler: ein Zählerplatz, der zu keiner Wohnung gehört — die Wärmemenge im
+  Heizraum, der Gaszähler am Hausanschluss, der Hauptwasserzähler. Er taucht in keiner
+  Verbrauchsinformation auf und zählt in keine Anlagensumme hinein.</p>
+  <div class="sa-places">
+    {{range .HousePlaces}}{{template "sa-place" .}}{{end}}
+  </div>
+  <p class="row-actions">
+    <button type="button" class="btn-secondary btn-sm" data-dialog="meterpoint" data-unit="">+ Zählerplatz ohne Wohnung</button>
+  </p>
+</section>
+
+<div id="sa-candidates" hidden>
+  {{range .Detected}}
+  <button type="button" class="sa-cand" data-number="{{.Number}}" data-kind="{{.Kind}}">
+    <span class="sa-cand-num">{{.Number}}</span>
+    <span class="sa-cand-type">{{if .TypeName}}{{.TypeName}}{{else}}Art unbekannt{{end}}</span>
+    <span class="sa-cand-seen">zuletzt {{.LastSeen}}</span>
+  </button>
+  {{end}}
+</div>
+
+<dialog id="sa-dlg-unit">
+  <form method="post" action="/operator/masterdata/unit">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="original_id" value="">
+    <div class="sa-dlg-head">
+      <h3>Wohnung</h3>
+      <p>Die ID darf sich ändern; Zählerplätze und Zugänge ziehen mit.</p>
+    </div>
+    <div class="sa-dlg-body">
+      <div class="sa-two">
+        <label>ID <input type="text" name="id" required autocomplete="off"></label>
+        <label>Fläche in m² <input type="text" name="area" inputmode="decimal" required autocomplete="off"></label>
+      </div>
+      <label>Bezeichnung <input type="text" name="name" autocomplete="off"></label>
+    </div>
+    <div class="sa-dlg-foot">
+      <button type="submit" formaction="/operator/masterdata/unit/delete" formnovalidate class="linklike sa-danger sa-delete">Wohnung löschen</button>
+      <button type="button" class="btn-secondary btn-sm" data-close>Abbrechen</button>
+      <button type="submit" class="btn btn-sm">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="sa-dlg-meterpoint">
+  <form method="post" action="/operator/masterdata/meterpoint">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="original_id" value="">
+    <div class="sa-dlg-head">
+      <h3>Zählerplatz</h3>
+      <p>Der Zählerplatz bleibt, wenn das Gerät wechselt. Ohne Gerät ist er kein Fehler.</p>
+    </div>
+    <div class="sa-dlg-body">
+      <div class="sa-two">
+        <label>Zählerplatz-ID <input type="text" name="id" required autocomplete="off">
+          <span class="sa-why" data-why="id"></span></label>
+        <label>Typ
+          <select name="kind">
+            {{range .Kinds}}<option value="{{.Value}}">{{.Label}} — {{.Name}}</option>{{end}}
+          </select>
+          <span class="sa-why">Entscheidet Einheit und Auswertung.</span>
+        </label>
+      </div>
+      <div class="sa-two">
+        <label>Raum <input type="text" name="room" autocomplete="off">
+          <span class="sa-why"></span></label>
+        <label>Wohnung <input type="text" name="unit_id" autocomplete="off" list="sa-unit-ids">
+          <span class="sa-why">Leer lassen für einen Hauszähler ohne Wohnung.</span></label>
+      </div>
+    </div>
+    <div class="sa-dlg-foot">
+      <button type="submit" formaction="/operator/masterdata/meterpoint/delete" formnovalidate class="linklike sa-danger sa-delete">Zählerplatz löschen</button>
+      <button type="button" class="btn-secondary btn-sm" data-close>Abbrechen</button>
+      <button type="submit" class="btn btn-sm">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="sa-unit-ids">{{range .Units}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</datalist>
+<datalist id="sa-place-ids">
+  {{range $u := .Units}}{{range .Places}}<option value="{{.ID}}">{{.ID}} · Whg {{$u.ID}}{{if $u.Name}} {{$u.Name}}{{end}} · {{.Room}} · {{.KindLabel}}</option>{{end}}{{end}}
+  {{range .HousePlaces}}<option value="{{.ID}}">{{.ID}} · Hauszähler · {{.Room}} · {{.KindLabel}}</option>{{end}}
+</datalist>
+
+<dialog id="sa-dlg-meter">
+  <form method="post" action="/operator/masterdata/meter">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="original_number" value="">
+    <input type="hidden" name="meter_point_id" value="">
+    <div class="sa-dlg-head">
+      <h3>Zähler</h3>
+      <p data-place></p>
+    </div>
+    <div class="sa-dlg-body">
+      <div class="sa-suggest" hidden>
+        <label>Empfangene Zähler, die noch keinem Zählerplatz gehören
+          <input type="search" placeholder="Ziffern tippen, um einzugrenzen …" autocomplete="off"></label>
+        <p class="sa-why">Passende Geräteart zuerst — eine Eingabehilfe, keine Prüfung: jedes
+        andere Gerät lässt sich genauso wählen.</p>
+        <div class="sa-cand-list"></div>
+      </div>
+      <div class="sa-two">
+        <label>Zählernummer <input type="text" name="number" inputmode="numeric" required autocomplete="off">
+          <span class="sa-why">Acht Ziffern, wie auf dem Gerät.</span></label>
+        <label>Einbau <input type="text" name="installed_at" placeholder="TT.MM.JJJJ" autocomplete="off">
+          <span class="sa-why">Leer lassen heißt „war schon immer da“.</span></label>
+      </div>
+      <label class="sa-move" hidden>Zählerplatz
+        <input type="text" name="meter_point_id" autocomplete="off" list="sa-place-ids">
+        <span class="sa-why">Nur zum Berichtigen einer falschen Zuordnung, und nur auf einen
+        freien Platz — ein belegter wäre ein Zählerwechsel.</span></label>
+      <label>AES-Schlüssel <input type="text" name="aes_key" spellcheck="false" autocomplete="off">
+        <span class="sa-why">32 Hex-Zeichen, oder leer bei unverschlüsselten Geräten.</span></label>
+      <div class="sa-two">
+        <label>kc-Faktor <input type="text" name="kc_factor" inputmode="decimal" placeholder="1" autocomplete="off"></label>
+        <label>Stichtag-Monat <input type="text" name="freeze_month" inputmode="numeric" placeholder="12" autocomplete="off"></label>
+      </div>
+      <div class="sa-two">
+        <label>Anfangsstand <input type="text" name="start_reading" inputmode="decimal" placeholder="0" autocomplete="off">
+          <span class="sa-why">Wasserzähler: m³ mit Komma, z. B. „12,345“. Sonst die rohe
+          Einheiten-Anzeige des Geräts, ohne Komma.</span></label>
+        <label class="sa-removal" hidden>Endstand <input type="text" name="end_reading" inputmode="decimal" autocomplete="off">
+          <span class="sa-why">Gleiche Schreibweise wie Anfangsstand. Beides zusammen mit dem
+          Ausbaudatum, oder keines von beiden.</span></label>
+      </div>
+      <label class="sa-removal" hidden>Ausbau <input type="text" name="removed_at" autocomplete="off">
+        <span class="sa-why">Entsteht beim Zählerwechsel — hier nur zum Berichtigen.</span></label>
+    </div>
+    <div class="sa-dlg-foot">
+      <button type="submit" formaction="/operator/masterdata/meter/delete" formnovalidate class="linklike sa-danger sa-delete">Zähler entfernen</button>
+      <button type="button" class="btn-secondary btn-sm" data-close>Abbrechen</button>
+      <button type="submit" class="btn btn-sm">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="sa-dlg-swap">
+  <form method="post" action="/operator/masterdata/meter/swap">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="meter_point_id" value="">
+    <div class="sa-dlg-head">
+      <h3>Zählerwechsel</h3>
+      <p data-place></p>
+    </div>
+    <div class="sa-dlg-body">
+      <div class="sa-two">
+        <label>Wechseltag <input type="text" name="day" required autocomplete="off">
+          <span class="sa-why sa-filled">Vorbelegt mit heute. Gilt als Ausbau- und als Einbautag.</span></label>
+        <label>Endstand des alten Geräts <input type="text" name="outgoing_end_reading" inputmode="decimal" required autocomplete="off">
+          <span class="sa-why">Wasserzähler: m³ mit Komma, z. B. „12,345“. Sonst die rohe
+          Einheiten-Anzeige des Geräts.</span></label>
+      </div>
+      <div class="sa-suggest">
+        <label>Empfangene Zähler, die noch keinem Zählerplatz gehören
+          <input type="search" placeholder="Ziffern tippen, um einzugrenzen …" autocomplete="off"></label>
+        <div class="sa-cand-list"></div>
+      </div>
+      <div class="sa-two">
+        <label>Neue Zählernummer <input type="text" name="number" inputmode="numeric" required autocomplete="off">
+          <span class="sa-why"></span></label>
+        <label>Anfangsstand <input type="text" name="start_reading" inputmode="decimal" value="0" autocomplete="off">
+          <span class="sa-why">Gleiche Schreibweise wie der Endstand oben.</span></label>
+      </div>
+      <label>AES-Schlüssel des neuen Geräts <input type="text" name="aes_key" spellcheck="false" autocomplete="off"></label>
+      <div class="sa-two">
+        <label>kc-Faktor <input type="text" name="kc_factor" inputmode="decimal" autocomplete="off">
+          <span class="sa-why sa-filled" data-why="kc"></span></label>
+        <label>Stichtag-Monat <input type="text" name="freeze_month" inputmode="numeric" autocomplete="off">
+          <span class="sa-why sa-filled" data-why="freeze"></span></label>
+      </div>
+    </div>
+    <div class="sa-dlg-foot">
+      <span class="sa-spacer"></span>
+      <button type="button" class="btn-secondary btn-sm" data-close>Abbrechen</button>
+      <button type="submit" class="btn btn-sm">Wechsel eintragen</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/static/masterdata.js" data-today="{{.Today}}"></script>
+{{end}}
+
+{{if eq .Tab "units"}}
+<section class="card">
+  <div class="card-head"><h2>Wohnungen</h2></div>
+  <p class="hint">Die Abrechnungseinheiten. Zeilen einfügen (auch mehrspaltig aus einer
+  Tabellenkalkulation), mit „+ Zeile“ ergänzen. Eine Zeile entfernen und speichern löscht die
+  Wohnung — solange kein Zählerplatz mehr an ihr hängt.</p>
+
+  <form method="post" action="/operator/masterdata" id="units-form">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="table" value="units">
+    <input type="hidden" name="rows" id="units-json">
+  </form>
+
+  <div class="grid-scroll">
+    <table id="units-grid" class="sa-narrow">
+      <thead><tr><th>ID</th><th>Bezeichnung</th><th>Fläche (m²)</th><th></th></tr></thead>
+      <tbody id="units-grid-body"></tbody>
+    </table>
+  </div>
+  <p class="row-actions">
+    <button type="button" id="units-add-row" class="btn-secondary btn-sm">+ Zeile</button>
+    <button type="button" class="btn-secondary btn-sm" data-csv="out" data-for="units">CSV exportieren</button>
+    <button type="button" class="btn-secondary btn-sm" data-csv="in" data-for="units">CSV importieren</button>
+    <button type="submit" form="units-form" class="btn btn-sm">Wohnungen speichern</button>
+  </p>
+  <div class="sa-csv" id="csv-out-units" hidden>
+    <label>Wohnungen als CSV — zum Kopieren. In einer Tabellenkalkulation als Trennzeichen
+      Semikolon wählen.
+      <textarea readonly rows="6" spellcheck="false">{{.CSVUnits}}</textarea></label>
+  </div>
+
+  <form class="sa-csv" id="csv-in-units" method="post" action="/operator/masterdata/import" hidden>
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="table" value="units">
+    <label>CSV einfügen. Die Kopfzeile entscheidet, welche Spalten dabei sind — eine Datei mit
+      weniger Spalten ist der Normalfall, nicht die Ausnahme. Was in ihr fehlt, bleibt
+      unberührt; gelöscht wird durch das Einlesen nie.
+      <textarea name="csv" rows="6" spellcheck="false" placeholder="Wohnung;Bezeichnung;Fläche"></textarea></label>
+    <p class="row-actions"><button type="submit" class="btn btn-sm">Vorschau</button></p>
+  </form>
+{{with .Import}}
+  <div class="sa-preview">
+    <h3>Vorschau — es ist noch nichts geschrieben</h3>
+    <p class="hint">Je Zeile, was passieren würde, und warum nicht.
+    {{if .Unknown}}Übergangen wurden die Spalten {{range $i, $c := .Unknown}}{{if $i}}, {{end}}„{{$c}}“{{end}}.{{end}}</p>
+    <div class="grid-scroll">
+      <table class="list">
+        <thead><tr><th>Zeile</th><th>Schlüssel</th><th>Übernommene Werte</th><th>Ergebnis</th></tr></thead>
+        <tbody>
+          {{range .Rows}}
+          <tr{{if not .OK}} class="sa-row-refused"{{end}}>
+            <td>{{.Line}}</td>
+            <td>{{.Key}}</td>
+            <td>{{.Values}}</td>
+            <td>{{if .OK}}✓ {{.Action}}{{else}}✕ {{.Problem}}{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    <form method="post" action="/operator/masterdata/import/apply" class="row-actions">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <input type="hidden" name="table" value="{{.Table}}">
+      <input type="hidden" name="csv" value="{{.CSV}}">
+      <button type="submit" class="btn btn-sm">{{.Accept}} Zeilen übernehmen</button>
+      <a class="btn btn-secondary btn-sm" href="/operator/masterdata?tab={{.Table}}">Verwerfen</a>
+    </form>
+  </div>
+{{end}}
+</section>
 
 <script src="/static/grid.js"></script>
 <script>
 (function () {
   "use strict";
-
-  var METER_FIELDS = ["number", "aes_key", "installed_at", "start_reading", "end_reading", "kc_factor", "reset_month"];
-  var POINT_FIELDS = ["meter_point_id", "unit_id", "room", "kind"];
-  var form = document.getElementById("masterdata-grids-form");
-  var metersBody = document.getElementById("meters-grid-body");
-
-  function field(tr, col) {
-    return tr.querySelector('[data-col="' + col + '"]');
-  }
-  function value(tr, col) {
-    var el = field(tr, col);
-    return el ? el.value.trim() : "";
-  }
-  function setValue(tr, col, v) {
-    var el = field(tr, col);
-    if (el) el.value = v || "";
-  }
-
-  // Zählerwechsel: for every row where an Endstand was just typed (i.e.
-  // it differs from what the row loaded with), remember that row's
-  // current meter fields as the closing meter's data, then clear the
-  // visible meter fields so the replacement meter can be typed into the
-  // same row. Nothing is sent to the server here — see the submit
-  // handler below, which is where a completed swap actually becomes two
-  // rows, and an abandoned one reverts.
-  document.getElementById("meters-zaehlerwechsel").addEventListener("click", function () {
-    Array.prototype.forEach.call(metersBody.children, function (tr) {
-      if (tr.dataset.pendingSwap === "true") return; // already mid-swap
-      var original = JSON.parse(tr.dataset.original || "{}");
-      var currentEnd = value(tr, "end_reading");
-      if (currentEnd === "" || currentEnd === (original.end_reading || "")) return;
-
-      tr.dataset.closingEndReading = currentEnd;
-      tr.dataset.pendingSwap = "true";
-      METER_FIELDS.forEach(function (col) { setValue(tr, col, ""); });
-    });
-  });
-
-  // The Zählerwechsel state above lives only in this page's DOM — leaving
-  // mid-swap (closing the tab, following a nav link, reloading) loses it
-  // silently, with the table looking as if nothing had happened. Warn
-  // before that, but not when the form itself is what's navigating away —
-  // that is the swap actually completing, not an accidental loss of it.
-  var formSubmitting = false;
-  form.addEventListener("submit", function () { formSubmitting = true; });
-  window.addEventListener("beforeunload", function (e) {
-    if (formSubmitting) return;
-    var pending = Array.prototype.some.call(metersBody.children, function (tr) {
-      return tr.dataset.pendingSwap === "true";
-    });
-    if (pending) {
-      e.preventDefault();
-      e.returnValue = ""; // some browsers require a non-empty value to show their own prompt
-    }
-  });
-
-  // Runs before SAGrid's own submit handlers (registered further below,
-  // after this listener) so it can finish resolving every pending
-  // Zählerwechsel by editing the DOM: either splitting one row into two
-  // (old closed meter + new one) or reverting an abandoned swap back to
-  // how the row loaded, before the grids read the table and serialize it.
-  form.addEventListener("submit", function () {
-    Array.prototype.forEach.call(Array.prototype.slice.call(metersBody.children), function (tr) {
-      if (tr.dataset.pendingSwap !== "true") return;
-      var original = JSON.parse(tr.dataset.original || "{}");
-      var isBlank = METER_FIELDS.every(function (col) { return value(tr, col) === ""; });
-
-      if (isBlank) {
-        // No replacement was entered: the swap is abandoned. The old
-        // meter stays exactly as it was; the Endstand that was typed to
-        // start the swap is discarded, not saved anywhere.
-        METER_FIELDS.concat(["removed_at"]).forEach(function (col) {
-          setValue(tr, col, original[col] || "");
-        });
-        delete tr.dataset.pendingSwap;
-        return;
-      }
-
-      // A replacement was entered: emit the old, now-closed meter as its
-      // own row, sharing this row's (possibly also just-edited) meter
-      // point fields. Its Ausbau is the new meter's Einbau — the whole
-      // reason this grid has no separate Ausbau column at all.
-      var closed = document.createElement("tr");
-      closed.style.display = "none";
-      POINT_FIELDS.concat(METER_FIELDS).concat(["removed_at"]).forEach(function (col) {
-        var input = document.createElement("input");
-        input.type = "hidden";
-        input.dataset.col = col;
-        if (POINT_FIELDS.indexOf(col) !== -1) {
-          input.value = value(tr, col);
-        } else if (col === "end_reading") {
-          input.value = tr.dataset.closingEndReading || "";
-        } else if (col === "removed_at") {
-          input.value = value(tr, "installed_at");
-        } else {
-          input.value = original[col] || "";
-        }
-        closed.appendChild(input);
-      });
-      metersBody.insertBefore(closed, tr);
-      delete tr.dataset.pendingSwap;
-    });
-  });
-
-  // Both grids share one form (masterdata-grids-form): each
-  // SAGrid.create() call below attaches its own submit listener to that
-  // same element, so one click fires both and fills both hidden inputs
-  // before the request goes out (see handleMasterDataSave for why units
-  // and the combined meter-point/meter grid have to be saved together).
-  // They are registered after the Zählerwechsel resolution above so that
-  // one runs first and leaves the table in its final shape for these to
-  // read.
   SAGrid.create({
     gridId: "units-grid", bodyId: "units-grid-body", addRowId: "units-add-row",
-    formId: "masterdata-grids-form", hiddenInputId: "units-json",
+    formId: "units-form", hiddenInputId: "units-json",
     columns: ["id", "name", "area_m2"],
-    columnTypes: {area_m2: "number"},
+    noFillDown: true,
     initial: {{.UnitsJSON}}
   });
-  SAGrid.create({
-    gridId: "meters-grid", bodyId: "meters-grid-body", addRowId: "meters-add-row",
-    formId: "masterdata-grids-form", hiddenInputId: "meters-json",
-    columns: ["meter_point_id", "unit_id", "room", "kind", "number", "aes_key", "installed_at", "start_reading", "end_reading", "kc_factor", "reset_month"],
-    hiddenColumns: ["removed_at"], // no visible Ausbau column — see the submit handler above
-    selectOptions: {kind: [
-      {value: "heating", label: "Heizung"},
-      {value: "hot_water", label: "Warmwasser"},
-      {value: "cold_water", label: "Kaltwasser"}
-    ]},
-    columnTypes: {start_reading: "number", end_reading: "number", kc_factor: "number", reset_month: "number"},
-    // installed_at is plain text, not <input type="date">: a native date
-    // input's .value is locked to ISO, so pasting a column of dates
-    // copied out of Excel (DD.MM.YYYY) silently failed. parseGridDay on
-    // the server accepts either form.
-    // FACH-07: unset kc_factor means unscaled (factor 1). FACH-03: unset
-    // reset_month means January.
-    placeholders: {kc_factor: "1", reset_month: "1", installed_at: "TT.MM.JJJJ"},
-    initial: {{.MeterGridJSON}}
+
+  document.querySelectorAll("[data-csv]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var mine = document.getElementById("csv-" + button.dataset.csv + "-" + button.dataset.for);
+      var other = document.getElementById("csv-" + (button.dataset.csv === "in" ? "out" : "in") + "-" + button.dataset.for);
+      var opening = mine.hidden;
+      mine.hidden = !opening;
+      other.hidden = true;
+      if (opening) {
+        var field = mine.querySelector("textarea");
+        field.focus();
+        if (field.readOnly) field.select();
+      }
+    });
   });
 })();
 </script>
+{{end}}
+
+{{if eq .Tab "meterpoints"}}
+<section class="card">
+  <div class="card-head"><h2>Zählerplätze</h2></div>
+  <p class="hint">Wo gemessen wird. Ohne Gerät ist ein Zählerplatz kein Fehler. Eine leere
+  Wohnung heißt: Hauszähler, der zu keiner Wohnung gehört und in keiner Abrechnung auftaucht.</p>
+
+  <form method="post" action="/operator/masterdata" id="meterpoints-form">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="table" value="meterpoints">
+    <input type="hidden" name="rows" id="meterpoints-json">
+  </form>
+
+  <div class="grid-scroll">
+    <table id="meterpoints-grid" class="sa-narrow">
+      <thead><tr><th>ID</th><th>Wohnung</th><th>Raum</th><th>Typ</th><th></th></tr></thead>
+      <tbody id="meterpoints-grid-body"></tbody>
+    </table>
+  </div>
+  <p class="row-actions">
+    <button type="button" id="meterpoints-add-row" class="btn-secondary btn-sm">+ Zeile</button>
+    <button type="button" class="btn-secondary btn-sm" data-csv="out" data-for="meterpoints">CSV exportieren</button>
+    <button type="button" class="btn-secondary btn-sm" data-csv="in" data-for="meterpoints">CSV importieren</button>
+    <button type="submit" form="meterpoints-form" class="btn btn-sm">Zählerplätze speichern</button>
+  </p>
+  <div class="sa-csv" id="csv-out-meterpoints" hidden>
+    <label>Zählerplätze als CSV — zum Kopieren. In einer Tabellenkalkulation als Trennzeichen
+      Semikolon wählen.
+      <textarea readonly rows="6" spellcheck="false">{{.CSVMeterPoints}}</textarea></label>
+  </div>
+
+  <form class="sa-csv" id="csv-in-meterpoints" method="post" action="/operator/masterdata/import" hidden>
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="table" value="meterpoints">
+    <label>CSV einfügen. Die Kopfzeile entscheidet, welche Spalten dabei sind — eine Datei mit
+      weniger Spalten ist der Normalfall, nicht die Ausnahme. Was in ihr fehlt, bleibt
+      unberührt; gelöscht wird durch das Einlesen nie.
+      <textarea name="csv" rows="6" spellcheck="false" placeholder="Zählerplatz;Wohnung;Raum;Typ"></textarea></label>
+    <p class="row-actions"><button type="submit" class="btn btn-sm">Vorschau</button></p>
+  </form>
+{{with .Import}}
+  <div class="sa-preview">
+    <h3>Vorschau — es ist noch nichts geschrieben</h3>
+    <p class="hint">Je Zeile, was passieren würde, und warum nicht.
+    {{if .Unknown}}Übergangen wurden die Spalten {{range $i, $c := .Unknown}}{{if $i}}, {{end}}„{{$c}}“{{end}}.{{end}}</p>
+    <div class="grid-scroll">
+      <table class="list">
+        <thead><tr><th>Zeile</th><th>Schlüssel</th><th>Übernommene Werte</th><th>Ergebnis</th></tr></thead>
+        <tbody>
+          {{range .Rows}}
+          <tr{{if not .OK}} class="sa-row-refused"{{end}}>
+            <td>{{.Line}}</td>
+            <td>{{.Key}}</td>
+            <td>{{.Values}}</td>
+            <td>{{if .OK}}✓ {{.Action}}{{else}}✕ {{.Problem}}{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    <form method="post" action="/operator/masterdata/import/apply" class="row-actions">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <input type="hidden" name="table" value="{{.Table}}">
+      <input type="hidden" name="csv" value="{{.CSV}}">
+      <button type="submit" class="btn btn-sm">{{.Accept}} Zeilen übernehmen</button>
+      <a class="btn btn-secondary btn-sm" href="/operator/masterdata?tab={{.Table}}">Verwerfen</a>
+    </form>
+  </div>
+{{end}}
+</section>
+
+<script src="/static/grid.js"></script>
+<script>
+(function () {
+  "use strict";
+  SAGrid.create({
+    gridId: "meterpoints-grid", bodyId: "meterpoints-grid-body", addRowId: "meterpoints-add-row",
+    formId: "meterpoints-form", hiddenInputId: "meterpoints-json",
+    columns: ["id", "unit_id", "room", "kind"],
+    selectOptions: {kind: [{{range .Kinds}}{value: "{{.Value}}", label: "{{.Name}}"},{{end}}]},
+    placeholders: {unit_id: "leer = Hauszähler"},
+    noFillDown: true,
+    initial: {{.MeterPointsJSON}}
+  });
+
+  document.querySelectorAll("[data-csv]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var mine = document.getElementById("csv-" + button.dataset.csv + "-" + button.dataset.for);
+      var other = document.getElementById("csv-" + (button.dataset.csv === "in" ? "out" : "in") + "-" + button.dataset.for);
+      var opening = mine.hidden;
+      mine.hidden = !opening;
+      other.hidden = true;
+      if (opening) {
+        var field = mine.querySelector("textarea");
+        field.focus();
+        if (field.readOnly) field.select();
+      }
+    });
+  });
+})();
+</script>
+{{end}}
+
+{{if eq .Tab "meters"}}
+<section class="card">
+  <div class="card-head"><h2>Zähler</h2></div>
+  <p class="hint">Alle Geräte, auch längst ausgebaute — hier werden <em>Werte</em> geändert,
+  auch Zählernummer und Zählerplatz. Ein neues Gerät anzulegen oder einen Wechsel einzutragen
+  geht im Reiter <a href="/operator/masterdata?tab=uebersicht">Gesamtansicht</a> leichter, weil
+  dort die freien Zählerplätze zu sehen sind. Leerer kc-Faktor bedeutet 1, leerer Stichtag-Monat
+  Dezember, leeres Einbaudatum „war schon immer da“. Anfangsstand und Endstand: bei
+  Wasserzählern m³ mit Komma (z. B. „12,345“), bei HKV eine ganze Zahl ohne Komma und ohne
+  Tausenderpunkt.</p>
+
+  <form method="post" action="/operator/masterdata" id="meters-form">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="table" value="meters">
+    <input type="hidden" name="rows" id="meters-json">
+  </form>
+
+  <p class="sa-tablebar">
+    <label><input type="checkbox" id="meters-only-current" checked> Nur aktuelle Zähler</label>
+    <span id="meters-hidden-count" class="hint"></span>
+  </p>
+  <div class="grid-scroll">
+    <table id="meters-grid">
+      <thead>
+        <tr>
+          <th>Zählernummer</th><th>Zählerplatz</th><th>AES-Schlüssel (hex)</th><th>Einbau</th>
+          <th>Anfangsstand</th><th>kc-Faktor</th><th>Stichtag-Monat</th><th>Ausbau</th>
+          <th>Endstand</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="meters-grid-body"></tbody>
+    </table>
+  </div>
+  <p class="row-actions">
+    <button type="button" class="btn-secondary btn-sm" data-csv="out" data-for="meters">CSV exportieren</button>
+    <button type="button" class="btn-secondary btn-sm" data-csv="in" data-for="meters">CSV importieren</button>
+    <button type="submit" form="meters-form" class="btn btn-sm">Zähler speichern</button>
+  </p>
+  <div class="sa-csv" id="csv-out-meters" hidden>
+    <label>Zähler als CSV — zum Kopieren. In einer Tabellenkalkulation als Trennzeichen
+      Semikolon wählen. <strong>Enthält alle AES-Schlüssel im Klartext</strong>: nicht
+      unverschlüsselt weitergeben, so sorgfältig behandeln wie den Stammdaten-Export.
+      <textarea readonly rows="6" spellcheck="false">{{.CSVMeters}}</textarea></label>
+  </div>
+
+  <form class="sa-csv" id="csv-in-meters" method="post" action="/operator/masterdata/import" hidden>
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="table" value="meters">
+    <label>CSV einfügen. Die Kopfzeile entscheidet, welche Spalten dabei sind — eine Datei mit
+      weniger Spalten ist der Normalfall, nicht die Ausnahme. Was in ihr fehlt, bleibt
+      unberührt; gelöscht wird durch das Einlesen nie.
+      <textarea name="csv" rows="6" spellcheck="false" placeholder="Zählernummer;Zählerplatz;AES-Schlüssel;Einbau;Anfangsstand;kc-Faktor;Stichtagsmonat;Ausbau;Endstand"></textarea></label>
+    <p class="row-actions"><button type="submit" class="btn btn-sm">Vorschau</button></p>
+  </form>
+{{with .Import}}
+  <div class="sa-preview">
+    <h3>Vorschau — es ist noch nichts geschrieben</h3>
+    <p class="hint">Je Zeile, was passieren würde, und warum nicht.
+    {{if .Unknown}}Übergangen wurden die Spalten {{range $i, $c := .Unknown}}{{if $i}}, {{end}}„{{$c}}“{{end}}.{{end}}</p>
+    <div class="grid-scroll">
+      <table class="list">
+        <thead><tr><th>Zeile</th><th>Schlüssel</th><th>Übernommene Werte</th><th>Ergebnis</th></tr></thead>
+        <tbody>
+          {{range .Rows}}
+          <tr{{if not .OK}} class="sa-row-refused"{{end}}>
+            <td>{{.Line}}</td>
+            <td>{{.Key}}</td>
+            <td>{{.Values}}</td>
+            <td>{{if .OK}}✓ {{.Action}}{{else}}✕ {{.Problem}}{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    <form method="post" action="/operator/masterdata/import/apply" class="row-actions">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <input type="hidden" name="table" value="{{.Table}}">
+      <input type="hidden" name="csv" value="{{.CSV}}">
+      <button type="submit" class="btn btn-sm">{{.Accept}} Zeilen übernehmen</button>
+      <a class="btn btn-secondary btn-sm" href="/operator/masterdata?tab={{.Table}}">Verwerfen</a>
+    </form>
+  </div>
+{{end}}
+</section>
+
+<script src="/static/grid.js"></script>
+<script>
+(function () {
+  "use strict";
+  SAGrid.create({
+    gridId: "meters-grid", bodyId: "meters-grid-body",
+    formId: "meters-form", hiddenInputId: "meters-json",
+    columns: ["number", "meter_point_id", "aes_key", "installed_at", "start_reading", "kc_factor", "freeze_month", "removed_at", "end_reading"],
+    // No fill-down and no blank trailing row: this table also holds
+    // long-removed devices, and new ones are not made here.
+    noFillDown: true,
+    noBlankRow: true,
+    placeholders: {kc_factor: "1", freeze_month: "12", installed_at: "TT.MM.JJJJ", removed_at: "in Betrieb"},
+    initial: {{.MetersJSON}}
+  });
+
+  document.querySelectorAll("[data-csv]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var mine = document.getElementById("csv-" + button.dataset.csv + "-" + button.dataset.for);
+      var other = document.getElementById("csv-" + (button.dataset.csv === "in" ? "out" : "in") + "-" + button.dataset.for);
+      var opening = mine.hidden;
+      mine.hidden = !opening;
+      other.hidden = true;
+      if (opening) {
+        var field = mine.querySelector("textarea");
+        field.focus();
+        if (field.readOnly) field.select();
+      }
+    });
+  });
+
+  // The filter hides rows, it does not remove them: a save submits the
+  // whole table, so a hidden row that left the DOM would be a deleted
+  // meter.
+  var onlyCurrent = document.getElementById("meters-only-current");
+  var hiddenCount = document.getElementById("meters-hidden-count");
+  function applyFilter() {
+    var hidden = 0;
+    Array.prototype.forEach.call(document.querySelectorAll("#meters-grid-body tr"), function (tr) {
+      var removed = tr.querySelector('[data-col="removed_at"]');
+      var isOld = removed && removed.value.trim() !== "";
+      tr.hidden = onlyCurrent.checked && isOld;
+      if (tr.hidden) hidden++;
+    });
+    hiddenCount.textContent = hidden
+      ? hidden + (hidden === 1 ? " ausgebauter Zähler ist ausgeblendet." : " ausgebaute Zähler sind ausgeblendet.")
+      : "";
+  }
+  onlyCurrent.addEventListener("change", applyFilter);
+  applyFilter();
+})();
+</script>
+{{end}}
+
+{{if eq .Tab "swap"}}
+<section class="card" id="wechselliste">
+  <div class="card-head"><h2>Zählerwechsel übernehmen</h2></div>
+  <p class="hint">Die Liste aus dem Montageprotokoll hier einfügen — direkt aus einer
+  Tabellenkalkulation, als CSV oder als Textblock. Zugeordnet wird über die <strong>alte
+  Zählernummer</strong>; die muss also dabei sein. Für einen Platz, an dem noch nie ein Zähler
+  saß, statt der alten Nummer die <strong>Zählerplatz-ID</strong> angeben.</p>
+  <p class="hint">Ohne Kopfzeile wird diese Spaltenreihenfolge erwartet: <code>alte Nummer ·
+  Endstand · neue Nummer · Anfangsstand</code>. Mit Kopfzeile werden die Spalten anhand ihrer
+  Bezeichnung erkannt („alt“, „neu“, „Endstand“, „Anfangsstand“, „Platz“). Zählerstände bei
+  Wasserzählern als m³ mit Komma (z. B. „12,345“), bei HKV als ganze Zahl ohne Komma. Zwei
+  weitere Spalten sind möglich und brauchen eine Kopfzeile: <code>kc</code> und
+  <code>Stichtag</code> (Monat 1–12); ohne sie werden beide Werte vom ausgebauten Zähler
+  übernommen.</p>
+
+  <form method="post" action="/operator/masterdata/swap-list#wechselliste">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <label for="day">Wechseldatum
+        <input type="date" id="day" name="day" value="{{if .Swap}}{{.Swap.Day}}{{else}}{{.TodayISO}}{{end}}" required>
+      </label>
+    </div>
+    <label for="pasted">Wechselliste</label>
+    <textarea id="pasted" name="pasted" rows="8" spellcheck="false"
+      placeholder="10000047&#9;105&#9;20000047&#9;0&#10;10000048&#9;100&#9;20000048&#9;0">{{if .Swap}}{{.Swap.Text}}{{end}}</textarea>
+    <button type="submit" class="btn-secondary btn-sm" style="margin-top: 0.75rem;">Vorschau</button>
+  </form>
+
+  {{with .Swap}}
+  <h3 style="margin-top: 1.5rem;">Vorschau</h3>
+  <p class="hint">
+    {{.Ready}} von {{add .Ready .Refused}} Zeilen werden übernommen{{if .Refused}}, {{.Refused}} nicht{{end}}.
+    {{if .Header}}Die erste Zeile wurde als Kopfzeile erkannt und übersprungen.{{end}}
+    Geändert wird erst mit „Übernehmen“.
+  </p>
+  <div class="grid-scroll">
+  <table class="list">
+    <thead>
+      <tr><th>Zeile</th><th>Platz</th><th>Alter Zähler</th><th>Endstand</th><th>Neuer Zähler</th><th>Anfangsstand</th><th>Gerätewerte</th><th>Ergebnis</th></tr>
+    </thead>
+    <tbody>
+    {{range .Plans}}
+      <tr>
+        <td>{{.Line}}</td>
+        <td>{{if .PointID}}{{.PointID}}{{if .PointLabel}} <span class="hint">{{.PointLabel}}</span>{{end}}{{else}}<span class="hint">—</span>{{end}}</td>
+        <td class="token-cell">{{if .OldNumber}}{{.OldNumber}}{{else}}<span class="hint">Erstmontage</span>{{end}}</td>
+        <td>{{.EndReadingText}}</td>
+        <td class="token-cell">{{if .NewNumber}}{{.NewNumber}}{{else}}<span class="hint">—</span>{{end}}</td>
+        <td>{{.StartReadingText}}</td>
+        <td>
+          {{.DeviceValuesText}}
+          {{if and .Inherited .OldNumber}}<div class="hint">vom alten Zähler übernommen</div>{{end}}
+        </td>
+        <td>
+          {{if .OK}}
+            <span class="badge badge-success"><span class="badge-dot"></span>wird übernommen</span>
+            {{if .Warning}}<div class="warn-line"><span class="badge badge-warning"><span class="badge-dot"></span>Achtung</span> {{.Warning}}</div>{{end}}
+            {{if .Note}}<div class="hint">{{.Note}}</div>{{end}}
+          {{else}}
+            <span class="badge badge-danger"><span class="badge-dot"></span>{{.Problem}}</span>
+          {{end}}
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+
+  {{if .Ready}}
+  <form method="post" action="/operator/masterdata/swap-list/apply" style="margin-top: 1rem;">
+    <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+    <input type="hidden" name="day" value="{{.Day}}">
+    <input type="hidden" name="pasted" value="{{.Text}}">
+    <button type="submit" class="btn btn-sm">{{.Ready}} Wechsel übernehmen</button>
+    <span class="hint">Zeilen mit einem Hinweis werden dabei übergangen.</span>
+  </form>
+  {{end}}
+  {{end}}
+</section>
+{{end}}
+
+{{if eq .Tab "access"}}
+<section class="card">
+  <div class="card-head">
+    <h2>Zugänge</h2>
+  </div>
+  <p class="hint">Der Zugangscode wird erst beim Speichern erzeugt. Wohnung als ID angeben (Reiter
+  Wohnungen zeigt sie). Ende leer lassen für einen unbefristeten Zugang.</p>
+
+  <form method="post" action="/operator/access" id="access-grid-form">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="accesses_json" id="access-json">
+
+    <div class="grid-scroll">
+    <table id="access-grid">
+      <thead>
+        <tr><th>Zugangscode</th><th>Wohnung</th><th>Beginn</th><th>Ende</th><th>E-Mail</th><th></th></tr>
+      </thead>
+      <tbody id="access-grid-body"></tbody>
+    </table>
+    </div>
+    <button type="button" id="access-add-row" class="btn-secondary btn-sm">+ Zeile</button>
+    <button type="submit" class="btn btn-sm" style="margin-top: 0.75rem;">Speichern</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Betreiber-Passwort</h2>
+  <p class="hint">Entschlüsselt die Stammdaten und damit alle Zählerschlüssel. <span class="text-danger">Geht es verloren,
+  sind die Daten nicht wiederherstellbar</span> — notieren Sie es an einem sicheren Ort. Das aktuelle
+  Passwort lässt sich hier bewusst nicht anzeigen; es kann nur durch ein neues ersetzt werden.</p>
+
+  <form method="post" action="/operator/access/password">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row form-row-bottom">
+      <label>Neues Passwort
+        <input type="text" name="new_password" autocomplete="new-password" minlength="12" required spellcheck="false">
+      </label>
+      <button type="submit" class="btn-secondary">Passwort ändern</button>
+    </div>
+    <p class="hint">Mindestens 12 Zeichen. Sie bleiben angemeldet, alle anderen Sitzungen (auch andere
+    Betreiber-Anmeldungen und alle Mieter) werden sofort beendet.</p>
+  </form>
+
+  <form method="post" action="/operator/access/delete-backups" style="margin-top: 0.75rem;"
+        onsubmit="return confirm('Alle alten Stammdaten-Backups unwiderruflich löschen?');">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button type="submit" class="btn-secondary btn-sm">Lösche alte Stammdaten-Backups</button>
+    <p class="hint">Ein Passwortwechsel oben verschlüsselt nur die aktuelle Datei neu — ältere
+    Sicherungskopien bleiben mit dem alten Passwort lesbar, bis sie hier gelöscht werden. Sinnvoll
+    vor allem, wenn das alte Passwort kompromittiert gewesen sein könnte.</p>
+  </form>
+</section>
+
+<script src="/static/grid.js"></script>
+<script>
+(function () {
+  "use strict";
+  SAGrid.create({
+    gridId: "access-grid", bodyId: "access-grid-body", addRowId: "access-add-row",
+    formId: "access-grid-form", hiddenInputId: "access-json",
+    readOnlyColumns: ["token"],
+    columns: ["unit_id", "start", "end", "email"],
+    // start/end are plain text, not <input type="date">: a native date
+    // input's .value is locked to ISO, so pasting a column of dates
+    // copied out of Excel (DD.MM.YYYY) silently failed. parseGridDay on
+    // the server accepts either form (see masterdata_handlers.go).
+    placeholders: {start: "TT.MM.JJJJ", end: "TT.MM.JJJJ (optional)", email: "mieter@example.org (optional)"},
+    initial: {{.AccessGridJSON}}
+  });
+})();
+</script>
+{{end}}
+{{end}}
+
+{{define "sa-place"}}
+<div class="sa-place"
+     data-search="{{.ID}} {{.Room}} {{.KindLabel}} {{.UnitID}}{{with .Active}} {{.Number}}{{end}}{{range .History}} {{.Number}}{{end}}"
+     data-no-meter="{{if .Active}}0{{else}}1{{end}}"
+     data-no-key="{{with .Active}}{{if .HasKey}}0{{else}}1{{end}}{{else}}0{{end}}"
+     data-never-seen="{{with .Active}}{{if .NeverSeen}}1{{else}}0{{end}}{{else}}0{{end}}">
+  <div class="sa-place-id">
+    <button type="button" class="sa-idlink" data-dialog="meterpoint"
+            data-id="{{.ID}}" data-unit="{{.UnitID}}" data-room="{{.Room}}" data-kind="{{.Kind}}">{{.ID}}</button>
+  </div>
+  <div class="sa-place-what">
+    <div class="sa-place-room">{{if .Room}}{{.Room}}{{else}}ohne Raum{{end}}
+      <span class="sa-kind sa-kind-{{.Kind}}" title="{{.KindName}}">{{.KindLabel}}</span></div>
+    {{with .Active}}
+    <div class="sa-place-device">Zähler
+      <button type="button" class="sa-idlink" data-dialog="meter"
+              data-number="{{.Number}}" data-aes="{{.AESKey}}" data-installed="{{.Installed}}"
+              data-start="{{.Start}}" data-kc="{{.KCFactor}}" data-freeze="{{.Freeze}}"
+              data-removed="" data-end="" data-place="{{$.ID}}">{{.Number}}</button>
+      · {{.Summary}}{{if .NeverSeen}} · <span class="sa-never">nie empfangen</span>{{else if .LastSeen}} · zuletzt {{.LastSeen}}{{end}}</div>
+    {{else}}
+    <div class="sa-place-device sa-empty">kein Zähler</div>
+    {{end}}
+    {{range .History}}
+    <div class="sa-place-history">vorher
+      <button type="button" class="sa-idlink" data-dialog="meter"
+              data-number="{{.Number}}" data-aes="{{.AESKey}}" data-installed="{{.Installed}}"
+              data-start="{{.Start}}" data-kc="{{.KCFactor}}" data-freeze="{{.Freeze}}"
+              data-removed="{{.Removed}}" data-end="{{.End}}" data-place="{{$.ID}}">{{.Number}}</button>
+      · {{.Summary}}</div>
+    {{end}}
+  </div>
+  <div class="sa-place-actions">
+    {{if .Active}}
+    <button type="button" class="btn btn-sm" data-dialog="swap"
+            data-place="{{.ID}}" data-place-label="{{.ID}} · {{.Room}} · {{.KindName}}"
+            data-outgoing="{{.Active.Number}}" data-kc="{{.Active.KCFactor}}" data-freeze="{{.Active.Freeze}}"
+            data-kind="{{.Kind}}">Zählerwechsel</button>
+    {{else}}
+    <button type="button" class="btn btn-sm" data-dialog="meter"
+            data-place="{{.ID}}" data-place-label="{{.ID}} · {{.Room}} · {{.KindName}}"
+            data-kind="{{.Kind}}" data-suggest="1">Zähler zuordnen</button>
+    {{end}}
+  </div>
+</div>
 {{end}}

@@ -3,7 +3,6 @@ package webapp
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
 	"strings"
 
@@ -11,12 +10,6 @@ import (
 	"selbst-ableser/internal/masterdata"
 	"selbst-ableser/internal/telegram"
 )
-
-type accessPageData struct {
-	Base
-	AccessGridJSON template.JS // pre-serialized for the bulk-edit grid's initial state
-	Error          string
-}
 
 // accessGridRow is one row of the Zugänge bulk-edit grid: a
 // masterdata.Access with its dates in the grid's display format. Token is
@@ -47,48 +40,30 @@ func accessGridRowsFrom(accesses []masterdata.Access) []accessGridRow {
 	return rows
 }
 
-// handleAccessList is UI-04's overview: every access grant, editable as one
-// bulk grid (STAMM-06/UI-05's pattern, shared with Wohnungen and
-// Zählerplätze/Zähler in Stammdaten).
+// handleAccessList used to be UI-04's overview page; the Zugänge tab now
+// lives inside Stammdaten (masterdata.html), so a GET here only sends the
+// operator on to its canonical URL.
 func (a *App) handleAccessList(w http.ResponseWriter, r *http.Request) {
 	sess := a.session(r)
 	if err := access.RequireOperator(sess); err != nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
-	md, ok := a.Vault.Get()
-	if !ok {
-		a.renderLocked(w, sess)
-		return
-	}
-	a.renderAccessRows(w, sess, accessGridRowsFrom(md.Accesses), "")
-}
-
-// renderAccessRows draws the Zugänge page with the given rows — either the
-// stored grants, or (after a rejected save) exactly what the operator typed
-// or pasted, so one bad row doesn't discard the rest of the edit.
-func (a *App) renderAccessRows(w http.ResponseWriter, sess *access.Session, rows []accessGridRow, errMsg string) {
-	gridJSON, _ := json.Marshal(rows)
-	data := accessPageData{
-		Base:           a.base("Zugänge", sess),
-		AccessGridJSON: template.JS(gridJSON),
-		Error:          errMsg,
-	}
-	a.render(w, "access.html", data)
+	http.Redirect(w, r, "/operator/masterdata?tab="+tabAccess, http.StatusSeeOther)
 }
 
 // renderAccessPage and renderAccessPageWithFlash are handleChangePassword's
-// hook back into this page: the operator password form lives here too
-// (next to the tenant access tokens — every credential of the installation
-// in one place), so a password change has to redraw the same grid state as
-// a plain GET.
+// and handleDeleteBackups' hook back into the Zugänge tab: the operator
+// password form lives there too (next to the tenant access tokens — every
+// credential of the installation in one place), so either action has to
+// redraw the same grid state as a plain GET on that tab.
 func (a *App) renderAccessPage(w http.ResponseWriter, sess *access.Session, errMsg string) {
 	md, ok := a.Vault.Get()
 	if !ok {
 		a.renderLocked(w, sess)
 		return
 	}
-	a.renderAccessRows(w, sess, accessGridRowsFrom(md.Accesses), errMsg)
+	a.renderAccessTab(w, sess, md, accessGridRowsFrom(md.Accesses), errMsg, "")
 }
 
 func (a *App) renderAccessPageWithFlash(w http.ResponseWriter, sess *access.Session, flash string) {
@@ -97,10 +72,7 @@ func (a *App) renderAccessPageWithFlash(w http.ResponseWriter, sess *access.Sess
 		a.renderLocked(w, sess)
 		return
 	}
-	gridJSON, _ := json.Marshal(accessGridRowsFrom(md.Accesses))
-	data := accessPageData{Base: a.base("Zugänge", sess), AccessGridJSON: template.JS(gridJSON)}
-	data.Flash = flash
-	a.render(w, "access.html", data)
+	a.renderAccessTab(w, sess, md, accessGridRowsFrom(md.Accesses), "", flash)
 }
 
 // handleAccessSave replaces the full set of access grants in one request —
@@ -129,13 +101,13 @@ func (a *App) handleAccessSave(w http.ResponseWriter, r *http.Request) {
 
 	var rows []accessGridRow
 	if err := json.Unmarshal([]byte(r.PostFormValue("accesses_json")), &rows); err != nil {
-		a.renderAccessRows(w, sess, accessGridRowsFrom(md.Accesses), "Ungültige Übertragung.")
+		a.renderAccessTab(w, sess, md, accessGridRowsFrom(md.Accesses), "Ungültige Übertragung.", "")
 		return
 	}
 
 	newAccesses, newCount, errMsg := parseAccessGridRows(rows, md.Units, md.Accesses)
 	if errMsg != "" {
-		a.renderAccessRows(w, sess, rows, errMsg)
+		a.renderAccessTab(w, sess, md, rows, errMsg, "")
 		return
 	}
 
@@ -153,16 +125,12 @@ func (a *App) handleAccessSave(w http.ResponseWriter, r *http.Request) {
 
 	md.Accesses = newAccesses
 	if err := a.Vault.Save(a.MasterDataPath, md); err != nil {
-		a.renderAccessRows(w, sess, rows, "Speichern fehlgeschlagen.")
+		a.renderAccessTab(w, sess, md, rows, "Speichern fehlgeschlagen.", "")
 		return
 	}
 
 	a.audit(access.EventAccessChange, sess.AuditActor(), fmt.Sprintf("saved access grants: %d total, %d new, %d revoked", len(newAccesses), newCount, revoked))
-	data := accessPageData{Base: a.base("Zugänge", sess)}
-	data.Flash = "Gespeichert."
-	gridJSON, _ := json.Marshal(accessGridRowsFrom(newAccesses))
-	data.AccessGridJSON = template.JS(gridJSON)
-	a.render(w, "access.html", data)
+	a.renderAccessTab(w, sess, md, accessGridRowsFrom(newAccesses), "", "Gespeichert.")
 }
 
 // parseAccessGridRows converts the Zugänge grid's rows into access grants.

@@ -108,6 +108,15 @@ func (q SignalQuality) String() string {
 // ClassifyRSSI buckets a signal strength reading in dBm.
 func ClassifyRSSI(dBm int) SignalQuality {
 	switch {
+	case dBm == 0:
+		// Not a reading but the absence of one: some receivers report no
+		// signal strength at all (the Innotas box does not, unless its
+		// module is configured to append it), and the zero value that
+		// leaves behind would otherwise be classified as the strongest
+		// possible reception. A genuine 0 dBm at the antenna is not a
+		// thing that happens on this radio link, so nothing real is lost
+		// by reading it as "unknown".
+		return SignalUnknown
 	case dBm >= -50:
 		return SignalExcellent
 	case dBm >= -70:

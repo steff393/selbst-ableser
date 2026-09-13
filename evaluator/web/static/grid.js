@@ -167,8 +167,15 @@ window.SAGrid = (function () {
     } else {
       initial.forEach(function (row) { addRow(row); });
     }
-    addRow(); // one blank trailing row, ready to type or paste into
-    addFillDownHeader();
+    // One blank trailing row, ready to type or paste into — except in a
+    // grid where new rows are not made at all, and an empty line would
+    // only invite an entry that gets refused.
+    if (!opts.noBlankRow) addRow();
+    // Filling a column downwards is right where every row means the same
+    // kind of thing, and wrong where a table also holds rows nobody meant
+    // to touch — a long-removed device among the current ones. Grids that
+    // hold both say so.
+    if (!opts.noFillDown) addFillDownHeader();
 
     if (addRowButton) addRowButton.addEventListener("click", function () { addRow(); });
 

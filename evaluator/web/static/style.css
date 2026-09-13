@@ -390,6 +390,37 @@ table.list td { text-align: left; padding: 0.55rem 0.6rem; border-bottom: 1px so
 table.list tbody tr:hover td, table.list tr:hover td { background: var(--surface-alt); }
 table.list tr:last-child td { border-bottom: none; }
 
+/* Zählerplätze: die aufgeklappte Gerätehistorie sitzt als eigene Zeile
+   unter ihrem Platz. Sie soll als Einschub lesbar sein und nicht als
+   zweite, gleichrangige Tabelle — daher der eingerückte, abgesetzte
+   Grund und die kleinere Schrift. */
+tr.mp-history > td { background: var(--surface-alt); padding: 0.4rem 0.6rem 0.6rem 2rem; }
+table.list.compact { font-size: 0.8125rem; }
+table.list.compact th, table.list.compact td { padding: 0.35rem 0.5rem; }
+.mp-toggle.is-open { background: var(--accent-tint); color: var(--accent); }
+
+/* Ein Hinweis, der übernommen wird und trotzdem gelesen werden muss — auf
+   der Zählerplätze-Seite der Wechsel im Stichtagsmonat. Kräftiger als ein
+   .hint, aber keine Ablehnung: die Zeile wird ja geschrieben. */
+.warn-line {
+  margin-top: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--warning);
+  line-height: 1.4;
+}
+
+/* Ein Kontrollkästchen mit seiner Beschriftung in einer Zeile, für die
+   Filterleiste — ohne dies erbt es die Spaltenanordnung von .form-row
+   label und steht über seinem Text. */
+label.inline-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: end;
+  padding-bottom: 0.4rem;
+}
+label.inline-check input { width: auto; }
+
 th.sortable-col {
   cursor: pointer;
   user-select: none;
@@ -1028,3 +1059,306 @@ textarea[name="privacy_policy_text"] {
   .page-head { flex-direction: column; align-items: flex-start; }
   .login-wrap { margin-top: 1rem; }
 }
+
+/* ---------- Stammdaten: Reiter und Anlage-Ansicht ---------- */
+
+.sa-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+}
+.sa-tabs a {
+  padding: 0.55rem 0.9rem;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-muted);
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.sa-tabs a:hover { color: var(--fg); }
+.sa-tabs a.current { color: var(--fg); border-bottom-color: var(--accent); }
+
+.sa-unit {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+.sa-unit > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  cursor: pointer;
+  list-style: none;
+  background: var(--surface-alt);
+}
+.sa-unit > summary::-webkit-details-marker { display: none; }
+.sa-unit > summary::before { content: "▸"; color: var(--fg-faint); font-size: 0.75rem; }
+.sa-unit[open] > summary::before { content: "▾"; }
+.sa-unit-name { font-weight: 650; }
+.sa-unit-meta { color: var(--fg-muted); font-size: 0.8125rem; margin-left: auto; }
+
+.sa-places { display: flex; flex-direction: column; }
+.sa-place {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.6rem 0.9rem;
+  border-top: 1px solid var(--border);
+}
+.sa-place-add { border-top-style: dashed; }
+.sa-place-id { font-variant-numeric: tabular-nums; font-size: 0.8125rem; }
+.sa-place-what { min-width: 0; }
+.sa-place-room { font-weight: 600; }
+.sa-place-device,
+.sa-place-history { font-size: 0.8125rem; color: var(--fg-muted); }
+.sa-place-history { color: var(--fg-faint); }
+.sa-place-device.sa-empty { color: var(--warning); }
+.sa-place-actions { display: flex; gap: 0.4rem; justify-content: flex-end; }
+
+/* Eine anklickbare Kennung: sie sieht aus wie Text, verhält sich wie ein
+   Knopf. Die gepunktete Linie ist der einzige Hinweis darauf — deshalb
+   sagt die Seite darüber ausdrücklich, dass IDs anklickbar sind. */
+.sa-idlink {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted var(--border-strong);
+  text-underline-offset: 0.2em;
+}
+.sa-idlink:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.sa-place-id .sa-idlink { font-weight: 600; color: var(--fg-muted); }
+
+.sa-kind {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+  background: var(--neutral-tint);
+  color: var(--fg-muted);
+  vertical-align: 1px;
+}
+.sa-kind-heating { background: var(--warning-tint); color: var(--warning); }
+.sa-kind-hot_water { background: var(--danger-tint); color: var(--danger); }
+.sa-kind-cold_water { background: var(--accent-tint); color: var(--accent); }
+.sa-kind-heat_meter, .sa-kind-gas { background: var(--success-tint); color: var(--success); }
+
+/* ---------- Stammdaten: Dialoge ---------- */
+
+dialog {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: var(--shadow-lg);
+  padding: 0;
+  width: min(36rem, calc(100vw - 2rem));
+}
+dialog::backdrop { background: rgba(11, 15, 22, 0.45); }
+.sa-dlg-head { padding: 1rem 1.25rem 0.4rem; }
+.sa-dlg-head h3 { margin: 0; font-size: 1.0625rem; text-transform: none; letter-spacing: -0.01em; color: var(--fg); }
+.sa-dlg-head p { margin: 0.2rem 0 0; font-size: 0.8125rem; color: var(--fg-muted); }
+.sa-dlg-body { padding: 0.6rem 1.25rem 1rem; display: grid; gap: 0.7rem; }
+.sa-dlg-body label { display: grid; gap: 0.2rem; font-size: 0.75rem; font-weight: 650; color: var(--fg-muted); }
+.sa-dlg-body input, .sa-dlg-body select {
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--fg);
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  width: 100%;
+}
+.sa-two { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+/* .sa-dlg-body label's own display:grid above outranks the UA [hidden]
+   rule, so a hidden field inside a dialog needs its own, more specific
+   override to actually disappear. */
+.sa-dlg-body label[hidden] { display: none; }
+.sa-why { font-size: 0.75rem; font-weight: 400; color: var(--fg-faint); }
+.sa-why.sa-filled { color: var(--success); }
+.sa-dlg-foot {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.8rem 1.25rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface-alt);
+}
+.sa-dlg-foot .sa-delete, .sa-dlg-foot .sa-spacer { margin-right: auto; }
+.sa-danger { color: var(--danger); }
+
+.sa-suggest { display: grid; gap: 0.4rem; }
+.sa-cand-list { display: flex; flex-direction: column; gap: 0.25rem; max-height: 12rem; overflow-y: auto; }
+.sa-cand {
+  display: grid;
+  grid-template-columns: 7rem 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 0.8125rem;
+  /* Die allgemeine Knopfregel setzt Schrift auf var(--accent-fg) — auf
+     hellem Grund also weiß auf weiß. Beides muss hier zusammen gesetzt
+     werden, nie nur der Hintergrund. */
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+}
+.sa-cand:hover { border-color: var(--accent); background: var(--accent-tint); }
+.sa-cand-num { font-weight: 650; font-variant-numeric: tabular-nums; }
+.sa-cand-type { color: var(--fg-muted); }
+.sa-cand-seen { color: var(--fg-faint); font-size: 0.75rem; }
+.sa-cand-match .sa-cand-type { color: var(--success); }
+
+button.linklike {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0.2rem 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+button.linklike:hover { text-decoration: underline; }
+
+/* ---------- Stammdaten: Tabellen-Reiter ---------- */
+
+.sa-tablebar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.6rem;
+  font-size: 0.8125rem;
+}
+.sa-tablebar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sa-tablebar .hint { margin: 0; }
+
+.sa-csv {
+  margin-top: 0.9rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+.sa-csv[hidden] { display: none !important; }
+.sa-csv label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+.sa-csv textarea {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem;
+  resize: vertical;
+}
+.sa-csv textarea[readonly] { color: var(--fg-muted); }
+.sa-csv .row-actions { margin-bottom: 0; }
+
+/* Die Vorschau steht bei der Tabelle, zu der sie gehört. */
+.sa-preview {
+  margin-top: 0.9rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--accent-tint);
+}
+.sa-preview h3 { margin: 0 0 0.2rem; color: var(--accent); }
+.sa-preview .list { background: var(--surface); }
+
+/* Eine Zeile, die der Import nicht übernimmt. */
+tr.sa-row-refused td { background: var(--danger-tint); }
+
+/* ---------- Stammdaten: Suchen und Fehlendes finden ---------- */
+
+.sa-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.9rem;
+  font-size: 0.8125rem;
+}
+.sa-filter label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+.sa-filter .sa-search {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  cursor: auto;
+}
+.sa-filter input[type="search"] {
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--fg);
+  padding: 0.35rem 0.5rem;
+  min-width: 20rem;
+  max-width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.sa-filter-title {
+  font-weight: 650;
+  color: var(--fg);
+  border-left: 1px solid var(--border);
+  padding-left: 1rem;
+}
+.sa-filter-count { color: var(--fg-faint); margin-left: auto; }
+.sa-never { color: var(--warning); font-weight: 600; }
+.sa-unit[hidden], .sa-place[hidden] { display: none !important; }
+
+/* Ein Raster mit drei, vier schmalen Spalten muss die Seite nicht
+   ausfüllen: gedehnte Felder lassen eine ID aussehen wie ein Aufsatz. */
+table.sa-narrow { width: auto; }
+table.sa-narrow input[data-col="id"],
+table.sa-narrow input[data-col="unit_id"],
+table.sa-narrow input[data-col="area_m2"] { width: 8rem; }
+table.sa-narrow input[data-col="room"] { width: 12rem; }
+table.sa-narrow input[data-col="name"] { width: 16rem; }
+table.sa-narrow select[data-col="kind"] { width: 14rem; }

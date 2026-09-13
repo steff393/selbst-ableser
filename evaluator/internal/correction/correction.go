@@ -78,23 +78,36 @@ func Build(template archive.Entry, key [16]byte, newValue int64) (rawHex string,
 // a registered manufacturer-specific patcher otherwise — and returns the
 // value it replaced.
 func patchCurrentValue(frame *telegram.Frame, payload []byte, newValue int64) (oldValue int64, err error) {
-	records, ok, err := decode.Standard(frame.CI, payload)
-	if err != nil {
-		return 0, fmt.Errorf("correction: decoding template: %w", err)
-	}
+	records, ok, walkErr := decode.Standard(frame.CI, payload)
 	if ok {
+		// The value record is looked up before walkErr is judged (see
+		// decode.Standard). Patching one whose telegram has an unreadable
+		// tail is safe: the record's bytes are overwritten in place and
+		// the tail is never touched or re-encoded.
 		reading, record, found, err := decode.CurrentValueRecord(records)
 		if err != nil {
 			return 0, fmt.Errorf("correction: decoding template's current value: %w", err)
 		}
+		field := record.Data
 		if !found {
+			// Same fallback as billing.ReadValue: the value may sit in a
+			// manufacturer-specific record among standard ones.
+			reading, field, found, err = decode.ManufacturerRecordValue(telegram.Manufacturer(frame.M), records)
+			if err != nil {
+				return 0, fmt.Errorf("correction: decoding template's current value: %w", err)
+			}
+		}
+		if !found {
+			if walkErr != nil {
+				return 0, fmt.Errorf("correction: decoding template: %w", walkErr)
+			}
 			return 0, fmt.Errorf("correction: template telegram has no current-value record")
 		}
-		encoded, err := decode.EncodeCurrentValue(reading.Unit, newValue, len(record.Data))
+		encoded, err := decode.EncodeCurrentValue(reading.Unit, newValue, len(field))
 		if err != nil {
 			return 0, fmt.Errorf("correction: %w", err)
 		}
-		copy(record.Data, encoded) // aliases payload's backing array
+		copy(field, encoded) // aliases payload's backing array
 		return reading.Value, nil
 	}
 

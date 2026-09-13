@@ -346,7 +346,18 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("GET /operator/masterdata", a.handleMasterDataView)
 	mux.HandleFunc("POST /operator/masterdata", a.handleMasterDataSave)
 	mux.HandleFunc("POST /operator/masterdata/building", a.handleBuildingSave)
+	mux.HandleFunc("POST /operator/masterdata/import", a.handleMasterDataImport)
+	mux.HandleFunc("POST /operator/masterdata/import/apply", a.handleMasterDataImportApply)
+	mux.HandleFunc("POST /operator/masterdata/unit", a.handleUnitSave)
+	mux.HandleFunc("POST /operator/masterdata/unit/delete", a.handleUnitDelete)
+	mux.HandleFunc("POST /operator/masterdata/meterpoint", a.handleMeterPointSave)
+	mux.HandleFunc("POST /operator/masterdata/meterpoint/delete", a.handleMeterPointDelete)
+	mux.HandleFunc("POST /operator/masterdata/meter", a.handleMeterSave)
+	mux.HandleFunc("POST /operator/masterdata/meter/delete", a.handleMeterDelete)
+	mux.HandleFunc("POST /operator/masterdata/meter/swap", a.handleMeterSwap)
 	mux.HandleFunc("GET /operator/masterdata/export", a.handleMasterDataExport)
+	mux.HandleFunc("POST /operator/masterdata/swap-list", a.handleSwapListPreview)
+	mux.HandleFunc("POST /operator/masterdata/swap-list/apply", a.handleSwapListApply)
 
 	mux.HandleFunc("GET /operator/meterstatus", a.handleMeterStatus)
 

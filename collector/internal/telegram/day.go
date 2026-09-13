@@ -4,6 +4,11 @@ import (
 	"fmt"
 	"regexp"
 	"time"
+
+	// Embeds the IANA time zone database (~450 KB). Windows has no system
+	// zoneinfo, and without Go installed there is no GOROOT fallback either,
+	// so LoadLocation("Europe/Berlin") would fail on a plain end-user PC.
+	_ "time/tzdata"
 )
 
 // Local is the time zone all timestamps and calendar dates are stored and

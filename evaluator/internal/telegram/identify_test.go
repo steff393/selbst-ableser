@@ -47,6 +47,9 @@ func TestClassifyRSSI(t *testing.T) {
 		{-60, SignalGood},
 		{-80, SignalAdequate},
 		{-90, SignalWeak},
+		// A receiver that reports no signal strength leaves a zero
+		// behind; that must not read as the strongest possible signal.
+		{0, SignalUnknown},
 	}
 	for _, c := range cases {
 		if got := ClassifyRSSI(c.dBm); got != c.want {

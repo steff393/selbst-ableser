@@ -48,19 +48,29 @@ type MonthResult struct {
 //
 // swap is non-nil when the meter was replaced during this month; current
 // must then be a reading from swap.IncomingMeter and previous a reading
-// from swap.OutgoingMeter. billingReset forces the previous reading to be
-// treated as zero (FACH-03's fixed rule: the month after a heat-cost
-// allocator's periodic reset) and must not be combined with swap — the
-// spec leaves a meter swap that coincides with a billing-period reset
-// explicitly unspecified (see FACH-07's note on differing kc-factors
-// across a swap), so this rejects the combination rather than guess at it.
+// from swap.OutgoingMeter. billingReset means this month is the first of a
+// new billing period, so both devices started it at zero (FACH-03).
+//
+// The two used to be mutually exclusive: a swap in a reset month was
+// rejected as undefined, because it was unclear whether the outgoing
+// meter's end reading had been taken before or after its own reset. It is
+// not unclear once the period's closing value comes from the device itself
+// (see billing_reset.go): the previous month then ends on the frozen
+// value, this month begins at zero for both devices, and the outgoing
+// meter's end reading is simply what it counted before being taken out.
+// CalculateSeries still refuses the one case this reasoning does not cover
+// — two devices whose billing periods start in different months.
 func CalculateMonth(month string, previous, current MonthlyValue, swap *SwapCorrection, billingReset bool, kcFactor float64) (MonthResult, error) {
-	if swap != nil && billingReset {
-		return MonthResult{}, fmt.Errorf("billing: month %s: a meter swap combined with a billing-period reset is not defined", month)
-	}
-
 	var raw float64
 	switch {
+	case swap != nil && billingReset:
+		if current.Meter != swap.IncomingMeter || previous.Meter != swap.OutgoingMeter {
+			return MonthResult{}, fmt.Errorf("billing: month %s: swap correction does not match the given readings' meters", month)
+		}
+		// Both devices count from zero this month: the outgoing one
+		// contributes everything it counted up to its removal, the
+		// incoming one everything since it was installed.
+		raw = float64(current.Value-swap.StartReading) + float64(swap.EndReading)
 	case swap != nil:
 		if current.Meter != swap.IncomingMeter || previous.Meter != swap.OutgoingMeter {
 			return MonthResult{}, fmt.Errorf("billing: month %s: swap correction does not match the given readings' meters", month)

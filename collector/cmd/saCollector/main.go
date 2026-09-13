@@ -94,7 +94,8 @@ func run(ctx context.Context, args []string) error {
 	evaluator := fs.String("evaluator", "http://localhost:8226", "evaluator base URL")
 	secret := fs.String("secret", "", "shared transfer secret (ARCH-04); empty relies on loopback trust, only accepted if the evaluator also has none configured")
 	name := fs.String("name", "", "name this collector reports to the evaluator, shown on its Collector page; empty uses the hostname — set it when more than one collector reports to the same evaluator, since two freshly imaged Pis are both called raspberrypi")
-	port := fs.String("port", "", "serial port device path of the receiver, e.g. COM3 or /dev/ttyUSB0; omitted auto-detects an IMST iU891A-XL by USB ID — only needed as a manual override (e.g. more than one receiver on this machine)")
+	port := fs.String("port", "", "serial port device path of the receiver, e.g. COM3 or /dev/ttyUSB0; omitted auto-detects an IMST iU891A-XL by USB ID — only needed as a manual override (e.g. more than one receiver on this machine), and always for a -receiver other than the default")
+	receiverModel := fs.String("receiver", receiver.DefaultDeviceName, fmt.Sprintf("receiver model: one of %v — anything other than %q also needs -port, since only that one can be found by USB ID", receiver.DeviceNames(), receiver.DefaultDeviceName))
 	dataPath := fs.String("path", "data", "directory for this collector's own two local files (settings-cache.json, backup.db) — a working directory for files that regrow on their own, not an installation like the evaluator's")
 	showVersion := fs.Bool("version", false, "print the build identifier and exit")
 	if err := fs.Parse(args); err != nil {
@@ -114,6 +115,11 @@ func run(ctx context.Context, args []string) error {
 	status := newCollectorStatus(*name, versionLabel(), time.Now())
 	logLine("reporting as %q", status.name)
 
+	device, err := receiver.DeviceByName(*receiverModel)
+	if err != nil {
+		return fmt.Errorf("saCollector: %w", err)
+	}
+
 	// A receiver missing right now — at startup, or later after being
 	// unplugged — is not fatal: SerialSource's own reconnect-with-backoff
 	// loop (see OpenAutoDetectedPort) keeps watching for one to appear
@@ -125,13 +131,20 @@ func run(ctx context.Context, args []string) error {
 	// at startup.
 	var source receiver.Source
 	if *port != "" {
-		source = withReceiverLogging(receiver.NewSerialSource(receiver.OpenSerialPort(*port)), status)
-		logLine("connecting to %s", *port)
+		source = withReceiverLogging(receiver.NewSerialSource(receiver.OpenSerialPort(*port, device.BaudRate()), device), status)
+		logLine("connecting to %s (%s, %d baud)", *port, device.Name(), device.BaudRate())
 	} else {
+		// Only the default receiver can be found by USB ID; every other
+		// model shares its ID with unrelated hardware (see
+		// receiver.OpenAutoDetectedPort), so it has to be named.
+		if device.Name() != receiver.DefaultDeviceName {
+			return fmt.Errorf("saCollector: -receiver %s needs -port (e.g. -port /dev/ttyUSB0): only %s can be detected by USB ID",
+				device.Name(), receiver.DefaultDeviceName)
+		}
 		if _, _, err := receiver.FindReceiverPort(); err != nil {
 			return fmt.Errorf("saCollector: detecting receiver: %w", err)
 		}
-		source = withReceiverLogging(receiver.NewSerialSource(receiver.OpenAutoDetectedPort()), status)
+		source = withReceiverLogging(receiver.NewSerialSource(receiver.OpenAutoDetectedPort(device.BaudRate()), device), status)
 	}
 	defer source.Close()
 
@@ -593,8 +606,17 @@ func (l *liveSettings) poll(ctx context.Context) {
 	fetched, err := settings.Fetch(fetchCtx, l.client, l.evaluator, l.secret, l.status.snapshot())
 	if err != nil {
 		// The evaluator is unreachable right now; keep operating on
-		// whatever is already cached/current, silently, exactly as
-		// intended — this is not an operator-facing error.
+		// whatever else is already cached/current, silently, exactly as
+		// intended — this is not an operator-facing error. The live view
+		// is the one exception: it must not keep pushing indefinitely on
+		// a stale "on" from before the outage, so it is switched off
+		// here rather than left as it was. The next successful poll
+		// turns it back on if the evaluator still wants it — so an
+		// outage ends the live view within one ConfigPollInterval, not
+		// "eventually, once someone notices".
+		l.mu.Lock()
+		l.cur.LiveViewActive = false
+		l.mu.Unlock()
 		return
 	}
 
@@ -630,9 +652,12 @@ func (l *liveSettings) settings() settings.Settings {
 // its own: a restarted collector must not resume frequent pushing purely
 // on the cache's say-so before this run's own first poll has heard the
 // same from the evaluator. Once confirmed becomes true it stays true for
-// the rest of the process's life, even through a later failed poll — an
-// outage after a confirmed "active" should not silently stop the live
-// view either.
+// the rest of the process's life — but it only ever records that this run
+// has heard from the evaluator at all, not what it last said. Whether the
+// live view is actually on right now lives in l.cur.LiveViewActive alone,
+// and poll clears that on every failed attempt, so an extended outage
+// still switches the push off again within one ConfigPollInterval rather
+// than coasting indefinitely on stale say-so.
 // startupLiveWindow is how long after start a collector reports at the
 // live interval regardless of what the evaluator has configured. Bringing
 // a receiver up — plugging it in, checking that telegrams arrive, seeing
@@ -659,7 +684,7 @@ func (l *liveSettings) confirmedActive() (active bool, interval time.Duration) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.confirmed && l.cur.LiveViewActive() {
+	if l.confirmed && l.cur.LiveViewActive {
 		return true, l.cur.ReportInterval()
 	}
 	if time.Since(l.startedAt) < startupLiveWindow {

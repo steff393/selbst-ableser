@@ -58,18 +58,18 @@ func TestYearOverYearSeries(t *testing.T) {
 	md := masterdata.MasterData{
 		Units: []masterdata.Unit{{ID: "u1", Name: "Unit 1", AreaM2: 60}},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
 			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2024-01-01")},
 		},
 	}
 
-	series, err := YearOverYearSeries(store, md, "u1", masterdata.KindHeating, 2026, DefaultLookbackDays)
+	series, err := YearOverYearSeries(store, md, "u1", masterdata.KindHeatCostAllocator, 2026, DefaultLookbackDays)
 	if err != nil {
 		t.Fatalf("YearOverYearSeries: %v", err)
 	}
-	if series.Year != 2026 || series.Kind != masterdata.KindHeating {
+	if series.Year != 2026 || series.Kind != masterdata.KindHeatCostAllocator {
 		t.Errorf("Year/Kind = %d/%v, want 2026/Heating", series.Year, series.Kind)
 	}
 
@@ -148,8 +148,8 @@ func TestBuildingYearOverYearSeriesSumsAcrossUnits(t *testing.T) {
 			{ID: "u2", Name: "Unit 2", AreaM2: 60},
 		},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeating},
-			{ID: "mp2", UnitID: "u2", Room: "Living room", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeatCostAllocator},
+			{ID: "mp2", UnitID: "u2", Room: "Living room", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
 			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2024-01-01")},
@@ -157,11 +157,11 @@ func TestBuildingYearOverYearSeriesSumsAcrossUnits(t *testing.T) {
 		},
 	}
 
-	series, err := BuildingYearOverYearSeries(store, md, masterdata.KindHeating, 2026, DefaultLookbackDays)
+	series, err := BuildingYearOverYearSeries(store, md, masterdata.KindHeatCostAllocator, 2026, DefaultLookbackDays)
 	if err != nil {
 		t.Fatalf("BuildingYearOverYearSeries: %v", err)
 	}
-	if series.Year != 2026 || series.Kind != masterdata.KindHeating {
+	if series.Year != 2026 || series.Kind != masterdata.KindHeatCostAllocator {
 		t.Errorf("Year/Kind = %d/%v, want 2026/Heating", series.Year, series.Kind)
 	}
 	if got := series.CurrentYear[0]; !got.Found || got.Value != 110 { // 10 + 100
@@ -172,7 +172,7 @@ func TestBuildingYearOverYearSeriesSumsAcrossUnits(t *testing.T) {
 	}
 
 	// Sanity: this really is the sum, not one unit's own series reused.
-	u1Series, err := YearOverYearSeries(store, md, "u1", masterdata.KindHeating, 2026, DefaultLookbackDays)
+	u1Series, err := YearOverYearSeries(store, md, "u1", masterdata.KindHeatCostAllocator, 2026, DefaultLookbackDays)
 	if err != nil {
 		t.Fatalf("YearOverYearSeries(u1): %v", err)
 	}
@@ -217,7 +217,7 @@ func TestSeriesForMeterPointUsesKCFactorActiveOnReadingDay(t *testing.T) {
 
 	removedAt := mustDay(t, "2025-06-30")
 	endReading := int64(125)
-	mp := masterdata.MeterPoint{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeating}
+	mp := masterdata.MeterPoint{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeatCostAllocator}
 	md := masterdata.MasterData{
 		Units:       []masterdata.Unit{{ID: "u1", Name: "Unit 1", AreaM2: 60}},
 		MeterPoints: []masterdata.MeterPoint{mp},
@@ -274,7 +274,7 @@ func TestLatestAvailableMonthRespectsNotAfter(t *testing.T) {
 	md := masterdata.MasterData{
 		Units: []masterdata.Unit{{ID: "u1", Name: "Unit 1", AreaM2: 60}},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
 			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2024-01-01")},
@@ -341,7 +341,7 @@ func TestBuildUnitReport_AcceptanceScenario1(t *testing.T) {
 	md := masterdata.MasterData{
 		Units: []masterdata.Unit{{ID: "u1", Name: "Unit 1", AreaM2: 60}},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
 			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2024-01-01")},
@@ -379,7 +379,7 @@ func TestBuildUnitReport_AcceptanceScenario1(t *testing.T) {
 		t.Errorf("Readings = %+v, want one entry with value 258 on 2025-06-30", k.Readings)
 	}
 
-	cmp, ok := report.ComparisonPerM2[masterdata.KindHeating]
+	cmp, ok := report.ComparisonPerM2[masterdata.KindHeatCostAllocator]
 	if !ok {
 		t.Fatal("expected a heating comparison value")
 	}
@@ -439,9 +439,9 @@ func TestBuildUnitReport_AggregatesMultipleMeterPointsOfSameKind(t *testing.T) {
 			{ID: "u2", Name: "Unit 2", AreaM2: 100},
 		},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeating},
-			{ID: "mp2", UnitID: "u1", Room: "Bedroom", Kind: masterdata.KindHeating},
-			{ID: "mp3", UnitID: "u2", Room: "Living room", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeatCostAllocator},
+			{ID: "mp2", UnitID: "u1", Room: "Bedroom", Kind: masterdata.KindHeatCostAllocator},
+			{ID: "mp3", UnitID: "u2", Room: "Living room", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
 			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2024-01-01")},
@@ -502,5 +502,109 @@ func TestPercentChange(t *testing.T) {
 	zero := MonthResult{Consumption: 0}
 	if _, ok := cur.PercentChange(&zero); ok {
 		t.Error("PercentChange against a zero baseline should report ok=false")
+	}
+}
+
+// TestBuildingAggregatesIgnoreHouseMeters pins the mistake that would
+// have produced no error and no visibly odd number: the house's own
+// cold-water meter is a meter point of a billed kind, but it measures
+// what the flats already measured. Summed into the installation-wide
+// figures it would count the building's consumption twice.
+func TestBuildingAggregatesIgnoreHouseMeters(t *testing.T) {
+	key := [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	store, err := archive.OpenStore(filepath.Join(t.TempDir(), "archive.db"))
+	if err != nil {
+		t.Fatalf("OpenStore: %v", err)
+	}
+	defer store.Close()
+
+	insert := func(meterID, day string, value int64) {
+		t.Helper()
+		d := mustDay(t, day)
+		rawHex := buildEncryptedTelegramHex(t, key, hcaPayload(bcdBytesFor(value)))
+		if _, err := store.InsertHistorical(archive.Entry{MeterID: meterID, Day: d, ReceivedAt: dayTime(t, d), RawHex: rawHex}); err != nil {
+			t.Fatalf("InsertHistorical(%s, %s): %v", meterID, day, err)
+		}
+	}
+	// One flat, and the house's own meter counting a much larger figure.
+	insert("90000001", "2025-12-31", 999)
+	insert("90000001", "2026-01-31", 10)
+	insert("90000009", "2025-12-31", 999)
+	insert("90000009", "2026-01-31", 500)
+
+	md := masterdata.MasterData{
+		Units: []masterdata.Unit{{ID: "u1", Name: "Unit 1", AreaM2: 60}},
+		MeterPoints: []masterdata.MeterPoint{
+			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeatCostAllocator},
+			{ID: "haus", Room: "Boiler room", Kind: masterdata.KindHeatCostAllocator}, // no unit
+		},
+		Meters: []masterdata.Meter{
+			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2024-01-01")},
+			{Number: "90000009", MeterPointID: "haus", AESKey: key, InstalledAt: mustDay(t, "2024-01-01")},
+		},
+	}
+
+	series, err := BuildingYearOverYearSeries(store, md, masterdata.KindHeatCostAllocator, 2026, DefaultLookbackDays)
+	if err != nil {
+		t.Fatalf("BuildingYearOverYearSeries: %v", err)
+	}
+	if got := series.CurrentYear[0]; !got.Found || got.Value != 10 {
+		t.Errorf("CurrentYear[Jan] = %+v, want {10, true} — the house meter's 500 must stay out", got)
+	}
+
+	avg, err := BuildingComparisonForMonth(store, md, masterdata.KindHeatCostAllocator, mustDay(t, "2026-01-31"), DefaultLookbackDays)
+	if err != nil {
+		t.Fatalf("BuildingComparisonForMonth: %v", err)
+	}
+	if avg != 10.0/60.0 {
+		t.Errorf("average per m² = %v, want %v — only the flat counts", avg, 10.0/60.0)
+	}
+}
+
+// TestPerUnitLookupsIgnoreHouseMeters walks the same guard from the
+// billing side: the month range a unit's consumption information offers
+// must come from that unit's own devices, and a call that arrives without
+// a unit must find nothing rather than the house's meters.
+func TestPerUnitLookupsIgnoreHouseMeters(t *testing.T) {
+	store, err := archive.OpenStore(filepath.Join(t.TempDir(), "archive.db"))
+	if err != nil {
+		t.Fatalf("OpenStore: %v", err)
+	}
+	defer store.Close()
+
+	insert := func(meterID, day string) {
+		t.Helper()
+		d := mustDay(t, day)
+		if _, err := store.InsertHistorical(archive.Entry{MeterID: meterID, Day: d, ReceivedAt: dayTime(t, d), RawHex: "00"}); err != nil {
+			t.Fatalf("InsertHistorical(%s, %s): %v", meterID, day, err)
+		}
+	}
+	insert("90000001", "2026-01-31") // the flat's meter
+	insert("90000009", "2026-06-30") // the house meter, months later
+
+	md := masterdata.MasterData{
+		Units: []masterdata.Unit{{ID: "u1", Name: "Unit 1", AreaM2: 60}},
+		MeterPoints: []masterdata.MeterPoint{
+			{ID: "mp1", UnitID: "u1", Kind: masterdata.KindHeatCostAllocator},
+			{ID: "haus", Kind: masterdata.KindColdWater},
+		},
+		Meters: []masterdata.Meter{
+			{Number: "90000001", MeterPointID: "mp1", InstalledAt: mustDay(t, "2024-01-01")},
+			{Number: "90000009", MeterPointID: "haus", InstalledAt: mustDay(t, "2024-01-01")},
+		},
+	}
+
+	latest, ok, err := LatestAvailableMonth(store, md, "u1", mustDay(t, "2026-12-31"))
+	if err != nil {
+		t.Fatalf("LatestAvailableMonth: %v", err)
+	}
+	if !ok || latest != mustDay(t, "2026-01-31") {
+		t.Errorf("latest month for u1 = %s (%v), want 2026-01-31 — the house meter's June must not extend it", latest, ok)
+	}
+
+	if _, ok, err := LatestAvailableMonth(store, md, "", mustDay(t, "2026-12-31")); err != nil {
+		t.Fatalf("LatestAvailableMonth(no unit): %v", err)
+	} else if ok {
+		t.Error("a lookup without a unit must find nothing, not the house meters")
 	}
 }

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
+	"strings"
 	"time"
 
 	"selbst-ableser/internal/access"
@@ -239,15 +239,18 @@ func (a *App) handleArchiveCorrect(w http.ResponseWriter, r *http.Request) {
 		a.renderArchivePageWithError(w, sess, "Ungültiger Tag.")
 		return
 	}
-	newValue, err := strconv.ParseInt(r.PostFormValue("value"), 10, 64)
-	if err != nil || newValue < 0 {
-		a.renderArchivePageWithError(w, sess, "Ungültiger Zählerstand.")
-		return
-	}
 
 	meter, found := md.MeterByNumber(meterID, day)
 	if !found {
 		a.renderArchivePageWithError(w, sess, fmt.Sprintf("Kein Zähler %s an diesem Tag in den Stammdaten aktiv.", meterID))
+		return
+	}
+	// The kind decides whether the typed value is m³ with a comma (water)
+	// or a plain integer (everything else) — the same convention every
+	// other reading in the project follows (see reading_value.go).
+	newValue, msg := parseReadingValue(kindOfPlace(md.MeterPoints, meter.MeterPointID), "Zählerstand", r.PostFormValue("value"))
+	if msg != "" || strings.TrimSpace(r.PostFormValue("value")) == "" {
+		a.renderArchivePageWithError(w, sess, "Ungültiger Zählerstand: "+msg)
 		return
 	}
 

@@ -14,6 +14,10 @@ const (
 	UnitHeatCostAllocator
 	// UnitLiters is a water volume in liters.
 	UnitLiters
+	// UnitKWh is thermal energy in whole kilowatt hours, as a heat meter
+	// counts it — already the figure a consumption report shows, with no
+	// conversion factor in between.
+	UnitKWh
 )
 
 func (u Unit) String() string {
@@ -22,6 +26,8 @@ func (u Unit) String() string {
 		return "HCA units"
 	case UnitLiters:
 		return "l"
+	case UnitKWh:
+		return "kWh"
 	default:
 		return "unknown"
 	}
@@ -43,7 +49,45 @@ const (
 	vifHeatCostAllocator = 0x6E
 	vifVolumeLiters      = 0x13
 	vifDateTypeG         = 0x6C
+
+	// vifEnhancedIdentification introduces a second, complete device
+	// identification carried inside the application layer — see
+	// EnhancedMedium.
+	vifEnhancedIdentification = 0x79
 )
+
+// EnhancedMedium returns the medium byte from a telegram's enhanced
+// identification record, if it carries one.
+//
+// A telegram's link-layer header describes the device that *transmits*.
+// When that is not the meter itself — a radio converter reading meters
+// over a wired bus and sending on their behalf — the transmitter's own
+// medium byte says nothing about what is being measured, and EN 13757-3's
+// enhanced identification record exists for exactly that case: eight
+// bytes laid out like the link-layer header (4-byte BCD ID, 2-byte
+// manufacturer, version, medium), naming the metering device rather than
+// the radio.
+//
+// Qundis heat meters use it even where both halves are one physical
+// device: the link layer says 0x37 (radio converter), the record says
+// 0x04 (heat). The record is the half that answers "what does this
+// measure", so it wins where present.
+//
+// The record sits in the application layer, so it is only readable once
+// the payload is in cleartext — an encrypted telegram without its key
+// simply has no answer here, and the caller keeps the link-layer one.
+func EnhancedMedium(records []Record) (byte, bool) {
+	for _, r := range records {
+		if r.VIF != vifEnhancedIdentification || len(r.VIFE) > 0 {
+			continue
+		}
+		if len(r.Data) != 8 {
+			continue // not the ID/manufacturer/version/medium layout
+		}
+		return r.Data[7], true
+	}
+	return 0, false
+}
 
 // storageCurrent and storageBillingReset are the two storage numbers this
 // system distinguishes: the live value, and the value frozen at the last
@@ -131,6 +175,13 @@ func EncodeCurrentValue(unit Unit, value int64, length int) ([]byte, error) {
 		return encodeBCD(uint64(value), length)
 	case UnitLiters:
 		return encodeUintLE(uint64(value), length)
+	case UnitKWh:
+		// BCD because the one source of kWh readings so far — the Qundis
+		// heat-meter block, see qundis_heat.go — stores its total that
+		// way. Like the two cases above, this ties the unit to its
+		// encoding; a heat meter that sends kWh as binary would need the
+		// encoding carried alongside the unit instead.
+		return encodeBCD(uint64(value), length)
 	default:
 		return nil, fmt.Errorf("decode: no known encoding for unit %v", unit)
 	}

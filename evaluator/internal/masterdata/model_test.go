@@ -68,12 +68,12 @@ func TestEffectiveKCFactorDefault(t *testing.T) {
 	}
 }
 
-func TestEffectiveResetMonthDefault(t *testing.T) {
-	if got := (Meter{}).EffectiveResetMonth(); got != 1 {
-		t.Errorf("EffectiveResetMonth of an unset meter = %v, want 1 (January)", got)
+func TestEffectiveFreezeMonthDefault(t *testing.T) {
+	if got := (Meter{}).EffectiveFreezeMonth(); got != 12 {
+		t.Errorf("EffectiveFreezeMonth of an unset meter = %v, want 12 (Stichtag 31 December)", got)
 	}
-	if got := (Meter{ResetMonth: 6}).EffectiveResetMonth(); got != 6 {
-		t.Errorf("EffectiveResetMonth = %v, want 6", got)
+	if got := (Meter{FreezeMonth: 6}).EffectiveFreezeMonth(); got != 6 {
+		t.Errorf("EffectiveFreezeMonth = %v, want 6", got)
 	}
 }
 
@@ -89,5 +89,142 @@ func TestEffectiveBuildingKWhFactorsDefault(t *testing.T) {
 	}
 	if got := (Building{HotWaterKWhPerM3: 124.3}).EffectiveHotWaterKWhPerM3(); got != 124.3 {
 		t.Errorf("EffectiveHotWaterKWhPerM3 = %v, want 124.3", got)
+	}
+}
+
+// TestKindKnownAndBillable pins the questions the rest of the system asks
+// a Kind: is it a value we defined, does it take part in a tenant's
+// consumption information, and are its readings already kWh? A heat
+// meter is billed — heating measured directly — and the only kind whose
+// readings are kWh; a gas meter is watched, not billed.
+func TestKindKnownAndBillable(t *testing.T) {
+	cases := []struct {
+		kind   Kind
+		known  bool
+		billed bool
+		kWh    bool
+	}{
+		{KindHeatCostAllocator, true, true, false},
+		{KindHotWater, true, true, false},
+		{KindColdWater, true, true, false},
+		{KindHeatMeter, true, true, true},
+		{KindGas, true, false, false},
+		{Kind(99), false, false, false},
+	}
+	for _, c := range cases {
+		if got := c.kind.Known(); got != c.known {
+			t.Errorf("Kind(%d).Known() = %v, want %v", int(c.kind), got, c.known)
+		}
+		if got := c.kind.Billable(); got != c.billed {
+			t.Errorf("Kind(%d).Billable() = %v, want %v", int(c.kind), got, c.billed)
+		}
+		if got := c.kind.CountsKWh(); got != c.kWh {
+			t.Errorf("Kind(%d).CountsKWh() = %v, want %v", int(c.kind), got, c.kWh)
+		}
+	}
+}
+
+// TestKindNumberingIsStable guards the stored format: the values are
+// written to masterdata.enc as plain integers, so appending is safe and
+// reordering would silently turn every heat cost allocator in an existing
+// installation into something else.
+func TestKindNumberingIsStable(t *testing.T) {
+	for kind, want := range map[Kind]int{
+		KindHeatCostAllocator: 0,
+		KindHotWater:          1,
+		KindColdWater:         2,
+		KindHeatMeter:         3,
+		KindGas:               4,
+	} {
+		if int(kind) != want {
+			t.Errorf("%s = %d, want %d — existing files depend on this", kind, int(kind), want)
+		}
+	}
+}
+
+// TestMeterWithOpenInstallationIsAlwaysActive: an empty installation date
+// compares earlier than any real date, so the meter counts as installed
+// on every day it is asked about.
+func TestMeterWithOpenInstallationIsAlwaysActive(t *testing.T) {
+	m := Meter{Number: "90000010", MeterPointID: "mp1"}
+	if !m.Active(day(t, "2019-01-01")) {
+		t.Error("a meter with an open installation date must be active even long ago")
+	}
+	if !m.Active(day(t, "2026-09-07")) {
+		t.Error("a meter with an open installation date must be active today")
+	}
+}
+
+// TestActiveMeterPrefersTheDatedSuccessor: with an open start on the
+// first device and a real date on its replacement, the replacement wins
+// from its installation day on.
+func TestActiveMeterPrefersTheDatedSuccessor(t *testing.T) {
+	removed := day(t, "2025-02-15")
+	end := int64(150)
+	md := MasterData{
+		MeterPoints: []MeterPoint{{ID: "mp1", UnitID: "u1", Kind: KindHeatCostAllocator}},
+		Meters: []Meter{
+			{Number: "90000010", MeterPointID: "mp1", RemovedAt: &removed, EndReading: &end},
+			{Number: "90000011", MeterPointID: "mp1", InstalledAt: day(t, "2025-02-15")},
+		},
+	}
+
+	if m, ok := md.ActiveMeter("mp1", day(t, "2024-06-01")); !ok || m.Number != "90000010" {
+		t.Errorf("before the swap = %+v (%v), want the open-start meter", m, ok)
+	}
+	if m, ok := md.ActiveMeter("mp1", day(t, "2025-06-01")); !ok || m.Number != "90000011" {
+		t.Errorf("after the swap = %+v (%v), want the replacement", m, ok)
+	}
+}
+
+// TestOnlyHeatCostAllocatorsReset guards the one mistake in this area
+// that produces no error message: a heat meter counts kWh through and is
+// never zeroed, so treating it like a heat cost allocator would show a
+// year's worth of energy as a single month's consumption.
+func TestOnlyHeatCostAllocatorsReset(t *testing.T) {
+	if !KindHeatCostAllocator.ResetsAnnually() {
+		t.Error("a heat cost allocator resets at its Stichtag")
+	}
+	for _, kind := range []Kind{KindHotWater, KindColdWater, KindHeatMeter, KindGas} {
+		if kind.ResetsAnnually() {
+			t.Errorf("%s must not be treated as resetting annually", kind)
+		}
+	}
+}
+
+// TestInUnitNeverMatchesWithoutAUnit is the guard the consumption
+// information depends on: a house meter carries no unit, and neither does
+// a lookup that lost its unit somewhere. Comparing the two as plain
+// strings would make every house meter look like that tenant's own.
+func TestInUnitNeverMatchesWithoutAUnit(t *testing.T) {
+	flat := MeterPoint{ID: "101", UnitID: "u1", Kind: KindHeatCostAllocator}
+	house := MeterPoint{ID: "h1", Kind: KindColdWater}                   // the building's main water meter
+	flatHeat := MeterPoint{ID: "102", UnitID: "u1", Kind: KindHeatMeter} // underfloor heating, one per flat
+	houseHeat := MeterPoint{ID: "h2", Kind: KindHeatMeter}               // the boiler's own heat meter
+	watched := MeterPoint{ID: "103", UnitID: "u1", Kind: KindGas}
+
+	if !flat.InUnit("u1") {
+		t.Error("a unit's own meter point must belong to it")
+	}
+	if flat.InUnit("u2") {
+		t.Error("a meter point must not belong to a different unit")
+	}
+	if flat.InUnit("") {
+		t.Error("an empty unit must match nothing at all")
+	}
+	if house.InUnit("") {
+		t.Error("a house meter must not answer to a lookup that lost its unit")
+	}
+	if house.InUnit("u1") {
+		t.Error("a house meter belongs to no unit")
+	}
+	if !flatHeat.InUnit("u1") {
+		t.Error("a flat's own heat meter is part of that flat's figures")
+	}
+	if houseHeat.InUnit("") || houseHeat.PartOfBilling() {
+		t.Error("a heat meter without a unit is the house's own device and must stay out of every flat's figures")
+	}
+	if watched.InUnit("u1") {
+		t.Error("a gas meter is watched, not billed, so it stays out of a unit's figures")
 	}
 }

@@ -15,6 +15,14 @@ import (
 // enumerator.GetDetailedPortsList), which this deliberately keeps
 // limited to devices already matching this ID, not every USB device on
 // the machine.
+//
+// This works because the Cypress ID is rare enough that a match is
+// practically always the receiver. It does not generalize: a receiver
+// built around a common USB-serial chip — the Innotas box, on FTDI's
+// 0403:6001 — shares its ID with USB-serial cables, microcontroller
+// boards and measuring equipment alike, so searching for it would find
+// unrelated devices. Such a receiver has to be named with -port instead,
+// and adding a second ID here would be the wrong fix.
 const (
 	imstVendorID  = "04B4"
 	imstProductID = "0003"
@@ -80,7 +88,12 @@ func FindReceiverPort() (port string, found bool, err error) {
 // has for a lost connection also covers a receiver that reappears on a
 // different port after being unplugged and replugged (common on
 // Windows), with no special-casing needed here.
-func OpenAutoDetectedPort() PortOpener {
+//
+// This searches for the IMST iU891A-XL only, by its USB ID. It is
+// deliberately not generalized to other models: see the note on
+// imstVendorID above for why a receiver behind a common USB-serial chip
+// cannot be found this way at all, and has to be named with -port.
+func OpenAutoDetectedPort(baud int) PortOpener {
 	return func() (Port, string, error) {
 		path, found, err := FindReceiverPort()
 		if err != nil {
@@ -89,6 +102,6 @@ func OpenAutoDetectedPort() PortOpener {
 		if !found {
 			return nil, "", fmt.Errorf("receiver: not connected")
 		}
-		return OpenSerialPort(path)()
+		return OpenSerialPort(path, baud)()
 	}
 }

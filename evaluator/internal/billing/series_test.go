@@ -30,7 +30,7 @@ func TestCalculateSeries_AcceptanceScenario1(t *testing.T) {
 	wantConsumption := []float64{45, 85, 80, 35, 10, 3, 2, 2, 6, 32, 60, 70, 50}
 	wantResets := map[string]bool{"2025-01": true, "2026-01": true}
 
-	results, err := CalculateSeries(readings, true, constantResetMonth(1), constantKC(1), noSwaps)
+	results, err := CalculateSeries(readings, true, constantFreezeMonth(12), constantKC(1), noSwaps)
 	if err != nil {
 		t.Fatalf("CalculateSeries: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestCalculateSeries_AcceptanceScenario2(t *testing.T) {
 		return SwapCorrection{}, false
 	}
 
-	results, err := CalculateSeries(readings, false, constantResetMonth(1), constantKC(1), swapLookup)
+	results, err := CalculateSeries(readings, false, constantFreezeMonth(12), constantKC(1), swapLookup)
 	if err != nil {
 		t.Fatalf("CalculateSeries: %v", err)
 	}
@@ -97,18 +97,18 @@ func TestCalculateSeries_AcceptanceScenario2(t *testing.T) {
 	}
 }
 
-// TestCalculateSeries_ConfigurableResetMonth checks that the billing-period
-// reset (FACH-03) fires in whatever month resetMonth resolves to for the
-// meter, not just January — a per-meter reset date (Stichtag) rather than a
+// TestCalculateSeries_ConfigurableFreezeMonth checks that the billing-period
+// reset (FACH-03) fires in the month after whatever FreezeMonth says for the
+// meter, not just January — a per-meter Stichtag rather than a
 // fixed one.
-func TestCalculateSeries_ConfigurableResetMonth(t *testing.T) {
+func TestCalculateSeries_ConfigurableFreezeMonth(t *testing.T) {
 	readings := []MonthlyValue{
 		{Meter: "M", Day: mustDay(t, "2025-05-31"), Value: 400},
 		{Meter: "M", Day: mustDay(t, "2025-06-30"), Value: 30},
 		{Meter: "M", Day: mustDay(t, "2025-07-31"), Value: 50},
 	}
 
-	results, err := CalculateSeries(readings, true, constantResetMonth(6), constantKC(1), noSwaps)
+	results, err := CalculateSeries(readings, true, constantFreezeMonth(5), constantKC(1), noSwaps)
 	if err != nil {
 		t.Fatalf("CalculateSeries: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestCalculateSeries_GapCarriesForwardWithoutMarking(t *testing.T) {
 		{Meter: "M", Day: mustDay(t, "2025-01-31"), Value: 10},
 		{Meter: "M", Day: mustDay(t, "2025-03-31"), Value: 25},
 	}
-	results, err := CalculateSeries(readings, false, constantResetMonth(1), constantKC(1), noSwaps)
+	results, err := CalculateSeries(readings, false, constantFreezeMonth(12), constantKC(1), noSwaps)
 	if err != nil {
 		t.Fatalf("CalculateSeries: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestCalculateSeries_MissingSwapCorrectionIsAnError(t *testing.T) {
 		{Meter: "A", Day: mustDay(t, "2025-01-31"), Value: 10},
 		{Meter: "B", Day: mustDay(t, "2025-02-28"), Value: 5},
 	}
-	if _, err := CalculateSeries(readings, false, constantResetMonth(1), constantKC(1), noSwaps); err == nil {
+	if _, err := CalculateSeries(readings, false, constantFreezeMonth(12), constantKC(1), noSwaps); err == nil {
 		t.Fatal("expected an error when the meter changed but no swap correction is available")
 	}
 }
@@ -157,7 +157,7 @@ func constantKC(v float64) KCFactorLookup {
 	return func(string, telegram.Day) float64 { return v }
 }
 
-func constantResetMonth(v int) ResetMonthLookup {
+func constantFreezeMonth(v int) FreezeMonthLookup {
 	return func(string, telegram.Day) int { return v }
 }
 

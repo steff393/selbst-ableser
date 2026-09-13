@@ -46,7 +46,7 @@ func TestRunAndRestore_RoundTrip(t *testing.T) {
 	key := [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	md := masterdata.MasterData{
 		Units:       []masterdata.Unit{{ID: "u1", Name: "Unit 1", AreaM2: 60}},
-		MeterPoints: []masterdata.MeterPoint{{ID: "mp1", UnitID: "u1", Kind: masterdata.KindHeating}},
+		MeterPoints: []masterdata.MeterPoint{{ID: "mp1", UnitID: "u1", Kind: masterdata.KindHeatCostAllocator}},
 		Meters:      []masterdata.Meter{{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: "2024-01-01"}},
 	}
 	if err := masterdata.Save(masterDataPath, md, testPassword); err != nil {

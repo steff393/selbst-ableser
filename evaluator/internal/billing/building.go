@@ -93,9 +93,12 @@ func BuildBuildingReport(store *archive.Store, md masterdata.MasterData, buildin
 
 	kindsPresent := make(map[masterdata.Kind]bool)
 	for _, mp := range md.MeterPoints {
+		if !mp.PartOfBilling() {
+			continue // a house meter, or a kind nobody is billed for
+		}
 		line, ok := lines[mp.UnitID]
 		if !ok {
-			continue // a meter point pointing at no known unit contributes to nothing
+			continue // defensive: Validate refuses a named unit that does not exist
 		}
 		kindsPresent[mp.Kind] = true
 

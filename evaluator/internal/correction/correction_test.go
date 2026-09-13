@@ -270,3 +270,39 @@ func TestIsMarked(t *testing.T) {
 		t.Error("a normal RSSI should not be marked")
 	}
 }
+
+// A Qundis heat meter keeps its total inside a manufacturer-specific record
+// of an otherwise standard telegram. A correction has to land exactly on
+// those four BCD bytes and leave everything else — the counter, the
+// monthly deltas, the trailing status and timestamp — as it was.
+func TestBuildQundisHeatMeter(t *testing.T) {
+	// Real telegram, meter 68817136, 1 kWh.
+	const original = "5944934436718168483778077936718168934448040DFF5F350082E100005E0107C006FFFF01000000FFFF000000005F38000000000080008000800080008000800080008000800080008000002F02FD170000046D33084B3949"
+	template := archive.Entry{MeterID: "68817136", RawHex: original}
+
+	newHex, oldValue, err := Build(template, [16]byte{}, 1234)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if oldValue != 1 {
+		t.Errorf("oldValue = %d, want 1", oldValue)
+	}
+
+	before, _ := hex.DecodeString(original)
+	after, _ := hex.DecodeString(newHex)
+	if len(after) != len(before) {
+		t.Fatalf("length changed: %d -> %d", len(before), len(after))
+	}
+	const totalAt = 37
+	for i := range before {
+		if i >= totalAt && i < totalAt+4 {
+			continue
+		}
+		if before[i] != after[i] {
+			t.Errorf("byte %d changed from %02X to %02X outside the total", i, before[i], after[i])
+		}
+	}
+	if got := hex.EncodeToString(after[totalAt : totalAt+4]); got != "34120000" {
+		t.Errorf("total bytes = %s, want 34120000 (1234 as BCD, least significant first)", got)
+	}
+}

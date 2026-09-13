@@ -42,7 +42,7 @@ func TestUVIDefaultsToLatestAvailableMonthWhenTodayHasNone(t *testing.T) {
 	md := masterdata.MasterData{
 		Units: []masterdata.Unit{{ID: "u1", Name: "Wohnung 1", AreaM2: 50}},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
 			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDayT(t, "2024-01-01")},
@@ -103,8 +103,8 @@ func TestOperatorCanBrowseAnyUnitsUVI(t *testing.T) {
 			{ID: "u2", Name: "Wohnung B", AreaM2: 50},
 		},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeating},
-			{ID: "mp2", UnitID: "u2", Room: "Wohnzimmer", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeatCostAllocator},
+			{ID: "mp2", UnitID: "u2", Room: "Wohnzimmer", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
 			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDayT(t, "2024-01-01")},
@@ -185,8 +185,8 @@ func TestTenantUnitNavigationAlwaysDisabled(t *testing.T) {
 			{ID: "u2", Name: "Wohnung B", AreaM2: 50},
 		},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeating},
-			{ID: "mp2", UnitID: "u2", Room: "Wohnzimmer", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeatCostAllocator},
+			{ID: "mp2", UnitID: "u2", Room: "Wohnzimmer", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
 			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDayT(t, "2024-01-01")},
@@ -263,7 +263,7 @@ func TestUVIMonthNavigationStopsAtTheDataBoundary(t *testing.T) {
 	md := masterdata.MasterData{
 		Units: []masterdata.Unit{{ID: "u1", Name: "Wohnung A", AreaM2: 50}},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
 			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDayT(t, "2024-01-01")},
@@ -326,7 +326,7 @@ func TestUVISurvivesMeterPointWithoutMeter(t *testing.T) {
 	md := masterdata.MasterData{
 		Units: []masterdata.Unit{{ID: "u1", Name: "Wohnung A", AreaM2: 50}},
 		MeterPoints: []masterdata.MeterPoint{
-			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeating},
+			{ID: "mp1", UnitID: "u1", Room: "Wohnzimmer", Kind: masterdata.KindHeatCostAllocator},
 			// Configured, no device mounted yet — and of a kind nothing
 			// else in the unit covers, so it cannot hide behind a sibling.
 			{ID: "mp2", UnitID: "u1", Room: "Bad", Kind: masterdata.KindColdWater},

@@ -18,12 +18,12 @@ import (
 const receiverReadTimeout = 500 * time.Millisecond
 
 // OpenSerialPort connects to a receiver at a fixed device path (e.g.
-// "/dev/ttyUSB0" or "COM3") at the fixed 115200 8N1 configuration the
-// iU891A-XL and compatible devices use.
-func OpenSerialPort(path string) PortOpener {
+// "/dev/ttyUSB0" or "COM3"), 8N1 at the given speed — which differs per
+// receiver model and comes from Device.BaudRate.
+func OpenSerialPort(path string, baud int) PortOpener {
 	return func() (Port, string, error) {
 		mode := &serial.Mode{
-			BaudRate: 115200,
+			BaudRate: baud,
 			DataBits: 8,
 			Parity:   serial.NoParity,
 			StopBits: serial.OneStopBit,

@@ -23,6 +23,10 @@ type scriptedPort struct {
 	errs  chan error
 	done  chan struct{}
 	once  sync.Once
+
+	// written counts bytes the code under test sent to the device — for
+	// the receivers that must never be written to at all.
+	written atomic.Int64
 }
 
 func newScriptedPort() *scriptedPort {
@@ -33,7 +37,10 @@ func newScriptedPort() *scriptedPort {
 	}
 }
 
-func (p *scriptedPort) Write(b []byte) (int, error) { return len(b), nil }
+func (p *scriptedPort) Write(b []byte) (int, error) {
+	p.written.Add(int64(len(b)))
+	return len(b), nil
+}
 
 func (p *scriptedPort) Read(b []byte) (int, error) {
 	select {
@@ -91,7 +98,7 @@ func TestSendAndExpectRetriesTransientBadResponse(t *testing.T) {
 	p.reads <- buildResponseFrame(deviceInfoPrefix)
 
 	var lastDataAt atomic.Int64
-	reader := newFrameReader(p, &lastDataAt)
+	reader := newFrameReader(p, imstDevice{}.SplitFrame, &lastDataAt)
 
 	got, err := sendAndExpect(context.Background(), reader, deviceInfoRequest, deviceInfoPrefix)
 	if err != nil {
@@ -115,7 +122,7 @@ func TestSendAndExpectGivesUpAfterRetriesExhausted(t *testing.T) {
 	}
 
 	var lastDataAt atomic.Int64
-	reader := newFrameReader(p, &lastDataAt)
+	reader := newFrameReader(p, imstDevice{}.SplitFrame, &lastDataAt)
 
 	if _, err := sendAndExpect(context.Background(), reader, deviceInfoRequest, deviceInfoPrefix); err == nil {
 		t.Fatal("sendAndExpect() succeeded, want failure after exhausting retries on a persistently wrong response")
@@ -152,7 +159,7 @@ func TestSerialSourceReconnectFiresCallbacks(t *testing.T) {
 		return p, "test-port", nil
 	}
 
-	src := NewSerialSource(open)
+	src := NewSerialSource(open, imstDevice{})
 	src.backoff = time.Millisecond
 	src.maxBackoff = 5 * time.Millisecond
 
@@ -210,7 +217,7 @@ func TestSerialSourceReportsDeviceInfoOnConnect(t *testing.T) {
 	p.reads <- buildResponseFrameWithPayload(configureC1T1Prefix, configPayload)
 	open := func() (Port, string, error) { return p, "test-port", nil }
 
-	src := NewSerialSource(open)
+	src := NewSerialSource(open, imstDevice{})
 
 	type call struct {
 		step string
@@ -268,7 +275,7 @@ func TestSerialSourceConnectErrorReportedOncePerFailureStreak(t *testing.T) {
 		return p, "test-port", nil
 	}
 
-	src := NewSerialSource(open)
+	src := NewSerialSource(open, imstDevice{})
 	src.backoff = time.Millisecond
 	src.maxBackoff = 2 * time.Millisecond
 
@@ -441,7 +448,7 @@ func TestSerialSourceRecoversWhenReadNeverReturns(t *testing.T) {
 		// overlapped read on a surprise-removed Windows device.
 	}
 
-	src := NewSerialSource(open)
+	src := NewSerialSource(open, imstDevice{})
 	src.backoff = time.Millisecond
 	src.maxBackoff = 2 * time.Millisecond
 

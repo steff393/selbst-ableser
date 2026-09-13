@@ -278,11 +278,9 @@ func (a *App) buildReadingRows(md masterdata.MasterData, f readingsFilter) ([]re
 		// cleartext header (offsets 9 and 2-3), ahead of any encryption,
 		// so this works even for a telegram this instance cannot decrypt
 		// or has no master-data match for.
-		if raw, err := hex.DecodeString(e.RawHex); err == nil && len(raw) > 9 {
-			if dt, ok := telegram.IdentifyDeviceType(raw[9]); ok {
-				row.DeviceType = dt.Abbr
-				row.DeviceTypeName = dt.Name
-			}
+		raw, rawErr := hex.DecodeString(e.RawHex)
+		haveHeader := rawErr == nil && len(raw) > 9
+		if haveHeader {
 			row.Manufacturer = telegram.Manufacturer(binary.LittleEndian.Uint16(raw[2:4]))
 			row.ManufacturerName, _ = telegram.ManufacturerName(row.Manufacturer)
 		}
@@ -293,7 +291,16 @@ func (a *App) buildReadingRows(md masterdata.MasterData, f readingsFilter) ([]re
 			if mp, ok := meterPointByID[meter.MeterPointID]; ok {
 				row.Room = mp.Room
 				row.UnitID = mp.UnitID
-				row.UnitName = unitNameByID[mp.UnitID]
+				row.UnitName = unitLabel(unitNameByID, mp.UnitID)
+			}
+		}
+		// Classified only once the key is known: deviceMedium looks past
+		// the header into the application layer where it can, and for an
+		// encrypted telegram that needs the key.
+		if haveHeader {
+			if dt, ok := telegram.IdentifyDeviceType(deviceMedium(raw, key)); ok {
+				row.DeviceType = dt.Abbr
+				row.DeviceTypeName = dt.Name
 			}
 		}
 

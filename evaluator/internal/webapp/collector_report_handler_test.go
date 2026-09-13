@@ -36,7 +36,8 @@ func TestCollectorConfigServesConfiguredValues(t *testing.T) {
 	}
 
 	var got struct {
-		ReportIntervalSeconds int `json:"report_interval_seconds"`
+		ReportIntervalSeconds int  `json:"report_interval_seconds"`
+		LiveViewActive        bool `json:"live_view_active"`
 		FilterRules           []struct {
 			MeterID string `json:"meter_id"`
 		} `json:"filter_rules"`
@@ -47,8 +48,49 @@ func TestCollectorConfigServesConfiguredValues(t *testing.T) {
 	if got.ReportIntervalSeconds != 15 {
 		t.Errorf("ReportIntervalSeconds = %d, want 15", got.ReportIntervalSeconds)
 	}
+	if !got.LiveViewActive {
+		t.Error("LiveViewActive = false, want true — the configured window has not expired")
+	}
 	if len(got.FilterRules) != 1 || got.FilterRules[0].MeterID != "90000001" {
 		t.Errorf("FilterRules = %+v", got.FilterRules)
+	}
+}
+
+// TestCollectorConfigIntervalSurvivesLiveViewBeingOff locks in the split
+// between the two fields: the configured interval is no longer zeroed out
+// while the live view is off — only LiveViewActive says so — so a
+// collector can always tell "no interval configured" apart from "not
+// active right now".
+func TestCollectorConfigIntervalSurvivesLiveViewBeingOff(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.PushSecret = "s3cr3t"
+	app.CollectorConfig = config.Collector{
+		// LiveViewUntil left empty: off.
+		ReportIntervalSeconds: 15,
+	}
+	srv := httptest.NewServer(app.Routes())
+	defer srv.Close()
+
+	req, _ := http.NewRequest("POST", srv.URL+"/collector/config", nil)
+	req.Header.Set("Authorization", "Bearer s3cr3t")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var got struct {
+		ReportIntervalSeconds int  `json:"report_interval_seconds"`
+		LiveViewActive        bool `json:"live_view_active"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decoding response: %v", err)
+	}
+	if got.LiveViewActive {
+		t.Error("LiveViewActive = true, want false — no window is configured")
+	}
+	if got.ReportIntervalSeconds != 15 {
+		t.Errorf("ReportIntervalSeconds = %d, want 15 even while inactive — it must not be zeroed as a side effect of being off", got.ReportIntervalSeconds)
 	}
 }
 

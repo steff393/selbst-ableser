@@ -66,16 +66,17 @@ func (a *App) handleCollectorConfig(w http.ResponseWriter, r *http.Request) {
 		rules = append(rules, collectorFilterRuleResponse{MeterID: r.MeterID, BlockedPrefixes: r.BlockedPrefixes})
 	}
 
-	// The live-view interval a collector actually sees is 0 (off) unless
-	// the live view is currently within its window, regardless of whatever
-	// interval is separately configured — see config.Collector's own
-	// comment for why the two are kept apart internally. The window is
-	// evaluated here on every poll, so it expires on its own without
-	// anything having to run on a timer.
-	reportInterval := 0
-	if active, _ := a.CollectorConfig.LiveViewActiveAt(a.now()); active {
-		reportInterval = a.CollectorConfig.ReportIntervalSeconds
-	}
+	// Whether the live view should push at all is its own flag now,
+	// evaluated fresh on every poll so it expires on its own without
+	// anything having to run on a timer — ReportIntervalSeconds always
+	// carries the actually configured interval alongside it, active or
+	// not, instead of doubling as the on/off signal by being zeroed
+	// while inactive. That conflation made a collector briefly out of
+	// contact hard to tell apart from one genuinely told to stop: both
+	// looked like "0". See config.Collector's own comment for why the
+	// interval and the window are kept apart internally in the first
+	// place.
+	liveViewActive, _ := a.CollectorConfig.LiveViewActiveAt(a.now())
 
 	triggerPush := a.CollectorConfig.TriggerPush
 	a.CollectorConfig.TriggerPush = false // one-shot: consumed by being served once
@@ -83,13 +84,15 @@ func (a *App) handleCollectorConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct {
 		ReportIntervalSeconds int                           `json:"report_interval_seconds"`
+		LiveViewActive        bool                          `json:"live_view_active"`
 		DailyPushHour         int                           `json:"daily_push_hour"`
 		IdleReconnectSeconds  int                           `json:"idle_reconnect_seconds"`
 		ConfigPollSeconds     int                           `json:"config_poll_seconds"`
 		TriggerPush           bool                          `json:"trigger_push"`
 		FilterRules           []collectorFilterRuleResponse `json:"filter_rules"`
 	}{
-		ReportIntervalSeconds: reportInterval,
+		ReportIntervalSeconds: a.CollectorConfig.ReportIntervalSeconds,
+		LiveViewActive:        liveViewActive,
 		DailyPushHour:         a.CollectorConfig.DailyPushHour,
 		IdleReconnectSeconds:  a.CollectorConfig.IdleReconnectSeconds,
 		ConfigPollSeconds:     a.CollectorConfig.ConfigPollSeconds,
