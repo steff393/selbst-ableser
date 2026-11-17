@@ -14,7 +14,7 @@ import (
 // The Tabellen tab holds one grid per thing — units, meter points,
 // meters — and the same three as CSV, out and in. It is for everything
 // that is a value rather than a structure: forty keys from a supplier,
-// forty kc factors, a Stichtag month for a whole batch. Which device sits
+// forty factors, a Stichtag month for a whole batch. Which device sits
 // at which meter point is not editable here; that belongs to the Anlage
 // tab, so the assignment has exactly one place it can be changed.
 
@@ -163,12 +163,12 @@ func meterFromRow(row meterRow, kind masterdata.Kind) (masterdata.Meter, string)
 	}
 	m.StartReading = start
 
-	if row.KCFactor != "" {
-		kc, err := strconv.ParseFloat(strings.Replace(row.KCFactor, ",", ".", 1), 64)
+	if row.Factor != "" {
+		factor, err := strconv.ParseFloat(strings.Replace(row.Factor, ",", ".", 1), 64)
 		if err != nil {
-			return masterdata.Meter{}, fmt.Sprintf("Zähler %s: ungültiger kc-Faktor.", row.Number)
+			return masterdata.Meter{}, fmt.Sprintf("Zähler %s: ungültiger Faktor.", row.Number)
 		}
-		m.KCFactor = kc
+		m.Factor = factor
 	}
 	if row.FreezeMonth != "" {
 		fm, err := strconv.Atoi(row.FreezeMonth)

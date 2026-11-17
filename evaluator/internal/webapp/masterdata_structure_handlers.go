@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -39,7 +40,7 @@ type meterView struct {
 	NeverSeen bool
 	Installed string // display form, empty means "has been there all along"
 	Start     string
-	KCFactor  string
+	Factor    string
 	Freeze    string
 	Removed   string
 	End       string
@@ -139,6 +140,51 @@ func structureView(md masterdata.MasterData, store *archive.Store) ([]unitView, 
 	return units, placesOf("")
 }
 
+// kindCountView is one entry of the Gesamtansicht's tally: how many meter
+// points of one kind there are, and how many of them carry a device now.
+// It answers "have I assigned them all?" at a glance, per kind, where the
+// per-unit "ohne Zähler" count would need every unit opened and added up.
+type kindCountView struct {
+	Kind      string
+	Label     string
+	Name      string
+	Places    int
+	WithMeter int
+}
+
+// kindCounts tallies the places of structureView by kind, house meters
+// included, in kindOptions order. Kinds without a single place are left
+// out: a building without gas does not need to be told so.
+func kindCounts(units []unitView, house []placeView) []kindCountView {
+	byKind := map[string]*kindCountView{}
+	count := func(p placeView) {
+		c := byKind[p.Kind]
+		if c == nil {
+			c = &kindCountView{Kind: p.Kind, Label: p.KindLabel, Name: p.KindName}
+			byKind[p.Kind] = c
+		}
+		c.Places++
+		if p.Active != nil {
+			c.WithMeter++
+		}
+	}
+	for _, u := range units {
+		for _, p := range u.Places {
+			count(p)
+		}
+	}
+	for _, p := range house {
+		count(p)
+	}
+	var out []kindCountView
+	for _, k := range kindOptions() {
+		if c := byKind[k.Value]; c != nil {
+			out = append(out, *c)
+		}
+	}
+	return out
+}
+
 func placeViewOf(mp masterdata.MeterPoint, chain []masterdata.Meter, lastSeen func(string) (string, bool)) placeView {
 	p := placeView{
 		ID:        mp.ID,
@@ -171,8 +217,8 @@ func meterViewOf(m masterdata.Meter, kind masterdata.Kind) meterView {
 		v.AESKey = hex.EncodeToString(m.AESKey[:])
 		v.HasKey = true
 	}
-	if m.KCFactor != 0 {
-		v.KCFactor = strconv.FormatFloat(m.KCFactor, 'f', -1, 64)
+	if m.Factor != 0 {
+		v.Factor = strconv.FormatFloat(m.Factor, 'f', -1, 64)
 	}
 	if m.FreezeMonth != 0 {
 		v.Freeze = strconv.Itoa(m.FreezeMonth)
@@ -185,8 +231,8 @@ func meterViewOf(m masterdata.Meter, kind masterdata.Kind) meterView {
 	}
 
 	parts := []string{}
-	if v.KCFactor != "" {
-		parts = append(parts, "kc "+v.KCFactor)
+	if v.Factor != "" {
+		parts = append(parts, "Faktor "+v.Factor)
 	}
 	if v.Freeze != "" {
 		parts = append(parts, "Stichtag "+freezeDayLabel(m.FreezeMonth))
@@ -308,7 +354,20 @@ func (a *App) structureActionThen(w http.ResponseWriter, r *http.Request, what s
 		afterSave()
 	}
 	a.audit(access.EventMasterDataChange, sess.AuditActor(), what)
-	http.Redirect(w, r, "/operator/masterdata", http.StatusSeeOther)
+	http.Redirect(w, r, structureRedirect(r), http.StatusSeeOther)
+}
+
+// structureRedirect is where a saved dialog sends the operator back to:
+// the Gesamtansicht, and with the meter dialog's "Nächster Platz" also the
+// place to open right away (masterdata.js picks it up from ?open=). Which
+// place comes next is the browser's call — it is the next row in the order
+// the page shows them in — so the server only passes the ID along.
+func structureRedirect(r *http.Request) string {
+	next := strings.TrimSpace(r.PostFormValue("next_place"))
+	if r.PostFormValue("then") != "next" || next == "" {
+		return "/operator/masterdata"
+	}
+	return "/operator/masterdata?open=" + url.QueryEscape(next)
 }
 
 // handleUnitSave creates or changes one unit. A changed ID is not a new
@@ -405,7 +464,7 @@ func (a *App) handleUnitDelete(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if grants > 0 {
-			return fmt.Sprintf("Für die Wohnung %s gibt es noch %d Zugänge. Die zuerst im Reiter Zugänge entfernen.", id, grants)
+			return fmt.Sprintf("Für die Wohnung %s gibt es noch %d Zugänge. Die zuerst im Reiter Mieter entfernen.", id, grants)
 		}
 		out := md.Units[:0]
 		for _, u := range md.Units {
@@ -543,12 +602,12 @@ func meterFromForm(r *http.Request, md *masterdata.MasterData, original string, 
 	}
 	m.StartReading = start
 
-	if kc := strings.TrimSpace(r.PostFormValue("kc_factor")); kc != "" {
-		f, err := strconv.ParseFloat(strings.Replace(kc, ",", ".", 1), 64)
+	if factor := strings.TrimSpace(r.PostFormValue("factor")); factor != "" {
+		f, err := strconv.ParseFloat(strings.Replace(factor, ",", ".", 1), 64)
 		if err != nil {
-			return masterdata.Meter{}, fmt.Sprintf("Zähler %s: ungültiger kc-Faktor.", number)
+			return masterdata.Meter{}, fmt.Sprintf("Zähler %s: ungültiger Faktor.", number)
 		}
-		m.KCFactor = f
+		m.Factor = f
 	}
 	if freeze := strings.TrimSpace(r.PostFormValue("freeze_month")); freeze != "" {
 		n, err := strconv.Atoi(freeze)

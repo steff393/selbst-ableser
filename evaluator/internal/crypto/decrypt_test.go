@@ -18,10 +18,6 @@ func buildEncryptedFrame(t *testing.T, key [16]byte, plaintext []byte, blocks by
 	if len(plaintext)%aes.BlockSize != 0 {
 		t.Fatalf("plaintext length %d is not a multiple of the AES block size", len(plaintext))
 	}
-	if blocks%2 != 0 {
-		t.Fatalf("blocks must be even: an odd value sets bit 4, which the fallback config-word reading also reads as part of the mode nibble")
-	}
-
 	m := uint16(0x4493)
 	a := [4]byte{0x58, 0x05, 0x74, 0x40}
 	ver := byte(0x36)
@@ -50,7 +46,9 @@ func buildEncryptedFrame(t *testing.T, key [16]byte, plaintext []byte, blocks by
 	raw = append(raw, byte(m), byte(m>>8))
 	raw = append(raw, a[:]...)
 	raw = append(raw, ver, med, 0x7A, acc, 0x18) // VER MED CI ACC STS
-	raw = append(raw, 0x20, blocks<<4|0x05)      // config word: fallback reading -> mode 5
+	// Config word as a real device sends it: block count in the high
+	// nibble of the first byte, mode in the second (see readConfigWord).
+	raw = append(raw, blocks<<4, 0x05)
 	raw = append(raw, ciphertext...)
 
 	return &telegram.Frame{
@@ -124,7 +122,7 @@ func TestDecryptUnsupportedTransport(t *testing.T) {
 
 func TestDecryptUnsupportedMode(t *testing.T) {
 	raw := make([]byte, 20)
-	raw[13], raw[14] = 0x07, 0x00 // mode 7 (Security Profile B): encrypted, but not one we support
+	raw[13], raw[14] = 0x00, 0x07 // mode 7 (Security Profile B): encrypted, but not one we support
 	f := &telegram.Frame{CI: 0x7A, Raw: raw}
 	res := Decrypt(f, [16]byte{})
 	if res.Outcome != OutcomeUnsupportedMode {
@@ -238,22 +236,31 @@ func TestEncryptRejectsCleartextTelegram(t *testing.T) {
 
 func TestEncryptRejectsUnsupportedMode(t *testing.T) {
 	raw := make([]byte, 20)
-	raw[13], raw[14] = 0x07, 0x00 // mode 7, not mode 5
+	raw[13], raw[14] = 0x00, 0x07 // mode 7, not mode 5
 	f := &telegram.Frame{CI: 0x7A, Raw: raw}
 	if _, err := Encrypt(f, raw, [16]byte{}); err == nil {
 		t.Error("expected an error for a config word that doesn't announce mode 5")
 	}
 }
 
-func TestDecryptEmptyRestNoPanic(t *testing.T) {
+// The IV used to take the access counter from Frame.Rest, so a Frame whose
+// Rest did not match its Raw could read past the end of it. It now reads
+// the counter out of Raw at the offset the header layout gives (see
+// buildIV), which is bounds-checked against Raw itself — Rest cannot
+// influence the IV at all any more. The inconsistent Frame stays in the
+// tests to pin that.
+func TestDecryptIgnoresRestForTheIV(t *testing.T) {
 	raw := make([]byte, 20)
 	raw[10] = 0x7A                                      // short header: has a config word
-	raw[13], raw[14] = 0x05, 0x00                       // mode 5, standard reading, 0 blocks
+	raw[13], raw[14] = 0x00, 0x05                       // mode 5, 0 blocks
 	f := &telegram.Frame{CI: 0x7A, Raw: raw, Rest: nil} // Rest inconsistent with Raw on purpose
 
 	res := Decrypt(f, [16]byte{})
 
-	if res.Outcome != OutcomeTruncated {
-		t.Fatalf("Outcome = %v, want OutcomeTruncated", res.Outcome)
+	// Zero announced blocks leave no plaintext to check the 2F 2F marker
+	// against, which is reported as a wrong key — the point here is that
+	// it gets that far at all instead of panicking.
+	if res.Outcome != OutcomeWrongKeyOrCorrupt {
+		t.Fatalf("Outcome = %v, want OutcomeWrongKeyOrCorrupt", res.Outcome)
 	}
 }

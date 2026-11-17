@@ -15,7 +15,7 @@ Webseite: [selbst-ableser.de](https://www.selbst-ableser.de)
 * 📡 Empfang von Funkzählern nach **wM-Bus** / **OMS**
 * 🐹 Vollständig in **Go** geschrieben — ein statisches Binary, keine Laufzeit-Abhängigkeiten
 * 🍓 Für den Dauerbetrieb auf einem **Raspberry Pi** ausgelegt (SD-Karten-schonend)
-* 🧮 Verbrauchsberechnung inkl. HKV-Stichtagsreset, kc-Faktoren, Warmwasser-/Kaltwasserzählern
+* 🧮 Verbrauchsberechnung inkl. HKV-Stichtagsreset, Faktoren, Warmwasser-/Kaltwasserzählern
 * 🌐 Weboberfläche für Zugriff, Auswertung und Betriebsparameter
 * 🧩 Modular erweiterbar (weitere Zählertypen, Ausgaben, Schnittstellen)
 * 🏠 Ein oder mehrere Empfänger, ein oder mehrere Geräte — vom Einzelhaushalt bis zur
@@ -44,6 +44,7 @@ Details, Bedrohungsmodell und Entwurfsentscheidungen: [docs/architektur.md](docs
 * Unterstützte wM-Bus-Funkadapter: 
   * IMST [iU891A-XL](https://shop.imst.de/wireless-solutions/usb-radio-products/89/bundle-iu891a-xl-wireless-m-bus-usb-adapter-868-mhz-w.-antenna)
   * Innotas [Mobile Datensammler](https://www.innotas.de/mobile-datensammler), basierend auf Radiocraft RC1180-MBUS3
+  * RTL-SDR-Sticks (z. B. Nooelec NESDR) über [rtl_433](https://github.com/merbanan/rtl_433) — `-receiver rtl433`; rtl_433 wird separat installiert und ist nicht Teil dieser Verteilung
 * Windows oder Linux 
 
 ---

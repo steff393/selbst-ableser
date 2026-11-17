@@ -36,6 +36,22 @@
     remember.checked = true;
   }
 
+  // The QR code on the access letter links here with the code in the
+  // fragment (#code=…). A browser never sends the fragment to the server,
+  // so the code appears in no request and no log; it is moved into the
+  // field and removed from the address bar at once. Only filled in, never
+  // submitted: logging in stays the tenant's own tap.
+  function takeCodeFromLink() {
+    var fromLink = /^#code=([0-9A-Za-z-]+)$/.exec(window.location.hash);
+    if (!fromLink) return;
+    field.value = fromLink[1];
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }
+  takeCodeFromLink();
+  // Opening the link in a tab that already shows this page changes only
+  // the fragment and loads nothing, so the script above would not run again.
+  window.addEventListener("hashchange", takeCodeFromLink);
+
   remember.addEventListener("change", function () {
     if (!remember.checked) window.localStorage.removeItem(STORAGE_KEY);
   });

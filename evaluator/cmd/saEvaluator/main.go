@@ -484,19 +484,35 @@ func listenURLs(addr string, localIPs func() []string) []string {
 // and every machine that has a v6 address here also has a v4 one on the
 // same network. Link-local addresses are skipped for the same reason —
 // they are not what anyone will type.
+//
+// Only interfaces that are actually connected (FlagRunning) count: Windows
+// keeps reporting the last DHCP address of a switched-off WLAN adapter, and
+// a line that leads nowhere is worse than a missing one. Virtual adapters
+// that are up (WSL's Hyper-V switch, Docker, VirtualBox) are deliberately
+// not filtered — telling them apart would mean guessing from adapter names,
+// and a guess that hides the real LAN address costs more than one extra line.
 func nonLoopbackIPv4s() []string {
-	addrs, err := net.InterfaceAddrs()
+	ifaces, err := net.Interfaces()
 	if err != nil {
 		return nil
 	}
 	var out []string
-	for _, a := range addrs {
-		n, ok := a.(*net.IPNet)
-		if !ok || n.IP.IsLoopback() || n.IP.IsLinkLocalUnicast() {
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagRunning == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
-		if v4 := n.IP.To4(); v4 != nil {
-			out = append(out, v4.String())
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			n, ok := a.(*net.IPNet)
+			if !ok || n.IP.IsLoopback() || n.IP.IsLinkLocalUnicast() {
+				continue
+			}
+			if v4 := n.IP.To4(); v4 != nil {
+				out = append(out, v4.String())
+			}
 		}
 	}
 	return out

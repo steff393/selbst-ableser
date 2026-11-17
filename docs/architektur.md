@@ -38,7 +38,7 @@ und ohne Weitergabe von Rohdaten an Dritte.
 | Zählerplatz | Physische, dauerhafte Messstelle (z. B. „Heizkörper Wohnzimmer, Wohnung 3") |
 | Zähler | Das an einem Zählerplatz montierte, austauschbare Gerät |
 | Stichtag | Ende der Abrechnungsperiode; HKV setzen zu diesem Datum auf null zurück |
-| kc-Faktor | Bewertungsfaktor eines HKV, rechnet Anzeigeeinheiten auf tatsächliche Wärmeabgabe um |
+| Faktor | Bewertungsfaktor eines Zählers, bei HKV als kc-Faktor bekannt; rechnet Anzeigeeinheiten auf tatsächliche Wärmeabgabe um |
 | UVI | Unterjährige Verbrauchsinformation — die monatliche Mitteilung an den Nutzer |
 | Snapshot | Tägliche Momentaufnahme aller zuletzt empfangenen Telegramme |
 | Collector | Komponente, die Funktelegramme empfängt und archiviert |
@@ -242,7 +242,7 @@ Kernregeln:
   gegen den letzten Stand der Vorperiode berechnet.
 - **Einheiten.** Jeder Messwert trägt seine physikalische Einheit; dimensionslose
   HKV-Einheiten und Volumeneinheiten werden nicht vermischt.
-- **kc-Faktor.** HKV-Anzeigeeinheiten werden über einen je Zählerplatz hinterlegten Faktor
+- **Faktor.** HKV-Anzeigeeinheiten werden über einen je Zählerplatz hinterlegten Faktor
   auf eine vergleichbare Wärmeabgabe umgerechnet.
 - **Lücken.** Fehlt ein Monat vollständig, wird der Verbrauch dieses Monats der folgenden
   Periode mit vorhandenem Wert zugeschlagen, statt ihn zu schätzen oder zu verwerfen.
@@ -442,7 +442,7 @@ evaluator/               eigenes Modul "selbst-ableser"
     access/                   Rollen, Token, Sitzungen, Ratenbegrenzung, Sicherheitsprotokoll
     webapp/                   HTTP-Handler, Betreiber- und Nutzeransicht, Collector-Meldungs-
                               und -Abfrage-Endpunkte, Collector-Einstellungsseite, Archiv-Import
-                              per Datei-Upload, manuelles Löschen/Komprimieren/Korrigieren eines
+                              per Datei-Upload, manuelles Löschen/Komprimieren/Bereinigen/Korrigieren eines
                               Zeitausschnitts bzw. Einzeleintrags, gefilterte Zählerstände-Ansicht
                               mit Diagramm über die Rohwerte
     notify/                   E-Mail-Versand, Monatserinnerung, Störungsmeldung

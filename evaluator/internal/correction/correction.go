@@ -84,15 +84,14 @@ func patchCurrentValue(frame *telegram.Frame, payload []byte, newValue int64) (o
 		// decode.Standard). Patching one whose telegram has an unreadable
 		// tail is safe: the record's bytes are overwritten in place and
 		// the tail is never touched or re-encoded.
-		reading, record, found, err := decode.CurrentValueRecord(records)
+		reading, field, found, err := decode.CurrentValueField(records)
 		if err != nil {
 			return 0, fmt.Errorf("correction: decoding template's current value: %w", err)
 		}
-		field := record.Data
 		if !found {
 			// Same fallback as billing.ReadValue: the value may sit in a
 			// manufacturer-specific record among standard ones.
-			reading, field, found, err = decode.ManufacturerRecordValue(telegram.Manufacturer(frame.M), records)
+			reading, field, found, err = decode.ManufacturerRecordValue(telegram.Manufacturer(frame.Identity().M), records)
 			if err != nil {
 				return 0, fmt.Errorf("correction: decoding template's current value: %w", err)
 			}
@@ -103,15 +102,14 @@ func patchCurrentValue(frame *telegram.Frame, payload []byte, newValue int64) (o
 			}
 			return 0, fmt.Errorf("correction: template telegram has no current-value record")
 		}
-		encoded, err := decode.EncodeCurrentValue(reading.Unit, newValue, len(field))
-		if err != nil {
+		// field aliases payload's backing array, so this patches payload.
+		if err := field.Overwrite(newValue); err != nil {
 			return 0, fmt.Errorf("correction: %w", err)
 		}
-		copy(field, encoded) // aliases payload's backing array
 		return reading.Value, nil
 	}
 
-	mfr := telegram.Manufacturer(frame.M)
+	mfr := telegram.Manufacturer(frame.Identity().M)
 	reading, found, err := decode.ManufacturerSpecific(mfr, payload)
 	if err != nil {
 		return 0, fmt.Errorf("correction: decoding template's current value: %w", err)

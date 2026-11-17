@@ -36,7 +36,7 @@ type MeterPointReport struct {
 // itemized readings — UI-01's one "je Zählerplatz" requirement (Raum,
 // Zählernummer, Zählerstand, Ablesedatum) in an otherwise per-Verbrauchsart
 // view, plus the prior reading for anyone who wants to verify the month's
-// consumption by hand (kc-Faktor deliberately left out of the display —
+// consumption by hand (Faktor deliberately left out of the display —
 // it already goes into Consumption above, and showing it separately read
 // as more clutter than transparency).
 type MeterReading struct {
@@ -56,7 +56,7 @@ type KindReport struct {
 
 	// CurrentMonth/PriorMonth/PriorYearMonth carry a combined Consumption
 	// summed across every meter point of this kind; MonthResult's other
-	// fields (Previous/Current/KCFactor/...) are meaningful per meter
+	// fields (Previous/Current/Factor/...) are meaningful per meter
 	// only and stay zero-valued here — see Readings for those.
 	CurrentMonth   MonthResult
 	PriorMonth     *MonthResult
@@ -243,7 +243,7 @@ func BuildUnitReport(store *archive.Store, md masterdata.MasterData, building ma
 
 // aggregateKindReport combines every meter point report of one kind into
 // the single KindReport UI-01 asks for. Consumption figures are already
-// kc-Faktor-scaled per meter (FACH-07) by the time they reach here, so
+// factor-scaled per meter (FACH-07) by the time they reach here, so
 // summing them here is correct — no further scaling happens at this
 // level, and the building comparison (unlike the old per-meter-point
 // version) is computed once against the combined figure, not once per
@@ -342,20 +342,19 @@ func seriesForMeterPoint(store *archive.Store, md masterdata.MasterData, mp mast
 		return nil, nil // not enough data yet to report any consumption
 	}
 
-	resetsAnnually := mp.Kind.ResetsAnnually()
 	freezeMonth := func(meterNumber string, day telegram.Day) int {
 		if m, ok := md.MeterByNumber(meterNumber, day); ok {
-			return m.EffectiveFreezeMonth()
+			return m.FreezeMonth
 		}
-		return 12
+		return 0
 	}
-	kcFactor := func(meterNumber string, day telegram.Day) float64 {
+	factor := func(meterNumber string, day telegram.Day) float64 {
 		if m, ok := md.MeterByNumber(meterNumber, day); ok {
-			return m.EffectiveKCFactor()
+			return m.EffectiveFactor()
 		}
 		return 1
 	}
-	return CalculateSeries(readings, resetsAnnually, freezeMonth, kcFactor, SwapLookupFromMasterData(md, mp.ID))
+	return CalculateSeries(readings, freezeMonth, factor, SwapLookupFromMasterData(md, mp.ID))
 }
 
 func buildMeterPointReport(store *archive.Store, md masterdata.MasterData, mp masterdata.MeterPoint, targetMonth telegram.Day, lookbackDays int) (*MeterPointReport, error) {
@@ -454,7 +453,7 @@ type YearSeries struct {
 }
 
 // YearOverYearSeries computes one unit's combined (summed across every
-// meter point of kind, already kc-Faktor-scaled — see aggregateKindReport)
+// meter point of kind, already factor-scaled — see aggregateKindReport)
 // monthly consumption for calendar year and the year before it.
 //
 // Deliberately keyed by a fixed calendar year rather than "12 months

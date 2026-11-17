@@ -1,0 +1,97 @@
+{{define "content"}}
+<div class="page-head screen-only">
+  <div>
+    <h1>Zugangsschreiben</h1>
+    <p class="page-sub">Ein Blatt je Wohnung mit Adresse, Zugangscode und QR-Code — zum Ausdrucken und Einwerfen.</p>
+  </div>
+  <button type="button" id="letter-print">Drucken</button>
+</div>
+
+<section class="card screen-only">
+  <form method="get" action="/operator/access/letters" class="form-row form-row-bottom">
+    <label>Wohnung
+      <select name="unit">
+        <option value="">Alle mit gültigem Zugang</option>
+        {{range .Units}}<option value="{{.ID}}"{{if eq .ID $.Unit}} selected{{end}}>{{.Name}} ({{.ID}})</option>
+        {{end}}
+      </select>
+    </label>
+    <button type="submit" class="btn-secondary">Anzeigen</button>
+  </form>
+  {{if not .AddressSet}}
+  <p class="hint">Die Adresse auf dem Schreiben ist die, unter der Sie gerade angemeldet sind
+  (<strong>{{.Address}}</strong>). Erreichen die Mieter das System unter einer anderen Adresse,
+  tragen Sie diese auf der Seite <a href="/operator/notify">Mail</a> als Basis-Adresse ein.</p>
+  {{end}}
+  {{if not .PrivacyURL}}
+  <p class="hint">Die Datenschutzerklärung ist noch nicht fertig ausgefüllt (Seite
+  <a href="/operator/notify">Mail</a>), deshalb fehlt der Hinweis darauf im Schreiben.</p>
+  {{end}}
+  {{if not .Letters}}
+  <p>Kein gültiger Zugang{{if .Unit}} für diese Wohnung{{end}}. Zugänge legen Sie im Reiter
+  <a href="/operator/masterdata?tab=access">Mieter</a> an; der Code entsteht beim Speichern.</p>
+  {{end}}
+</section>
+
+{{range .Letters}}
+<article class="letter">
+  <header class="letter-head">
+    <div>
+      {{if $.BuildingName}}<div class="letter-building">{{$.BuildingName}}</div>{{end}}
+      <div>Wohnung {{.UnitName}}</div>
+    </div>
+    <div class="letter-date">{{$.Date}}</div>
+  </header>
+
+  <h2 class="letter-subject">Ihr Zugang zur monatlichen Verbrauchsinformation</h2>
+
+  <p>Sehr geehrte Mieter,</p>
+
+  <p>Ihren Verbrauch an Heizung und Wasser können Sie ab sofort jederzeit selbst ansehen — Monat für
+  Monat, auf dem Smartphone, Tablet oder Computer.</p>
+
+  <section class="letter-access">
+    <div class="letter-qr">{{.QR}}</div>
+    <dl>
+      <dt>Adresse</dt>
+      <dd class="letter-address">{{$.Address}}</dd>
+      <dt>Ihr Zugangscode</dt>
+      <dd class="letter-code">{{.Code}}</dd>
+      <dt>Gültig</dt>
+      <dd>ab {{.Start}}{{if .End}} bis {{.End}}{{end}}</dd>
+    </dl>
+  </section>
+
+  <h3>So geht’s</h3>
+  <ol>
+    <li><strong>Seite öffnen:</strong> den QR-Code mit der Kamera des Smartphones scannen — der
+    Zugangscode ist dann schon eingetragen. Oder die Adresse im Browser eingeben und den Code abtippen;
+    Groß- und Kleinschreibung spielen keine Rolle.</li>
+    <li><strong>Auf „Anmelden“ tippen.</strong> Mit einem Haken bei „Auf diesem Gerät merken“ ist der
+    Code beim nächsten Mal schon eingetragen.</li>
+    <li>Sie sehen den Verbrauch Ihrer Wohnung für jeden Monat, im Vergleich zum Vormonat, zum
+    Vorjahresmonat und zum Durchschnitt.</li>
+  </ol>
+
+  <h3>Gut zu wissen</h3>
+  <ul>
+    <li>Der Code gilt nur für Ihre Wohnung und nur für Ihre Mietzeit. Bitte bewahren Sie dieses
+    Schreiben auf und geben Sie den Code nicht weiter.</li>
+    <li>Ist der Code verloren gegangen oder in fremde Hände geraten, melden Sie sich bitte. Er wird
+    dann gesperrt, und Sie erhalten einen neuen.</li>
+    <li>Die Werte informieren Sie über Ihren Verbrauch; sie sind keine Abrechnung.</li>
+    <li>Sobald eine neue Monatsinformation vorliegt, bekommen Sie zusätzlich eine kurze E-Mail.</li>
+  </ul>
+
+  <p class="letter-closing">Mit freundlichen Grüßen</p>
+  <p class="letter-closing">Ihr Vermieter</p>
+</article>
+{{end}}
+
+<script>
+(function () {
+  var btn = document.getElementById('letter-print');
+  if (btn) btn.addEventListener('click', function () { window.print(); });
+})();
+</script>
+{{end}}

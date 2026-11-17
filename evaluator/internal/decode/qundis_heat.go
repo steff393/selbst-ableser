@@ -55,24 +55,24 @@ func init() {
 	RegisterManufacturerRecordDecoder("QDS", decodeQundisHeatRecord)
 }
 
-func decodeQundisHeatRecord(records []Record) (Reading, []byte, bool, error) {
+func decodeQundisHeatRecord(records []Record) (Reading, Field, bool, error) {
 	for _, r := range records {
 		block, ok := qundisHeatBlock(r)
 		if !ok {
 			continue
 		}
-		field := block[qundisHeatTotalOffset : qundisHeatTotalOffset+qundisHeatTotalLen]
-		if !validBCD(field) {
+		total := block[qundisHeatTotalOffset : qundisHeatTotalOffset+qundisHeatTotalLen]
+		if !validBCD(total) {
 			// A corrupt total is a telegram that cannot be evaluated, not
 			// a failure of the billing run looking at it: returning an
 			// error here would stop the whole month's figure over one bad
 			// telegram, where not-found lets the search move on to the
 			// next one (see billing.FindReading).
-			return Reading{}, nil, false, nil
+			return Reading{}, Field{}, false, nil
 		}
-		return Reading{Value: int64(decodeBCD(field)), Unit: UnitKWh}, field, true, nil
+		return Reading{Value: int64(decodeBCD(total)), Unit: UnitKWh}, Field{Data: total, Encoding: EncodingBCD}, true, nil
 	}
-	return Reading{}, nil, false, nil
+	return Reading{}, Field{}, false, nil
 }
 
 // qundisHeatBlock returns r's data if r is the unencrypted, 1-kWh-scale

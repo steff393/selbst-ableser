@@ -342,6 +342,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /operator/access", a.handleAccessSave)
 	mux.HandleFunc("POST /operator/access/password", a.handleChangePassword)
 	mux.HandleFunc("POST /operator/access/delete-backups", a.handleDeleteBackups)
+	mux.HandleFunc("GET /operator/access/letters", a.handleAccessLetters)
 
 	mux.HandleFunc("GET /operator/masterdata", a.handleMasterDataView)
 	mux.HandleFunc("POST /operator/masterdata", a.handleMasterDataSave)
@@ -379,6 +380,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("GET /operator/archive/download", a.handleArchiveDownload)
 	mux.HandleFunc("POST /operator/archive/delete", a.handleArchiveDelete)
 	mux.HandleFunc("POST /operator/archive/compress", a.handleArchiveCompress)
+	mux.HandleFunc("POST /operator/archive/purge", a.handleArchivePurge)
 	mux.HandleFunc("POST /operator/archive/correct", a.handleArchiveCorrect)
 	mux.HandleFunc("POST /operator/archive/import", a.handleArchiveImport)
 
@@ -389,6 +391,7 @@ func (a *App) Routes() http.Handler {
 
 	mux.HandleFunc("GET /operator/readings", a.handleReadings)
 	mux.HandleFunc("GET /operator/readings/export", a.handleReadingsExport)
+	mux.HandleFunc("GET /operator/readings/keyday", a.handleReadingsKeyDay)
 
 	mux.HandleFunc("GET /operator/audit", a.handleAuditLog)
 

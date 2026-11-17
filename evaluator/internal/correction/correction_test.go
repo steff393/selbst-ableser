@@ -172,6 +172,45 @@ func TestBuildCleartextWater(t *testing.T) {
 	}
 }
 
+// A correction is written in the encoding the template's own record uses,
+// not the one its unit usually comes in: a heat cost allocator that sends
+// a 16-bit integer gets a 16-bit integer back, a water meter that sends
+// BCD gets BCD.
+func TestBuildKeepsTheTemplatesEncoding(t *testing.T) {
+	cases := []struct {
+		name      string
+		med       byte
+		dif, vif  byte
+		data      []byte
+		oldValue  int64
+		newValue  int64
+		wantField []byte
+	}{
+		{"HCA as 16-bit integer", 0x08, 0x02, vifHeatCostHKV, []byte{0x67, 0x02}, 615, 700, []byte{0xBC, 0x02}},
+		{"water as 8-digit BCD", 0x07, 0x0C, vifVolumeWater, []byte{0x09, 0x30, 0x03, 0x00}, 33009, 34000, []byte{0x00, 0x40, 0x03, 0x00}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rawHex := buildCleartextTelegram(t, "EFE", c.med, c.dif, c.vif, c.data)
+			template := archive.Entry{MeterID: "90000001", RawHex: rawHex}
+
+			newHex, oldValue, err := Build(template, [16]byte{}, c.newValue)
+			if err != nil {
+				t.Fatalf("Build: %v", err)
+			}
+			if oldValue != c.oldValue {
+				t.Errorf("oldValue = %d, want %d", oldValue, c.oldValue)
+			}
+			newRaw, _ := hex.DecodeString(newHex)
+			want := append([]byte{c.dif, c.vif}, c.wantField...)
+			got := newRaw[11 : 11+len(want)]
+			if hex.EncodeToString(got) != hex.EncodeToString(want) {
+				t.Errorf("patched record = % X, want % X", got, want)
+			}
+		})
+	}
+}
+
 func TestBuildEncryptedRoundTrips(t *testing.T) {
 	key := [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	rawHex := buildEncryptedTelegram(t, key, difCurrentHKV, vifHeatCostHKV, []byte{0x00, 0x01, 0x00}) // 100

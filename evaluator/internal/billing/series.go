@@ -12,18 +12,19 @@ import (
 // telegram.
 type SwapLookup func(outgoingMeter, incomingMeter string) (SwapCorrection, bool)
 
-// KCFactorLookup resolves a meter's kc-factor (FACH-07) as of a given day,
+// FactorLookup resolves a meter's factor (FACH-07) as of a given day,
 // so a re-recalibrated meter (same physical Number, a new master-data
-// record with a different KCFactor from a certain day on) resolves to the
+// record with a different Factor from a certain day on) resolves to the
 // factor that was actually active for that reading, not just whichever
 // record happens to come first. It comes from master data
-// (MasterData.MeterByNumber + Meter.EffectiveKCFactor).
-type KCFactorLookup func(meter string, day telegram.Day) float64
+// (MasterData.MeterByNumber + Meter.EffectiveFactor).
+type FactorLookup func(meter string, day telegram.Day) float64
 
 // FreezeMonthLookup resolves the month whose last day is a meter's
-// Stichtag (FACH-03) as of a given day, the same way KCFactorLookup
-// resolves a kc-factor. It comes from master data (MasterData.MeterByNumber
-// + Meter.EffectiveFreezeMonth).
+// Stichtag (FACH-03) as of a given day, the same way FactorLookup
+// resolves a factor, or 0 for a meter without a Stichtag, which counts
+// continuously. It comes from master data (MasterData.MeterByNumber +
+// Meter.FreezeMonth).
 type FreezeMonthLookup func(meter string, day telegram.Day) int
 
 // CalculateSeries computes month-by-month consumption for one meter point
@@ -37,12 +38,10 @@ type FreezeMonthLookup func(meter string, day telegram.Day) int
 // available month without being marked as such (FACH-08, Variante A: a
 // deliberate simplification, not an oversight).
 //
-// resetsAnnually should be true for heat-cost-allocator meter points and
-// false for water meter points (FACH-03: only heat-cost allocators reset;
-// water meters count continuously). freezeMonth resolves which calendar
-// month each meter's Stichtag falls in; the new period then begins in the
-// month after it.
-func CalculateSeries(readings []MonthlyValue, resetsAnnually bool, freezeMonth FreezeMonthLookup, kcFactor KCFactorLookup, swap SwapLookup) ([]MonthResult, error) {
+// freezeMonth resolves which calendar month each meter's Stichtag falls
+// in; the new period then begins in the month after it. A meter without a
+// Stichtag (0) never resets, whatever its kind (FACH-03).
+func CalculateSeries(readings []MonthlyValue, freezeMonth FreezeMonthLookup, factor FactorLookup, swap SwapLookup) ([]MonthResult, error) {
 	var results []MonthResult
 	for i := 1; i < len(readings); i++ {
 		prev, cur := readings[i-1], readings[i]
@@ -59,22 +58,19 @@ func CalculateSeries(readings []MonthlyValue, resetsAnnually bool, freezeMonth F
 		// A new billing period begins in the month *after* the one the
 		// device freezes in: it froze on the last day of freezeMonth and
 		// has counted from zero ever since.
-		billingReset := resetsAnnually && cur.Day.Month() == monthAfter(freezeMonth(cur.Meter, cur.Day))
+		//
+		// What matters is the device the previous reading came from, the
+		// only one that was counting when this month began. Without a swap
+		// that is the same device as now. With one, it is the outgoing
+		// device; the incoming one was installed during this month, after
+		// any reset at its start, and counts from its documented start
+		// reading either way. So a swap in the first month of a period is
+		// computable whether the two devices share a Stichtag, differ, or
+		// one of them has none (see CalculateMonth).
+		billingReset := resetsInMonth(freezeMonth(prev.Meter, prev.Day), cur.Day.Month())
 		month := string(cur.Day)[:7] // "YYYY-MM"
 
-		// A swap in the first month of a billing period is computable
-		// (see CalculateMonth) only while both devices share that period:
-		// the outgoing meter's end reading counts from zero because it
-		// reset with the same period. Two devices with different reset
-		// months break that, and there is no reading that would tell us
-		// what the outgoing one had counted since its own last reset.
-		if swapCorrection != nil && billingReset && freezeMonth(prev.Meter, prev.Day) != freezeMonth(cur.Meter, cur.Day) {
-			return results, fmt.Errorf(
-				"billing: month %s: meters %s and %s were swapped in the first month of a billing period but their Stichtag months differ",
-				month, prev.Meter, cur.Meter)
-		}
-
-		res, err := CalculateMonth(month, prev, cur, swapCorrection, billingReset, kcFactor(cur.Meter, cur.Day))
+		res, err := CalculateMonth(month, prev, cur, swapCorrection, billingReset, factor(cur.Meter, cur.Day))
 		if err != nil {
 			return results, err
 		}
@@ -83,11 +79,10 @@ func CalculateSeries(readings []MonthlyValue, resetsAnnually bool, freezeMonth F
 	return results, nil
 }
 
-// monthAfter is the calendar month following m, wrapping December to
+// resetsInMonth reports whether a device with the given Stichtag month (0:
+// none) starts counting from zero at the beginning of month: the one after
+// the Stichtag month, so a 31 December Stichtag starts the new period in
 // January.
-func monthAfter(m int) int {
-	if m == 12 {
-		return 1
-	}
-	return m + 1
+func resetsInMonth(freezeMonth, month int) bool {
+	return freezeMonth != 0 && month == freezeMonth%12+1
 }

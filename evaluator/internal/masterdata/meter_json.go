@@ -20,8 +20,12 @@ type meterJSON struct {
 	StartReading int64         `json:"start_reading"`
 	RemovedAt    *telegram.Day `json:"removed_at,omitempty"`
 	EndReading   *int64        `json:"end_reading,omitempty"`
-	KCFactor     float64       `json:"kc_factor,omitempty"`
+	Factor       float64       `json:"factor,omitempty"`
 	FreezeMonth  int           `json:"freeze_month,omitempty"`
+
+	// LegacyKCFactor accepts kc_factor as a second key for Factor. It is
+	// only read, never written.
+	LegacyKCFactor float64 `json:"kc_factor,omitempty"`
 }
 
 func (m Meter) MarshalJSON() ([]byte, error) {
@@ -33,7 +37,7 @@ func (m Meter) MarshalJSON() ([]byte, error) {
 		StartReading: m.StartReading,
 		RemovedAt:    m.RemovedAt,
 		EndReading:   m.EndReading,
-		KCFactor:     m.KCFactor,
+		Factor:       m.Factor,
 		FreezeMonth:  m.FreezeMonth,
 	})
 }
@@ -58,7 +62,10 @@ func (m *Meter) UnmarshalJSON(data []byte) error {
 	m.StartReading = mj.StartReading
 	m.RemovedAt = mj.RemovedAt
 	m.EndReading = mj.EndReading
-	m.KCFactor = mj.KCFactor
+	m.Factor = mj.Factor
+	if m.Factor == 0 {
+		m.Factor = mj.LegacyKCFactor
+	}
 	m.FreezeMonth = mj.FreezeMonth
 	return nil
 }

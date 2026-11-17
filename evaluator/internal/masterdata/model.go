@@ -73,16 +73,6 @@ func (k Kind) CountsKWh() bool {
 	return k == KindHeatMeter
 }
 
-// ResetsAnnually reports whether devices of this kind zero themselves at
-// a yearly Stichtag (FACH-03). Only heat cost allocators do. It lives
-// here as one sentence rather than as a comparison repeated at each call
-// site, because getting it wrong for a heat meter — which counts kWh
-// straight through and is never reset — would not raise an error
-// anywhere; it would quietly produce a wrong number once a year.
-func (k Kind) ResetsAnnually() bool {
-	return k == KindHeatCostAllocator
-}
-
 // Building holds installation-wide settings. JSON field names are lower-
 // snake-case so a masterdata export (STAMM-07) reads consistently with
 // the rest of that document, not because the encrypted on-disk format
@@ -104,7 +94,7 @@ type Building struct {
 // unset (zero) — a fresh installation shows the heat-cost-allocator's raw
 // reading as its kWh figure until the operator enters the real factor
 // from the annual statement, the same "unset means unscaled" convention
-// as Meter.EffectiveKCFactor.
+// as Meter.EffectiveFactor.
 func (b Building) EffectiveHeatingKWhPerUnit() float64 {
 	if b.HeatingKWhPerUnit == 0 {
 		return 1
@@ -112,11 +102,19 @@ func (b Building) EffectiveHeatingKWhPerUnit() float64 {
 	return b.HeatingKWhPerUnit
 }
 
+// DefaultHotWaterKWhPerM3 is the hot-water factor of an installation that
+// has not entered its own: §9 Abs. 2 HeizkostenV's substitute formula
+// Q = 2,5 kWh/(m³·K) × (tw − 10 °C), at its usual tw of 60 °C.
+const DefaultHotWaterKWhPerM3 = 125
+
 // EffectiveHotWaterKWhPerM3 is EffectiveHeatingKWhPerUnit's counterpart
-// for HotWaterKWhPerM3.
+// for HotWaterKWhPerM3 — except that unset does not mean 1 here. Unlike a
+// heat-cost-allocator unit, a cubic metre of hot water has a statutory
+// substitute value, and showing m³ as kWh unscaled would be off by two
+// orders of magnitude rather than merely uncalibrated.
 func (b Building) EffectiveHotWaterKWhPerM3() float64 {
 	if b.HotWaterKWhPerM3 == 0 {
-		return 1
+		return DefaultHotWaterKWhPerM3
 	}
 	return b.HotWaterKWhPerM3
 }
@@ -170,26 +168,19 @@ type Meter struct {
 	RemovedAt  *telegram.Day
 	EndReading *int64
 
-	// KCFactor scales this meter's heat-cost-allocator readings to the
+	// Factor scales this meter's heat-cost-allocator readings to the
 	// actual heat output of its radiator (FACH-07). It is meaningless for
 	// water meters and defaults to 1 (unscaled) when unset.
-	KCFactor float64
+	Factor float64
 
 	// FreezeMonth is the calendar month (1-12) whose last day is this
 	// meter's Stichtag: the day it freezes its reading and starts counting
-	// from zero again (FACH-03). Meaningful for heat-cost allocators only;
-	// water meters count continuously and never reset.
+	// from zero again (FACH-03).
 	//
-	// 0 means unset; EffectiveFreezeMonth resolves that to December, the
-	// common 31 December Stichtag.
-	//
-	// Until 2026-09 this was ResetMonth and held the *first month of the
-	// new period* instead (January for a 31 December Stichtag) while the UI
-	// called it "Stichtag-Monat" — name and meaning disagreed by one month.
-	// The old JSON key is not read: no installation had been distributed,
-	// so a file still carrying it simply shows an empty Stichtag month that
-	// the operator fills in once, rather than a converted value nobody
-	// would think to check.
+	// 0 means the meter has no Stichtag and counts continuously. Whether a
+	// device resets is a property of the device, not of its kind: many heat
+	// cost allocators reset each year, but some count straight through like
+	// a water meter does, and nothing in a telegram says which.
 	FreezeMonth int
 }
 
@@ -234,21 +225,12 @@ func (m Meter) Active(day telegram.Day) bool {
 	return true
 }
 
-// EffectiveKCFactor returns m.KCFactor, or 1 if it is unset (zero).
-func (m Meter) EffectiveKCFactor() float64 {
-	if m.KCFactor == 0 {
+// EffectiveFactor returns m.Factor, or 1 if it is unset (zero).
+func (m Meter) EffectiveFactor() float64 {
+	if m.Factor == 0 {
 		return 1
 	}
-	return m.KCFactor
-}
-
-// EffectiveFreezeMonth returns m.FreezeMonth, or December if it is unset
-// (zero) — the 31 December Stichtag most installations use.
-func (m Meter) EffectiveFreezeMonth() int {
-	if m.FreezeMonth == 0 {
-		return 12
-	}
-	return m.FreezeMonth
+	return m.Factor
 }
 
 // Access is a tenant's access grant ("Zugang"): a token bound to one unit

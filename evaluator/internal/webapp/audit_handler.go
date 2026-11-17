@@ -21,6 +21,7 @@ var auditEventOrder = []access.EventType{
 	access.EventAccessChange,
 	access.EventArchiveDeleted,
 	access.EventArchiveCompressed,
+	access.EventArchivePurged,
 	access.EventArchiveCorrected,
 	access.EventDataIngested,
 	access.EventNotificationSent,
@@ -36,6 +37,7 @@ var auditEventLabels = map[access.EventType]string{
 	access.EventAccessChange:      "Zugang geändert",
 	access.EventArchiveDeleted:    "Archiv gelöscht",
 	access.EventArchiveCompressed: "Archiv komprimiert",
+	access.EventArchivePurged:     "Archiv bereinigt",
 	access.EventArchiveCorrected:  "Archiveintrag korrigiert",
 	access.EventDataIngested:      "Datenübernahme",
 	access.EventNotificationSent:  "Mitteilung versendet",
@@ -56,7 +58,7 @@ func auditEventLabel(t access.EventType) string {
 // something.
 func auditNoteworthy(e access.Event) bool {
 	switch e.Type {
-	case access.EventLoginFailure, access.EventArchiveDeleted, access.EventArchiveCompressed, access.EventArchiveCorrected, access.EventServiceRestart:
+	case access.EventLoginFailure, access.EventArchiveDeleted, access.EventArchiveCompressed, access.EventArchivePurged, access.EventArchiveCorrected, access.EventServiceRestart:
 		return true
 	case access.EventUnlockAttempt:
 		return strings.Contains(e.Detail, "failed") || strings.Contains(e.Detail, "rate limited")

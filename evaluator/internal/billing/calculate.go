@@ -38,9 +38,9 @@ type MonthResult struct {
 	Swap         *SwapCorrection
 	BillingReset bool
 
-	KCFactor       float64
-	RawConsumption float64 // before kc scaling
-	Consumption    float64 // after kc scaling (FACH-07)
+	Factor         float64
+	RawConsumption float64 // before factor scaling
+	Consumption    float64 // after factor scaling (FACH-07)
 }
 
 // CalculateMonth computes one month's consumption for a meter point
@@ -48,27 +48,26 @@ type MonthResult struct {
 //
 // swap is non-nil when the meter was replaced during this month; current
 // must then be a reading from swap.IncomingMeter and previous a reading
-// from swap.OutgoingMeter. billingReset means this month is the first of a
-// new billing period, so both devices started it at zero (FACH-03).
+// from swap.OutgoingMeter. billingReset means the device previous came
+// from reset to zero at the start of this month (FACH-03): the meter
+// itself without a swap, the outgoing one with a swap. The incoming one
+// was installed after the month began, so its own Stichtag plays no part
+// here.
 //
-// The two used to be mutually exclusive: a swap in a reset month was
-// rejected as undefined, because it was unclear whether the outgoing
-// meter's end reading had been taken before or after its own reset. It is
-// not unclear once the period's closing value comes from the device itself
-// (see billing_reset.go): the previous month then ends on the frozen
-// value, this month begins at zero for both devices, and the outgoing
-// meter's end reading is simply what it counted before being taken out.
-// CalculateSeries still refuses the one case this reasoning does not cover
-// — two devices whose billing periods start in different months.
-func CalculateMonth(month string, previous, current MonthlyValue, swap *SwapCorrection, billingReset bool, kcFactor float64) (MonthResult, error) {
+// A swap in a reset month is well defined because the period's closing
+// value comes from the device itself (see billing_reset.go): the previous
+// month ends on the frozen value, the outgoing device begins this month
+// at zero, and its end reading is simply what it counted before being
+// taken out.
+func CalculateMonth(month string, previous, current MonthlyValue, swap *SwapCorrection, billingReset bool, factor float64) (MonthResult, error) {
 	var raw float64
 	switch {
 	case swap != nil && billingReset:
 		if current.Meter != swap.IncomingMeter || previous.Meter != swap.OutgoingMeter {
 			return MonthResult{}, fmt.Errorf("billing: month %s: swap correction does not match the given readings' meters", month)
 		}
-		// Both devices count from zero this month: the outgoing one
-		// contributes everything it counted up to its removal, the
+		// The outgoing device counted from zero this month, so it
+		// contributes everything it counted up to its removal; the
 		// incoming one everything since it was installed.
 		raw = float64(current.Value-swap.StartReading) + float64(swap.EndReading)
 	case swap != nil:
@@ -82,8 +81,8 @@ func CalculateMonth(month string, previous, current MonthlyValue, swap *SwapCorr
 		raw = float64(current.Value - previous.Value)
 	}
 
-	if kcFactor == 0 {
-		kcFactor = 1
+	if factor == 0 {
+		factor = 1
 	}
 
 	return MonthResult{
@@ -92,8 +91,8 @@ func CalculateMonth(month string, previous, current MonthlyValue, swap *SwapCorr
 		Current:        current,
 		Swap:           swap,
 		BillingReset:   billingReset,
-		KCFactor:       kcFactor,
+		Factor:         factor,
 		RawConsumption: raw,
-		Consumption:    raw * kcFactor,
+		Consumption:    raw * factor,
 	}, nil
 }

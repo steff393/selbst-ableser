@@ -106,6 +106,13 @@ func ParseWMBus(wmbus []byte) (*Frame, error) {
 		return nil, ErrTooShort
 	}
 
+	if wmbus[10] == 0x72 && len(wmbus) < longHeaderIdentityOffset+8 {
+		// A long header cut off before its own identification: the meter
+		// this data belongs to cannot be named, and falling back to the
+		// link layer would file it under the radio converter instead.
+		return nil, ErrTooShort
+	}
+
 	f := &Frame{
 		L:    wmbus[0],
 		C:    wmbus[1],
@@ -133,12 +140,40 @@ func decodeRSSI(b byte) int {
 	return int(b)
 }
 
+// longHeaderIdentityOffset is where a long transport header's own
+// identification starts, immediately after the CI byte: four address
+// bytes, two manufacturer bytes, version, medium.
+const longHeaderIdentityOffset = 11
+
+// meterAddress returns the address field of the device a telegram's data
+// belongs to.
+//
+// Usually that is the link layer's, the device that transmits. But a radio
+// converter reads meters over a wired bus and sends on their behalf: the
+// link layer then names the converter, and only the long transport header
+// (CI 0x72) names the meter the data came from. Several meters behind one
+// converter would otherwise all arrive under the converter's number — one
+// meter as far as the archive is concerned.
+//
+// The evaluator makes the same distinction, and has to: it builds the
+// decryption IV from this identification as well (see its own
+// telegram.Frame.Identity).
+func (f *Frame) meterAddress() [4]byte {
+	if f.CI != 0x72 || len(f.Raw) < longHeaderIdentityOffset+8 {
+		return f.A
+	}
+	var a [4]byte
+	copy(a[:], f.Raw[longHeaderIdentityOffset:longHeaderIdentityOffset+4])
+	return a
+}
+
 // MeterNumber decodes the 8-digit meter number printed on the device from
-// the A-field: byte-reversed, read as packed BCD.
+// its address field (see meterAddress): byte-reversed, read as packed BCD.
 func (f *Frame) MeterNumber() (string, error) {
+	a := f.meterAddress()
 	digits := make([]byte, 0, 8)
 	for i := 3; i >= 0; i-- {
-		b := f.A[i]
+		b := a[i]
 		hi, lo := b>>4, b&0x0F
 		if hi > 9 || lo > 9 {
 			return "", ErrMeterNumber

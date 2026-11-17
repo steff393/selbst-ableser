@@ -23,7 +23,7 @@ func csvTestData(t *testing.T) masterdata.MasterData {
 			{ID: "H01", Room: "Heizraum", Kind: masterdata.KindHeatMeter},
 		},
 		Meters: []masterdata.Meter{
-			{Number: "10004711", MeterPointID: "101", KCFactor: 1.2, FreezeMonth: 7},
+			{Number: "10004711", MeterPointID: "101", Factor: 1.2, FreezeMonth: 7},
 			{Number: "10004690", MeterPointID: "101", RemovedAt: &removed, EndReading: &end},
 		},
 	}
@@ -63,7 +63,7 @@ func TestCSVRoundTrip(t *testing.T) {
 
 // TestImportOnlyTouchesTheColumnsItCarries is F-1 and F-2 together: a
 // supplier's list of numbers and keys is the normal case, and it must
-// leave kc factors, dates and everything else exactly as they were.
+// leave factors, dates and everything else exactly as they were.
 func TestImportOnlyTouchesTheColumnsItCarries(t *testing.T) {
 	md := csvTestData(t)
 	csv := "Zählernummer;AES-Schlüssel\n10004711;8B4C71A0E2F35D9C1A70B4E62D8F0315"
@@ -86,8 +86,8 @@ func TestImportOnlyTouchesTheColumnsItCarries(t *testing.T) {
 	if meter.AESKey == ([16]byte{}) {
 		t.Error("the key was not taken over")
 	}
-	if meter.KCFactor != 1.2 || meter.FreezeMonth != 7 {
-		t.Errorf("meter = %+v, want kc and Stichtag untouched by a file that does not mention them", meter)
+	if meter.Factor != 1.2 || meter.FreezeMonth != 7 {
+		t.Errorf("meter = %+v, want factor and Stichtag untouched by a file that does not mention them", meter)
 	}
 	if len(updated.Meters) != len(md.Meters) {
 		t.Errorf("meters = %d, want %d — a row missing from the file is not a deletion", len(updated.Meters), len(md.Meters))
@@ -140,7 +140,7 @@ func TestImportPlacesAFreeMeterButNeverMovesOne(t *testing.T) {
 		t.Errorf("placing onto an occupied meter point = %+v, want a refusal that names the occupant", rows[0])
 	}
 
-	_, rows = applyRecords(md, "meters", mustRecords(t, "Zählernummer;kc-Faktor\n10009999;1,4"))
+	_, rows = applyRecords(md, "meters", mustRecords(t, "Zählernummer;Faktor\n10009999;1,4"))
 	if rows[0].OK() || !strings.Contains(rows[0].Problem, "Zählerplatz") {
 		t.Errorf("a new device without a meter point = %+v, want a refusal that says so", rows[0])
 	}
@@ -166,7 +166,7 @@ func TestCSVColumnsAreRecognizedLoosely(t *testing.T) {
 	if len(records) != 1 {
 		t.Fatalf("records = %+v", records)
 	}
-	if records[0].Values["number"] != "10004711" || records[0].Values["kc"] != "1,4" {
+	if records[0].Values["number"] != "10004711" || records[0].Values["factor"] != "1,4" {
 		t.Errorf("values = %+v, want the columns recognized whatever their spelling and order", records[0].Values)
 	}
 	if !records[0].has("aes") {
@@ -186,7 +186,7 @@ func TestImportPreviewWritesNothing(t *testing.T) {
 	body := post(t, client, srvURL+"/operator/masterdata/import", url.Values{
 		"csrf_token": {csrf},
 		"table":      {"meters"},
-		"csv":        {"Zählernummer;kc-Faktor\n10004711;1,4"},
+		"csv":        {"Zählernummer;Faktor\n10004711;1,4"},
 	})
 	if !strings.Contains(body, "es ist noch nichts geschrieben") {
 		t.Errorf("expected the preview, got: %s", firstLines(body))
@@ -194,7 +194,7 @@ func TestImportPreviewWritesNothing(t *testing.T) {
 
 	after, _ := app.Vault.Get()
 	for i := range after.Meters {
-		if after.Meters[i].KCFactor != before.Meters[i].KCFactor {
+		if after.Meters[i].Factor != before.Meters[i].Factor {
 			t.Fatalf("the preview changed meter %s", after.Meters[i].Number)
 		}
 	}
@@ -207,7 +207,7 @@ func TestImportApplyWrites(t *testing.T) {
 	post(t, client, srvURL+"/operator/masterdata/import/apply", url.Values{
 		"csrf_token": {csrf},
 		"table":      {"meters"},
-		"csv":        {"Zählernummer;kc-Faktor;Stichtagsmonat\n10004711;1,4;12"},
+		"csv":        {"Zählernummer;Faktor;Stichtagsmonat\n10004711;1,4;12"},
 	})
 
 	md, _ := app.Vault.Get()
@@ -215,8 +215,8 @@ func TestImportApplyWrites(t *testing.T) {
 		if m.Number != "10004711" {
 			continue
 		}
-		if m.KCFactor != 1.4 || m.FreezeMonth != 12 {
-			t.Errorf("meter after import = %+v, want kc 1.4 and Stichtag 12", m)
+		if m.Factor != 1.4 || m.FreezeMonth != 12 {
+			t.Errorf("meter after import = %+v, want factor 1.4 and Stichtag 12", m)
 		}
 	}
 }
@@ -271,14 +271,14 @@ func TestRefusedImportRowsLeaveNothingBehind(t *testing.T) {
 func TestImportKeepsGoingAfterARefusedRow(t *testing.T) {
 	md := csvTestData(t)
 	updated, rows := applyRecords(md, "meters", mustRecords(t,
-		"Zählernummer;kc-Faktor\n99999999;1,4\n10004711;1,5"))
+		"Zählernummer;Faktor\n99999999;1,4\n10004711;1,5"))
 
 	if len(rows) != 2 || rows[0].OK() || !rows[1].OK() {
 		t.Fatalf("rows = %+v, want the unknown number refused and the known one taken", rows)
 	}
 	for _, m := range updated.Meters {
-		if m.Number == "10004711" && m.KCFactor != 1.5 {
-			t.Errorf("kc = %v, want the second line to have been applied", m.KCFactor)
+		if m.Number == "10004711" && m.Factor != 1.5 {
+			t.Errorf("factor = %v, want the second line to have been applied", m.Factor)
 		}
 	}
 }

@@ -59,21 +59,12 @@ func TestMeterByNumberAcrossSwap(t *testing.T) {
 	}
 }
 
-func TestEffectiveKCFactorDefault(t *testing.T) {
-	if got := (Meter{}).EffectiveKCFactor(); got != 1 {
-		t.Errorf("EffectiveKCFactor of an unset meter = %v, want 1", got)
+func TestEffectiveFactorDefault(t *testing.T) {
+	if got := (Meter{}).EffectiveFactor(); got != 1 {
+		t.Errorf("EffectiveFactor of an unset meter = %v, want 1", got)
 	}
-	if got := (Meter{KCFactor: 1.7}).EffectiveKCFactor(); got != 1.7 {
-		t.Errorf("EffectiveKCFactor = %v, want 1.7", got)
-	}
-}
-
-func TestEffectiveFreezeMonthDefault(t *testing.T) {
-	if got := (Meter{}).EffectiveFreezeMonth(); got != 12 {
-		t.Errorf("EffectiveFreezeMonth of an unset meter = %v, want 12 (Stichtag 31 December)", got)
-	}
-	if got := (Meter{FreezeMonth: 6}).EffectiveFreezeMonth(); got != 6 {
-		t.Errorf("EffectiveFreezeMonth = %v, want 6", got)
+	if got := (Meter{Factor: 1.7}).EffectiveFactor(); got != 1.7 {
+		t.Errorf("EffectiveFactor = %v, want 1.7", got)
 	}
 }
 
@@ -84,8 +75,8 @@ func TestEffectiveBuildingKWhFactorsDefault(t *testing.T) {
 	if got := (Building{HeatingKWhPerUnit: 1.42}).EffectiveHeatingKWhPerUnit(); got != 1.42 {
 		t.Errorf("EffectiveHeatingKWhPerUnit = %v, want 1.42", got)
 	}
-	if got := (Building{}).EffectiveHotWaterKWhPerM3(); got != 1 {
-		t.Errorf("EffectiveHotWaterKWhPerM3 of an unset building = %v, want 1", got)
+	if got := (Building{}).EffectiveHotWaterKWhPerM3(); got != 125 {
+		t.Errorf("EffectiveHotWaterKWhPerM3 of an unset building = %v, want 125 (§9 HeizkostenV at 60 °C)", got)
 	}
 	if got := (Building{HotWaterKWhPerM3: 124.3}).EffectiveHotWaterKWhPerM3(); got != 124.3 {
 		t.Errorf("EffectiveHotWaterKWhPerM3 = %v, want 124.3", got)
@@ -174,21 +165,6 @@ func TestActiveMeterPrefersTheDatedSuccessor(t *testing.T) {
 	}
 	if m, ok := md.ActiveMeter("mp1", day(t, "2025-06-01")); !ok || m.Number != "90000011" {
 		t.Errorf("after the swap = %+v (%v), want the replacement", m, ok)
-	}
-}
-
-// TestOnlyHeatCostAllocatorsReset guards the one mistake in this area
-// that produces no error message: a heat meter counts kWh through and is
-// never zeroed, so treating it like a heat cost allocator would show a
-// year's worth of energy as a single month's consumption.
-func TestOnlyHeatCostAllocatorsReset(t *testing.T) {
-	if !KindHeatCostAllocator.ResetsAnnually() {
-		t.Error("a heat cost allocator resets at its Stichtag")
-	}
-	for _, kind := range []Kind{KindHotWater, KindColdWater, KindHeatMeter, KindGas} {
-		if kind.ResetsAnnually() {
-			t.Errorf("%s must not be treated as resetting annually", kind)
-		}
 	}
 }
 

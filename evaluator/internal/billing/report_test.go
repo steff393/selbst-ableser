@@ -38,7 +38,7 @@ func TestYearOverYearSeries(t *testing.T) {
 		}
 	}
 	// Heating meters reset their own display around each year-end
-	// (FACH-03: resetsAnnually), so every January's raw reading *is* that
+	// (FACH-03: a Stichtag month is set), so every January's raw reading *is* that
 	// month's consumption directly, not a difference from December — the
 	// values below reflect that real device behavior.
 	for _, e := range []struct {
@@ -61,7 +61,7 @@ func TestYearOverYearSeries(t *testing.T) {
 			{ID: "mp1", UnitID: "u1", Room: "Living room", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
-			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2024-01-01")},
+			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2024-01-01"), FreezeMonth: 12},
 		},
 	}
 
@@ -152,8 +152,8 @@ func TestBuildingYearOverYearSeriesSumsAcrossUnits(t *testing.T) {
 			{ID: "mp2", UnitID: "u2", Room: "Living room", Kind: masterdata.KindHeatCostAllocator},
 		},
 		Meters: []masterdata.Meter{
-			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2024-01-01")},
-			{Number: "90000002", MeterPointID: "mp2", AESKey: key, InstalledAt: mustDay(t, "2024-01-01")},
+			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2024-01-01"), FreezeMonth: 12},
+			{Number: "90000002", MeterPointID: "mp2", AESKey: key, InstalledAt: mustDay(t, "2024-01-01"), FreezeMonth: 12},
 		},
 	}
 
@@ -181,15 +181,15 @@ func TestBuildingYearOverYearSeriesSumsAcrossUnits(t *testing.T) {
 	}
 }
 
-// TestSeriesForMeterPointUsesKCFactorActiveOnReadingDay covers FACH-07's
-// kc-Faktor lookup for a meter that was re-recalibrated in place: two
+// TestSeriesForMeterPointUsesFactorActiveOnReadingDay covers FACH-07's
+// Faktor lookup for a meter that was re-recalibrated in place: two
 // master-data records for the same physical meter Number at the same
 // meter point (not a swap — the device never changed), with different
-// KCFactor values on either side of the cutover. Each month's consumption
+// Factor values on either side of the cutover. Each month's consumption
 // must be scaled by whichever record was actually active on that reading's
 // day, not by whichever of the two records happens to come first in
 // md.Meters.
-func TestSeriesForMeterPointUsesKCFactorActiveOnReadingDay(t *testing.T) {
+func TestSeriesForMeterPointUsesFactorActiveOnReadingDay(t *testing.T) {
 	key := [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	store, err := archive.OpenStore(filepath.Join(t.TempDir(), "archive.db"))
 	if err != nil {
@@ -223,9 +223,9 @@ func TestSeriesForMeterPointUsesKCFactorActiveOnReadingDay(t *testing.T) {
 		MeterPoints: []masterdata.MeterPoint{mp},
 		Meters: []masterdata.Meter{
 			// Recalibrated in place on 2025-07-01: same physical meter
-			// Number, no swap, only the kc-Faktor changed.
-			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2025-01-01"), RemovedAt: &removedAt, EndReading: &endReading, KCFactor: 1},
-			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2025-07-01"), KCFactor: 2},
+			// Number, no swap, only the Faktor changed.
+			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2025-01-01"), RemovedAt: &removedAt, EndReading: &endReading, Factor: 1},
+			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2025-07-01"), Factor: 2},
 		},
 	}
 
@@ -241,7 +241,7 @@ func TestSeriesForMeterPointUsesKCFactorActiveOnReadingDay(t *testing.T) {
 	}
 	for month, wantConsumption := range want {
 		if got[month] != wantConsumption {
-			t.Errorf("Consumption[%s] = %v, want %v (kc-Faktor active on that reading's day)", month, got[month], wantConsumption)
+			t.Errorf("Consumption[%s] = %v, want %v (Faktor active on that reading's day)", month, got[month], wantConsumption)
 		}
 	}
 }
@@ -539,7 +539,7 @@ func TestBuildingAggregatesIgnoreHouseMeters(t *testing.T) {
 			{ID: "haus", Room: "Boiler room", Kind: masterdata.KindHeatCostAllocator}, // no unit
 		},
 		Meters: []masterdata.Meter{
-			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2024-01-01")},
+			{Number: "90000001", MeterPointID: "mp1", AESKey: key, InstalledAt: mustDay(t, "2024-01-01"), FreezeMonth: 12},
 			{Number: "90000009", MeterPointID: "haus", AESKey: key, InstalledAt: mustDay(t, "2024-01-01")},
 		},
 	}

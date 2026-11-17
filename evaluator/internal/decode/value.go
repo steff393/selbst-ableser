@@ -114,15 +114,115 @@ func findRecord(records []Record, storage int, vif byte) (Record, bool) {
 	return Record{}, false
 }
 
-func readingFromRecord(r Record) (Reading, error) {
+// Encoding is how the raw bytes of a value represent it.
+type Encoding int
+
+const (
+	EncodingUnknown Encoding = iota
+	// EncodingBCD is packed BCD, least significant byte first.
+	EncodingBCD
+	// EncodingBinary is an unsigned little-endian integer.
+	EncodingBinary
+)
+
+func (e Encoding) String() string {
+	switch e {
+	case EncodingBCD:
+		return "BCD"
+	case EncodingBinary:
+		return "binary"
+	default:
+		return "unknown"
+	}
+}
+
+// recordEncoding returns how a record's value is encoded, as its DIF's
+// data field (the low nibble, EN 13757-3) declares it. ok is false for the
+// codes that are neither an integer nor BCD: no data, 32-bit real,
+// selection for readout, variable length, special functions.
+//
+// The encoding is a property of the record, not of its unit: EN 13757-3
+// lets any VIF be sent either way, so the same heat-cost-allocator VIF
+// 0x6E can arrive as 0x0B 0x6E (6-digit BCD) from one device and as
+// 0x02 0x6E (16-bit integer) from another. Reading one as the other gives
+// a plausible-looking but wrong value: 0x67 0x02 is 267 as BCD and 615 as
+// binary.
+func recordEncoding(dif byte) (enc Encoding, ok bool) {
+	switch dif & 0x0F {
+	case 0x1, 0x2, 0x3, 0x4, 0x6, 0x7:
+		return EncodingBinary, true
+	case 0x9, 0xA, 0xB, 0xC, 0xE:
+		return EncodingBCD, true
+	default:
+		return EncodingUnknown, false
+	}
+}
+
+// Field is where a decoded value sits in the payload and how it is
+// encoded there. Data aliases the payload the records were walked from,
+// so internal/correction can overwrite the value in place (Overwrite)
+// without rediscovering its offset or guessing its encoding.
+type Field struct {
+	Data     []byte
+	Encoding Encoding
+}
+
+// Overwrite replaces the value in f with value, in f's own encoding and
+// byte width, so the telegram's overall length never changes.
+func (f Field) Overwrite(value int64) error {
+	if value < 0 {
+		return fmt.Errorf("decode: value must not be negative")
+	}
+	var encoded []byte
+	var err error
+	switch f.Encoding {
+	case EncodingBCD:
+		encoded, err = encodeBCD(uint64(value), len(f.Data))
+	case EncodingBinary:
+		encoded, err = encodeUintLE(uint64(value), len(f.Data))
+	default:
+		return fmt.Errorf("decode: cannot write a value in encoding %v", f.Encoding)
+	}
+	if err != nil {
+		return err
+	}
+	copy(f.Data, encoded)
+	return nil
+}
+
+// readingFromRecord decodes r's value in the encoding its DIF declares.
+// ok is false for a record whose value cannot be read: an unknown VIF, an
+// encoding that is neither integer nor BCD, or BCD with a nibble above 9
+// (EN 13757-3 uses those for a sign or an error marker, never for a
+// meter reading). Such a telegram is not evaluable, which is not an
+// error: an error would stop the whole month's figure over one telegram,
+// where not-found lets the search move on to the next day (see
+// billing.FindReading, and decodeQundisHeatRecord for the same decision).
+func readingFromRecord(r Record) (Reading, Field, bool) {
+	var unit Unit
 	switch r.VIF {
 	case vifHeatCostAllocator:
-		return Reading{Value: int64(decodeBCD(r.Data)), Unit: UnitHeatCostAllocator}, nil
+		unit = UnitHeatCostAllocator
 	case vifVolumeLiters:
-		return Reading{Value: int64(decodeUintLE(r.Data)), Unit: UnitLiters}, nil
+		unit = UnitLiters
 	default:
-		return Reading{}, fmt.Errorf("decode: no known unit for VIF 0x%02X", r.VIF)
+		return Reading{}, Field{}, false
 	}
+	enc, ok := recordEncoding(r.DIF)
+	if !ok {
+		return Reading{}, Field{}, false
+	}
+	var value uint64
+	switch enc {
+	case EncodingBCD:
+		if !validBCD(r.Data) {
+			return Reading{}, Field{}, false
+		}
+		value = decodeBCD(r.Data)
+	case EncodingBinary:
+		value = decodeUintLE(r.Data)
+	}
+	return Reading{Value: int64(value), Unit: unit}, Field{Data: r.Data, Encoding: enc}, true
 }
 
 // CurrentValue returns the live meter reading (heat-cost-allocator units or
@@ -133,12 +233,11 @@ func CurrentValue(records []Record) (Reading, bool, error) {
 	return reading, found, err
 }
 
-// CurrentValueRecord is CurrentValue's counterpart for internal/correction:
-// alongside the decoded reading, it returns the underlying Record itself,
-// whose Data aliases the payload passed to Standard — so a caller can
-// overwrite it in place to build a corrected telegram without needing to
-// rediscover the record's byte offset.
-func CurrentValueRecord(records []Record) (Reading, Record, bool, error) {
+// CurrentValueField is CurrentValue's counterpart for internal/correction:
+// alongside the decoded reading, it returns the Field the value was read
+// from, so a caller can overwrite it in place to build a corrected
+// telegram.
+func CurrentValueField(records []Record) (Reading, Field, bool, error) {
 	return valueRecordAtStorage(records, storageCurrent)
 }
 
@@ -150,41 +249,18 @@ func BillingResetValue(records []Record) (Reading, bool, error) {
 	return reading, found, err
 }
 
-func valueRecordAtStorage(records []Record, storage int) (Reading, Record, bool, error) {
+// valueRecordAtStorage never returns an error today: a value record it
+// cannot read is reported as not found (see readingFromRecord). The error
+// stays in the signatures above so that a future failure mode does not
+// have to change every caller.
+func valueRecordAtStorage(records []Record, storage int) (Reading, Field, bool, error) {
 	for _, vif := range []byte{vifHeatCostAllocator, vifVolumeLiters} {
 		if r, ok := findRecord(records, storage, vif); ok {
-			reading, err := readingFromRecord(r)
-			return reading, r, true, err
+			reading, field, ok := readingFromRecord(r)
+			return reading, field, ok, nil
 		}
 	}
-	return Reading{}, Record{}, false, nil
-}
-
-// EncodeCurrentValue is readingFromRecord's inverse: it encodes value into
-// length raw bytes matching unit's own encoding (packed BCD for a
-// heat-cost-allocator reading, little-endian binary for a volume in
-// liters). Used by internal/correction to overwrite a Record's Data in
-// place — length must match the original record's byte width, so the
-// telegram's overall length never changes.
-func EncodeCurrentValue(unit Unit, value int64, length int) ([]byte, error) {
-	if value < 0 {
-		return nil, fmt.Errorf("decode: value must not be negative")
-	}
-	switch unit {
-	case UnitHeatCostAllocator:
-		return encodeBCD(uint64(value), length)
-	case UnitLiters:
-		return encodeUintLE(uint64(value), length)
-	case UnitKWh:
-		// BCD because the one source of kWh readings so far — the Qundis
-		// heat-meter block, see qundis_heat.go — stores its total that
-		// way. Like the two cases above, this ties the unit to its
-		// encoding; a heat meter that sends kWh as binary would need the
-		// encoding carried alongside the unit instead.
-		return encodeBCD(uint64(value), length)
-	default:
-		return nil, fmt.Errorf("decode: no known encoding for unit %v", unit)
-	}
+	return Reading{}, Field{}, false, nil
 }
 
 // encodeBCD is decodeBCD's inverse: packs v into length bytes of packed

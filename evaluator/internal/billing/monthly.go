@@ -45,6 +45,13 @@ func lastDayOfMonth(firstOfMonthDay telegram.Day) telegram.Day {
 
 // SwapLookupFromMasterData builds a SwapLookup for one meter point from
 // its configured meters' documented end/start readings (FACH-02).
+//
+// The two meters are not required to follow each other directly. If a
+// third one was installed and removed again between two month-end
+// readings, the correction pairs the first one's end reading with the
+// last one's start reading, and what the one in between counted is
+// missing from that month. A deliberate simplification for a very rare
+// case: the operator can add that amount to the first meter's end reading.
 func SwapLookupFromMasterData(md masterdata.MasterData, meterPointID string) SwapLookup {
 	return func(outgoingMeter, incomingMeter string) (SwapCorrection, bool) {
 		var outgoing, incoming *masterdata.Meter
@@ -78,14 +85,6 @@ func SwapLookupFromMasterData(md masterdata.MasterData, meterPointID string) Swa
 // month with no active meter, or with no evaluable telegram found within
 // the lookback window, is simply absent from the result (FACH-08).
 func MonthlyReadingsForMeterPoint(store *archive.Store, md masterdata.MasterData, meterPointID string, monthEnds []telegram.Day, lookbackDays int) ([]MonthlyValue, error) {
-	var resetsAnnually bool
-	for _, mp := range md.MeterPoints {
-		if mp.ID == meterPointID {
-			resetsAnnually = mp.Kind.ResetsAnnually()
-			break
-		}
-	}
-
 	var out []MonthlyValue
 	for _, day := range monthEnds {
 		meter, ok := md.ActiveMeter(meterPointID, day)
@@ -103,7 +102,7 @@ func MonthlyReadingsForMeterPoint(store *archive.Store, md masterdata.MasterData
 		// cannot be made up later. It is also the one case where a month
 		// with no telegram of its own still yields a reading, because the
 		// frozen value is carried in the telegrams that follow it.
-		if resetsAnnually && day.Month() == meter.EffectiveFreezeMonth() {
+		if meter.FreezeMonth != 0 && day.Month() == meter.FreezeMonth {
 			frozen, ok, err := FindBillingReset(store, meter.Number, meter.AESKey, day, 0)
 			if err != nil {
 				return nil, err

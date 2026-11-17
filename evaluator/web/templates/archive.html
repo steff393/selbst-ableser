@@ -42,10 +42,17 @@
     <table class="kv" style="margin-top: 0.75rem;">
       <tr>
         <td style="width: 1%; white-space: nowrap;">
-          <button type="submit" formmethod="get" formaction="/operator/archive/download"
-                  onclick="this.form.csrf_token.disabled = true;">Herunterladen</button>
+          <div style="display: inline-flex; flex-direction: column; gap: 0.4rem;">
+            <button type="submit" formmethod="get" formaction="/operator/archive/download" name="format" value="db"
+                    onclick="this.form.csrf_token.disabled = true;">Herunterladen (.db)</button>
+            <button type="submit" formmethod="get" formaction="/operator/archive/download" name="format" value="json"
+                    class="btn-secondary" onclick="this.form.csrf_token.disabled = true;">Herunterladen (.json)</button>
+          </div>
         </td>
-        <td><span class="hint">Der Download enthält ausschließlich weiterhin verschlüsselte Telegramme.</span></td>
+        <td><span class="hint">Enthält ausschließlich weiterhin verschlüsselte Telegramme. Die .db hat
+        denselben Aufbau wie das Archiv und die <code>backup.db</code> des Collectors — zum
+        Wiedereinspielen oder Übertragen. Die .json ist eine Textdatei, ohne Werkzeug lesbar, zum
+        Ablegen. Beide lassen sich unten mit „Datei importieren“ wieder einspielen.</span></td>
       </tr>
       <tr>
         <td style="width: 1%; white-space: nowrap;">
@@ -67,6 +74,15 @@
         liegende Monate werden angefasst; fehlt für einen Monat ein Eintrag im Rückschau-Fenster, bleibt
         er komplett unangetastet. Vor dem Ausführen sollten die UVI-Werte im gewählten Zeitraum als
         plausibel und lückenlos geprüft worden sein.</span></td>
+      </tr>
+      <tr>
+        <td style="width: 1%; white-space: nowrap;">
+          <button type="submit" formmethod="post" formaction="/operator/archive/purge" class="btn-danger"
+                  onclick="this.form.csrf_token.disabled = false; return confirm('Alle Telegramme von ' + this.form.from.value + ' bis ' + this.form.to.value + ' unwiderruflich löschen, deren Zähler nicht in den Stammdaten stehen?');">Bereinigen</button>
+        </td>
+        <td><span class="hint">Löscht im gewählten Zeitraum alle Telegramme von Zählernummern, die in
+        den Stammdaten gar nicht vorkommen, typischerweise die Zähler der Nachbarn. Ausgetauschte, alte
+        Zähler bleiben erhalten, solange sie in den Stammdaten stehen.</span></td>
       </tr>
     </table>
   </form>
@@ -96,7 +112,7 @@
 
 <section class="card">
   <h2>Datei importieren</h2>
-  <p class="hint">Nimmt eine Archiv-Datenbank entgegen — eine <code>backup.db</code> von <code>saCollector</code>, oder das Archiv einer anderen Installation — und fügt ihren Inhalt in dieses Archiv ein. Bereits vorhandene, abweichende Einträge werden nie überschrieben, sondern als Konflikt gemeldet.</p>
+  <p class="hint">Nimmt eine Archiv-Datenbank (.db) entgegen — eine <code>backup.db</code> von <code>saCollector</code>, das Archiv einer anderen Installation oder einen Download von oben — oder einen Download als .json, und fügt den Inhalt in dieses Archiv ein. Bereits vorhandene, abweichende Einträge werden nie überschrieben, sondern als Konflikt gemeldet.</p>
   <form method="post" action="/operator/archive/import" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <div class="form-row">

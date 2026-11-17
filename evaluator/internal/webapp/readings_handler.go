@@ -1,17 +1,19 @@
 package webapp
 
 import (
-	"encoding/binary"
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 
 	"selbst-ableser/internal/access"
+	"selbst-ableser/internal/archive"
 	"selbst-ableser/internal/billing"
 	"selbst-ableser/internal/masterdata"
 	"selbst-ableser/internal/telegram"
@@ -26,11 +28,16 @@ const readingsDefaultRangeDays = 180
 // data and decrypted where a matching meter and key are on file. Meter
 // point/unit stay blank for a telegram from a meter nothing has been
 // assigned to yet (STAMM-06 onboarding is discovered here, not hidden).
-// It is sent to the browser as JSON: the "Zähler" table's Excel-style
-// column filters, row selection, and the chart all happen client-side
-// (web/static/readings.js) so they react instantly, without a round trip
-// per click — only Von/Bis (which change what is even fetched from the
-// archive) reload the page.
+// It is sent to the browser as JSON: the meter list, its search and type
+// filter, and the selected meter's charts and telegram table all happen
+// client-side (web/static/readings.js) so they react instantly, without a
+// round trip per click — only Von/Bis (which change what is even fetched
+// from the archive) reload the page.
+//
+// The page shows only what is in this row — the decoded current value and
+// the reception data — never the telegram's other records: reading those
+// would need per-manufacturer interpretation, and the wmbusmeters link
+// (DecodeURL) already covers a look at the full content.
 type readingRow struct {
 	MeterID    string `json:"meter_id"`
 	Day        string `json:"day"`
@@ -54,6 +61,14 @@ type readingRow struct {
 	Manufacturer     string `json:"manufacturer"`      // three-letter code, e.g. "TCH"
 	ManufacturerName string `json:"manufacturer_name"` // registered full name, for a tooltip — "" if not in the registry
 
+	// FreezeMonth is the master-data Stichtag month of the meter this
+	// telegram belongs to (masterdata.Meter.FreezeMonth): 0 for a meter that
+	// counts straight through or one with no master data. readings.js needs
+	// it because a reset is not always visible in the values themselves — a
+	// meter can count past its pre-reset level again before the first
+	// telegram after the Stichtag is archived.
+	FreezeMonth int `json:"freeze_month"`
+
 	Evaluable bool   `json:"evaluable"`
 	Value     int64  `json:"value"`
 	ValueUnit string `json:"value_unit"`
@@ -61,9 +76,9 @@ type readingRow struct {
 	DecodeURL string `json:"decode_url"` // wmbusmeters.org cross-check link (SZ-10's documented exception)
 }
 
-// meterSummary is one distinct meter's current master-data context — the
-// row shape of the client-side "selection table" a click on toggles into
-// the chart, one row per meter rather than per telegram.
+// meterSummary is one distinct meter's current master-data context — one
+// entry of the client-side meter list, one per meter rather than per
+// telegram.
 type meterSummary struct {
 	MeterID          string `json:"meter_id"`
 	UnitID           string `json:"unit_id"`
@@ -74,14 +89,14 @@ type meterSummary struct {
 	DeviceTypeName   string `json:"device_type_name"`
 	Manufacturer     string `json:"manufacturer"`
 	ManufacturerName string `json:"manufacturer_name"`
+	FreezeMonth      int    `json:"freeze_month"`
 }
 
-// readingsFilter now only carries what genuinely has to be resolved
+// readingsFilter only carries what genuinely has to be resolved
 // server-side: the date range (it decides what gets fetched and decrypted
 // at all) and, for the CSV export, an optional explicit meter allow-list —
-// everything else (Wohnung/Zählerplatz/Zählernummer/Typ/Hersteller column
-// filters, row selection) is client-side-only state in readings.js, with
-// no server-side equivalent to keep in sync.
+// the meter list's search and type filter are client-side-only state in
+// readings.js, with no server-side equivalent to keep in sync.
 type readingsFilter struct {
 	From     telegram.Day
 	To       telegram.Day
@@ -89,11 +104,12 @@ type readingsFilter struct {
 }
 
 // QueryString rebuilds the filter as a URL query string for the CSV
-// export link. readings.js calls this indirectly by building the same
-// shape of query itself, passing the exact set of meters currently visible
-// (after its column filters and row selection) — or none at all if nothing
-// is currently restricting the view, so the export matches what's on
-// screen without ever sending every meter ID for the common unfiltered case.
+// export link. readings.js builds the same shape of query itself, passing
+// the exact set of meters currently in its list (after search and type
+// filter) — or none at all if nothing is restricting the list, so the
+// export matches what's on screen without ever sending every meter ID for
+// the common unfiltered case. Which meter is selected for the detail view
+// does not narrow the export.
 func (f readingsFilter) QueryString() string {
 	v := url.Values{}
 	for _, id := range f.MeterIDs {
@@ -104,26 +120,58 @@ func (f readingsFilter) QueryString() string {
 	return v.Encode()
 }
 
+// readingsPreset is one quick-pick range button above the meter list.
+type readingsPreset struct {
+	Label    string
+	From, To telegram.Day
+	Active   bool // the page currently shows exactly this range
+}
+
+// readingsPresets are the quick picks: the last 30/90/365 days up to
+// today, the previous calendar year — which puts Bis on 31.12., the usual
+// Stichtag for the key-day export — and, if the archive holds anything,
+// its whole extent.
+func readingsPresets(today telegram.Day, stats archive.Stats, current readingsFilter) []readingsPreset {
+	year, _ := strconv.Atoi(string(today)[:4])
+	year--
+	presets := []readingsPreset{
+		{Label: "30 Tage", From: today.AddDays(-29), To: today},
+		{Label: "90 Tage", From: today.AddDays(-89), To: today},
+		{Label: "1 Jahr", From: today.AddDays(-364), To: today},
+		{Label: fmt.Sprintf("Jahr %d", year), From: telegram.Day(fmt.Sprintf("%04d-01-01", year)), To: telegram.Day(fmt.Sprintf("%04d-12-31", year))},
+	}
+	if stats.EarliestDay != "" {
+		presets = append(presets, readingsPreset{Label: "Alles", From: stats.EarliestDay, To: stats.LatestDay})
+	}
+	for i := range presets {
+		presets[i].Active = presets[i].From == current.From && presets[i].To == current.To
+	}
+	return presets
+}
+
 type readingsPageData struct {
 	Base
 	Filter           readingsFilter
-	RowCount         int
+	Presets          []readingsPreset
+	KeyDayLabel      string // Bis as dd.mm.yyyy: the key-day export takes its Stichtag from Bis
+	LookbackDays     int
 	RowsJSON         template.JS
 	MeterSummary     []meterSummary
 	MeterSummaryJSON template.JS
+	UnitOrderJSON    template.JS // unit IDs in master-data order, for grouping the meter list
 	Error            string
 }
 
 // handleReadings is the archive's "Zählerstände" view: every archived
 // telegram in a time range, decrypted where a meter and key are known —
 // the evaluator-side counterpart to the Archiv page's still-encrypted
-// download, and (since an unrecognized meter still appears, just with a
-// blank Wohnung/Zählerplatz) the way an operator discovers a meter that
-// hasn't been onboarded into the Stammdaten yet. Only Von/Bis are handled
-// server-side (they decide what gets fetched and decrypted at all); the
-// "Zähler" table's Excel-style column filters, row selection, and the
-// raw-value chart all happen client-side against the full in-range
-// result, so they react immediately — see web/static/readings.js.
+// download, and (since an unrecognized meter still appears, in its own
+// group) the way an operator discovers a meter that hasn't been onboarded
+// into the Stammdaten yet. Only Von/Bis are handled server-side (they
+// decide what gets fetched and decrypted at all); the meter list and the
+// selected meter's value and RSSI charts all happen client-side against
+// the full in-range result, so they react immediately — see
+// web/static/readings.js.
 func (a *App) handleReadings(w http.ResponseWriter, r *http.Request) {
 	sess := a.session(r)
 	if err := access.RequireOperator(sess); err != nil {
@@ -136,11 +184,27 @@ func (a *App) handleReadings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filter, errMsg := parseReadingsFilter(r, a.today())
+	unitOrder := make([]string, 0, len(md.Units))
+	for _, u := range md.Units {
+		unitOrder = append(unitOrder, u.ID)
+	}
+	unitOrderJSON, _ := json.Marshal(unitOrder)
+
+	today := a.today()
+	stats, err := a.Store.Stats(today)
+	if err != nil {
+		a.renderTechnicalError(w, sess, err)
+		return
+	}
+
+	filter, errMsg := parseReadingsFilter(r, today)
+	presets := readingsPresets(today, stats, filter)
 	if errMsg != "" {
 		a.render(w, "readings.html", readingsPageData{
 			Base: a.base("Zählerstände", sess), Filter: filter, Error: errMsg,
-			RowsJSON: "[]", MeterSummaryJSON: "[]", // valid empty JSON, not the zero value "" — this is embedded directly into a <script> block
+			Presets: presets, KeyDayLabel: formatDay(filter.To), LookbackDays: a.lookbackDays(),
+			// valid empty JSON, not the zero value "" — these are embedded directly into a <script> block
+			RowsJSON: "[]", MeterSummaryJSON: "[]", UnitOrderJSON: template.JS(unitOrderJSON),
 		})
 		return
 	}
@@ -158,11 +222,146 @@ func (a *App) handleReadings(w http.ResponseWriter, r *http.Request) {
 	a.render(w, "readings.html", readingsPageData{
 		Base:             a.base("Zählerstände", sess),
 		Filter:           filter,
-		RowCount:         len(rows),
+		Presets:          presets,
+		KeyDayLabel:      formatDay(filter.To),
+		LookbackDays:     a.lookbackDays(),
 		RowsJSON:         template.JS(rowsJSON),
 		MeterSummary:     summaries,
 		MeterSummaryJSON: template.JS(summaryJSON),
+		UnitOrderJSON:    template.JS(unitOrderJSON),
 	})
+}
+
+// keyDayRow is one line of the key-day export: one meter that was
+// installed on the Stichtag, with the reading FACH-01's lookup found for
+// it — or none.
+type keyDayRow struct {
+	UnitName, MeterPointID, Room, Kind, MeterID string
+	Found                                       bool
+	Value, Unit                                 string
+	ReadingDay                                  telegram.Day
+	Note                                        string
+}
+
+// buildKeyDayRows lists every meter active on day, in master-data order
+// (unit, then meter point), each with its reading on day as FACH-01 finds
+// it: the telegram of that exact day, or — if none was archived or it is
+// not evaluable — the closest earlier one within the lookback window. A
+// meter with no reading in that window still gets its row, with an empty
+// value and a note, so a gap is visible in the file instead of the meter
+// silently missing from it. On a swap day both the outgoing and the
+// incoming meter are active and both appear.
+func (a *App) buildKeyDayRows(md masterdata.MasterData, day telegram.Day) ([]keyDayRow, error) {
+	unitIndex := make(map[string]int, len(md.Units))
+	unitNameByID := make(map[string]string, len(md.Units))
+	for i, u := range md.Units {
+		unitIndex[u.ID] = i
+		unitNameByID[u.ID] = u.Name
+	}
+	pointIndex := make(map[string]int, len(md.MeterPoints))
+	pointByID := make(map[string]masterdata.MeterPoint, len(md.MeterPoints))
+	for i, mp := range md.MeterPoints {
+		pointIndex[mp.ID] = i
+		pointByID[mp.ID] = mp
+	}
+	// A house meter (no unit) sorts after every unit.
+	unitRank := func(unitID string) int {
+		if i, ok := unitIndex[unitID]; ok {
+			return i
+		}
+		return len(md.Units)
+	}
+
+	var meters []masterdata.Meter
+	for _, m := range md.Meters {
+		if m.Active(day) {
+			meters = append(meters, m)
+		}
+	}
+	sort.SliceStable(meters, func(i, j int) bool {
+		pi, pj := pointByID[meters[i].MeterPointID], pointByID[meters[j].MeterPointID]
+		if ri, rj := unitRank(pi.UnitID), unitRank(pj.UnitID); ri != rj {
+			return ri < rj
+		}
+		return pointIndex[pi.ID] < pointIndex[pj.ID]
+	})
+
+	lookback := a.lookbackDays()
+	rows := make([]keyDayRow, 0, len(meters))
+	for _, m := range meters {
+		mp := pointByID[m.MeterPointID]
+		row := keyDayRow{
+			UnitName: unitLabel(unitNameByID, mp.UnitID), MeterPointID: mp.ID, Room: mp.Room,
+			Kind: kindLabel(mp.Kind), MeterID: m.Number, Unit: kindValueUnit(mp.Kind),
+		}
+		reading, found, err := billing.FindReading(a.Store, m.Number, m.AESKey, day, lookback)
+		if err != nil {
+			return nil, err
+		}
+		switch {
+		case !found:
+			row.Note = fmt.Sprintf("kein auswertbarer Wert in den %d Tagen bis zum Stichtag", lookback)
+		default:
+			row.Found = true
+			row.Value = formatReadingValue(mp.Kind, reading.Value)
+			row.ReadingDay = reading.Day
+			if reading.Day != day {
+				row.Note = fmt.Sprintf("Wert vom %s, %d Tag(e) vor dem Stichtag", formatDay(reading.Day), reading.Day.DaysUntil(day))
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+// handleReadingsKeyDay streams buildKeyDayRows as CSV: the readings of all
+// meters on one Stichtag, for handing over to a billing program. Unlike the
+// plain export below it is per meter, not per telegram, and values follow
+// the display convention (water in m³ with a decimal comma), the same one
+// the Stammdaten import reads.
+func (a *App) handleReadingsKeyDay(w http.ResponseWriter, r *http.Request) {
+	sess := a.session(r)
+	if err := access.RequireOperator(sess); err != nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	md, ok := a.Vault.Get()
+	if !ok {
+		a.renderLocked(w, sess)
+		return
+	}
+	day, err := telegram.ParseDay(r.URL.Query().Get("day"))
+	if err != nil {
+		http.Error(w, "Ungültiger Stichtag.", http.StatusBadRequest)
+		return
+	}
+	rows, err := a.buildKeyDayRows(md, day)
+	if err != nil {
+		a.renderTechnicalError(w, sess, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=zaehlerstaende-stichtag-%s.csv", day))
+	// UTF-8 BOM, as in the Stammdaten CSV export: without it Excel reads the
+	// file as ANSI and garbles every umlaut.
+	io.WriteString(w, "\uFEFF")
+	cw := csv.NewWriter(w)
+	cw.Comma = ';'
+	cw.Write([]string{"Wohnung", "Zählerplatz", "Raum", "Art", "Zähler", "Stichtag", "Zählerstand", "Einheit", "Telegramm vom", "Hinweis"})
+	for _, row := range rows {
+		readingDay := ""
+		if row.Found {
+			readingDay = formatDay(row.ReadingDay)
+		}
+		cw.Write([]string{
+			row.UnitName, row.MeterPointID, row.Room, row.Kind, row.MeterID, formatDay(day),
+			row.Value, row.Unit, readingDay, row.Note,
+		})
+	}
+	cw.Flush()
+
+	a.audit(access.EventDataIngested, sess.AuditActor(), fmt.Sprintf("key-day export %d meters, %s", len(rows), day))
 }
 
 // handleReadingsExport streams the same filtered, decrypted rows as CSV —
@@ -280,13 +479,10 @@ func (a *App) buildReadingRows(md masterdata.MasterData, f readingsFilter) ([]re
 		// or has no master-data match for.
 		raw, rawErr := hex.DecodeString(e.RawHex)
 		haveHeader := rawErr == nil && len(raw) > 9
-		if haveHeader {
-			row.Manufacturer = telegram.Manufacturer(binary.LittleEndian.Uint16(raw[2:4]))
-			row.ManufacturerName, _ = telegram.ManufacturerName(row.Manufacturer)
-		}
 		var key [16]byte
 		if meter, found := md.MeterByNumber(e.MeterID, e.Day); found {
 			row.MeterPointID = meter.MeterPointID
+			row.FreezeMonth = meter.FreezeMonth
 			key = meter.AESKey
 			if mp, ok := meterPointByID[meter.MeterPointID]; ok {
 				row.Room = mp.Room
@@ -294,11 +490,15 @@ func (a *App) buildReadingRows(md masterdata.MasterData, f readingsFilter) ([]re
 				row.UnitName = unitLabel(unitNameByID, mp.UnitID)
 			}
 		}
-		// Classified only once the key is known: deviceMedium looks past
-		// the header into the application layer where it can, and for an
-		// encrypted telegram that needs the key.
+		// Identified only once the key is known: deviceIdentity looks past
+		// the link layer into the transport header and, where it can, the
+		// application layer — and for an encrypted telegram that needs
+		// the key.
 		if haveHeader {
-			if dt, ok := telegram.IdentifyDeviceType(deviceMedium(raw, key)); ok {
+			manufacturer, medium := deviceIdentity(raw, key)
+			row.Manufacturer = manufacturer
+			row.ManufacturerName, _ = telegram.ManufacturerName(row.Manufacturer)
+			if dt, ok := telegram.IdentifyDeviceType(medium); ok {
 				row.DeviceType = dt.Abbr
 				row.DeviceTypeName = dt.Name
 			}
@@ -338,7 +538,7 @@ func wmbusmetersURL(rawHex string, key [16]byte) string {
 
 // summarizeMeters collects one row per distinct meter number, carrying
 // whatever master-data context its most recent telegram resolved to — the
-// client-side selection table's data source.
+// client-side meter list's data source.
 func summarizeMeters(rows []readingRow) []meterSummary {
 	byMeter := make(map[string]meterSummary)
 	var order []string
@@ -351,6 +551,7 @@ func summarizeMeters(rows []readingRow) []meterSummary {
 			MeterPointID: row.MeterPointID, Room: row.Room,
 			DeviceType: row.DeviceType, DeviceTypeName: row.DeviceTypeName,
 			Manufacturer: row.Manufacturer, ManufacturerName: row.ManufacturerName,
+			FreezeMonth: row.FreezeMonth,
 		}
 	}
 	sort.Strings(order)

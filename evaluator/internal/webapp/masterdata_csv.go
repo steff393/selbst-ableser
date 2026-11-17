@@ -48,7 +48,7 @@ var csvTables = map[string]csvTable{
 	"units":       {Key: "units", Label: "Wohnungen", Header: "Wohnung;Bezeichnung;Fläche"},
 	"meterpoints": {Key: "meterpoints", Label: "Zählerplätze", Header: "Zählerplatz;Wohnung;Raum;Typ"},
 	"meters": {Key: "meters", Label: "Zähler",
-		Header: "Zählernummer;Zählerplatz;AES-Schlüssel;Einbau;Anfangsstand;kc-Faktor;Stichtagsmonat;Ausbau;Endstand"},
+		Header: "Zählernummer;Zählerplatz;AES-Schlüssel;Einbau;Anfangsstand;Faktor;Stichtagsmonat;Ausbau;Endstand"},
 }
 
 func csvLine(fields ...string) string { return strings.Join(fields, csvSeparator) }
@@ -72,9 +72,9 @@ func csvMeterPoints(md masterdata.MasterData) string {
 func csvMeters(md masterdata.MasterData) string {
 	lines := []string{csvTables["meters"].Header}
 	for _, row := range meterRowsInTableOrder(md.MeterPoints, md.Meters) {
-		kc := strings.Replace(row.KCFactor, ".", ",", 1)
+		factor := strings.Replace(row.Factor, ".", ",", 1)
 		lines = append(lines, csvLine(row.Number, row.MeterPointID, row.AESKey, row.InstalledAt,
-			row.StartReading, kc, row.FreezeMonth, row.RemovedAt, row.EndReading))
+			row.StartReading, factor, row.FreezeMonth, row.RemovedAt, row.EndReading))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -123,7 +123,7 @@ var csvAliases = map[string]string{
 	"aesschlussel": "aes", "aes": "aes", "schlussel": "aes",
 	"einbau": "installed", "einbaudatum": "installed",
 	"anfangsstand": "start", "startwert": "start",
-	"kcfaktor": "kc", "kc": "kc",
+	"faktor": "factor", "kcfaktor": "factor", "kc": "factor", "bewertungsfaktor": "factor",
 	"stichtagsmonat": "freeze", "stichtagmonat": "freeze", "stichtag": "freeze",
 	"ausbau": "removed", "ausbaudatum": "removed",
 	"endstand": "end",
@@ -465,7 +465,7 @@ func applyMeterRecord(md *masterdata.MasterData, rec csvRecord) importRow {
 	take("aes", "Schlüssel", &current.AESKey)
 	take("installed", "Einbau", &current.InstalledAt)
 	take("start", "Anfangsstand", &current.StartReading)
-	take("kc", "kc-Faktor", &current.KCFactor)
+	take("factor", "Faktor", &current.Factor)
 	take("freeze", "Stichtagsmonat", &current.FreezeMonth)
 	take("removed", "Ausbau", &current.RemovedAt)
 	take("end", "Endstand", &current.EndReading)

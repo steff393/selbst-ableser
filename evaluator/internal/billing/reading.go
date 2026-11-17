@@ -71,7 +71,7 @@ func ReadValue(entry archive.Entry, key [16]byte) (decode.Reading, bool, error) 
 		// Manufacturer-specific (CI 0xA0-0xB7): no self-describing records
 		// to walk, so fall back to whatever decoder is registered for this
 		// telegram's manufacturer code, if any (decode.RegisterManufacturerDecoder).
-		return decode.ManufacturerSpecific(telegram.Manufacturer(frame.M), result.Payload)
+		return decode.ManufacturerSpecific(telegram.Manufacturer(frame.Identity().M), result.Payload)
 	}
 	reading, found, err := decode.CurrentValue(records)
 	if err != nil {
@@ -82,7 +82,7 @@ func ReadValue(entry archive.Entry, key [16]byte) (decode.Reading, bool, error) 
 		// manufacturer-specific record among the standard ones (a Qundis
 		// heat meter's measurement block), decoded by whatever is
 		// registered for this manufacturer.
-		reading, _, found, err = decode.ManufacturerRecordValue(telegram.Manufacturer(frame.M), records)
+		reading, _, found, err = decode.ManufacturerRecordValue(telegram.Manufacturer(frame.Identity().M), records)
 		if err != nil {
 			return decode.Reading{}, false, err
 		}

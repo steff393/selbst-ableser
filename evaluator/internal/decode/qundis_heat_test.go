@@ -54,8 +54,8 @@ func TestQundisHeatTotals(t *testing.T) {
 			if reading.Value != c.want || reading.Unit != UnitKWh {
 				t.Errorf("reading = %+v, want %d kWh", reading, c.want)
 			}
-			if len(field) != 4 {
-				t.Errorf("field is %d bytes, want the 4-byte total", len(field))
+			if len(field.Data) != 4 || field.Encoding != EncodingBCD {
+				t.Errorf("field is %d bytes %v, want the 4-byte BCD total", len(field.Data), field.Encoding)
 			}
 		})
 	}
@@ -117,11 +117,9 @@ func TestQundisHeatFieldAliasesTheTelegram(t *testing.T) {
 	if err != nil || !found {
 		t.Fatal(found, err)
 	}
-	encoded, err := EncodeCurrentValue(UnitKWh, 1200, len(field))
-	if err != nil {
+	if err := field.Overwrite(1200); err != nil {
 		t.Fatal(err)
 	}
-	copy(field, encoded)
 
 	records2, _, _ := Standard(raw[10], raw)
 	reading, _, found, err := ManufacturerRecordValue("QDS", records2)

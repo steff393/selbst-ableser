@@ -95,7 +95,8 @@ func run(ctx context.Context, args []string) error {
 	secret := fs.String("secret", "", "shared transfer secret (ARCH-04); empty relies on loopback trust, only accepted if the evaluator also has none configured")
 	name := fs.String("name", "", "name this collector reports to the evaluator, shown on its Collector page; empty uses the hostname — set it when more than one collector reports to the same evaluator, since two freshly imaged Pis are both called raspberrypi")
 	port := fs.String("port", "", "serial port device path of the receiver, e.g. COM3 or /dev/ttyUSB0; omitted auto-detects an IMST iU891A-XL by USB ID — only needed as a manual override (e.g. more than one receiver on this machine), and always for a -receiver other than the default")
-	receiverModel := fs.String("receiver", receiver.DefaultDeviceName, fmt.Sprintf("receiver model: one of %v — anything other than %q also needs -port, since only that one can be found by USB ID", receiver.DeviceNames(), receiver.DefaultDeviceName))
+	receiverModel := fs.String("receiver", receiver.DefaultDeviceName, fmt.Sprintf("receiver: one of %v, or %q for an RTL-SDR dongle through rtl_433 — a serial model other than %q also needs -port, since only that one can be found by USB ID", receiver.DeviceNames(), receiver.RTL433SourceName, receiver.DefaultDeviceName))
+	rtl433Path := fs.String("rtl433", "", fmt.Sprintf("path to the rtl_433 binary for -receiver %s; empty looks for %q in PATH. rtl_433 is installed separately (it is GPL-2.0 and not part of this distribution)", receiver.RTL433SourceName, receiver.DefaultRTL433Command))
 	dataPath := fs.String("path", "data", "directory for this collector's own two local files (settings-cache.json, backup.db) — a working directory for files that regrow on their own, not an installation like the evaluator's")
 	showVersion := fs.Bool("version", false, "print the build identifier and exit")
 	if err := fs.Parse(args); err != nil {
@@ -115,11 +116,6 @@ func run(ctx context.Context, args []string) error {
 	status := newCollectorStatus(*name, versionLabel(), time.Now())
 	logLine("reporting as %q", status.name)
 
-	device, err := receiver.DeviceByName(*receiverModel)
-	if err != nil {
-		return fmt.Errorf("saCollector: %w", err)
-	}
-
 	// A receiver missing right now — at startup, or later after being
 	// unplugged — is not fatal: SerialSource's own reconnect-with-backoff
 	// loop (see OpenAutoDetectedPort) keeps watching for one to appear
@@ -130,7 +126,18 @@ func run(ctx context.Context, args []string) error {
 	// receiver found, needing an explicit -port) still stops the process
 	// at startup.
 	var source receiver.Source
-	if *port != "" {
+	if *receiverModel == receiver.RTL433SourceName {
+		// An SDR is not a serial receiver: there is no port to open and
+		// no framing to configure, only a decoder process to run (see
+		// receiver.RTL433Source).
+		if *port != "" {
+			return fmt.Errorf("saCollector: -port is for serial receivers; -receiver %s takes -rtl433 for the decoder's path instead", receiver.RTL433SourceName)
+		}
+		source = withRTL433Logging(receiver.NewRTL433Source(*rtl433Path), status)
+		logLine("receiving through rtl_433, which is installed separately and is not part of this distribution")
+	} else if device, err := receiver.DeviceByName(*receiverModel); err != nil {
+		return fmt.Errorf("saCollector: %w (or %q for an RTL-SDR dongle through rtl_433)", err, receiver.RTL433SourceName)
+	} else if *port != "" {
 		source = withReceiverLogging(receiver.NewSerialSource(receiver.OpenSerialPort(*port, device.BaudRate()), device), status)
 		logLine("connecting to %s (%s, %d baud)", *port, device.Name(), device.BaudRate())
 	} else {
@@ -239,6 +246,29 @@ func withReceiverLogging(s *receiver.SerialSource, status *collectorStatus) *rec
 		status.receiverLost()
 	}
 	s.OnDeviceInfo = func(step string, raw []byte) { logLine("%s response: % X", step, raw) }
+	return s
+}
+
+// withRTL433Logging is withReceiverLogging for the SDR source: the same
+// four events, reported the same way, so an operator sees no difference
+// between a receiver that was unplugged and a decoder process that died.
+// Its own output is logged too — that is where "no supported devices
+// found" or a driver still holding the dongle shows up, and without it a
+// silent receiver would have no explanation anywhere.
+func withRTL433Logging(s *receiver.RTL433Source, status *collectorStatus) *receiver.RTL433Source {
+	s.OnConnect = func(command string) {
+		logLine("receiver decoder started: %s", command)
+		status.receiverConnected(command)
+	}
+	s.OnDisconnect = func(err error) {
+		logLine("receiver decoder stopped: %v", err)
+		status.receiverLost()
+	}
+	s.OnConnectError = func(err error) {
+		logLine("receiver decoder unavailable: %v", err)
+		status.receiverLost()
+	}
+	s.OnOutput = func(line string) { logLine("rtl_433: %s", line) }
 	return s
 }
 

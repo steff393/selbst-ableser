@@ -15,21 +15,27 @@
   <a href="/operator/masterdata?tab=meterpoints"{{if eq .Tab "meterpoints"}} class="current" aria-current="page"{{end}}>Zählerplätze</a>
   <a href="/operator/masterdata?tab=meters"{{if eq .Tab "meters"}} class="current" aria-current="page"{{end}}>Zähler</a>
   <a href="/operator/masterdata?tab=swap"{{if eq .Tab "swap"}} class="current" aria-current="page"{{end}}>Zählerwechsel</a>
-  <a href="/operator/masterdata?tab=access"{{if eq .Tab "access"}} class="current" aria-current="page"{{end}}>Zugänge</a>
+  <a href="/operator/masterdata?tab=access"{{if eq .Tab "access"}} class="current" aria-current="page"{{end}}>Mieter</a>
 </nav>
 
 {{if eq .Tab "anlage"}}
 <section class="card">
   <h2>Anlage</h2>
-  <p class="hint">Umrechnungsfaktoren für die kWh-Anzeige — je Abrechnungsperiode aus
-  der tatsächlichen Jahresabrechnung neu abgeleitet. Eine Änderung wirkt sich auf die gesamte
-  angezeigte Historie aus, nicht nur auf künftige Monate.</p>
+  <p class="hint">Umrechnungsfaktoren für die kWh-Anzeige. Eine Änderung wirkt sich auf die
+  gesamte angezeigte Historie aus, nicht nur auf künftige Monate.</p>
   <form method="post" action="/operator/masterdata/building">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <div class="form-row">
       <label>Bezeichnung <input type="text" name="name" value="{{.Building.Name}}"></label>
-      <label>kWh je HKV-Einheit (Heizung) <input type="number" step="0.001" min="0" name="heating_kwh_per_unit" value="{{.Building.EffectiveHeatingKWhPerUnit}}" required></label>
-      <label>kWh je m³ (Warmwasser) <input type="number" step="0.001" min="0" name="hot_water_kwh_per_m3" value="{{.Building.EffectiveHotWaterKWhPerM3}}" required></label>
+      <label>kWh je HKV-Einheit (Heizung) <input type="number" step="0.001" min="0" name="heating_kwh_per_unit" value="{{.Building.EffectiveHeatingKWhPerUnit}}" required>
+        <span class="sa-why">Aus der Heizkostenabrechnung: Energie für Heizung (kWh) geteilt durch
+        die Summe aller HKV-Einheiten im selben Zeitraum — am besten gemittelt über mehrere Jahre.
+        Einen allgemeinen Standardwert gibt es nicht, ohne Abrechnung bleibt es bei 1.</span></label>
+      <label>kWh je m³ (Warmwasser) <input type="number" step="0.001" min="0" name="hot_water_kwh_per_m3" value="{{.Building.EffectiveHotWaterKWhPerM3}}" required>
+        <span class="sa-why">Aus der Heizkostenabrechnung: Energie für die Warmwasserbereitung (kWh)
+        geteilt durch die Warmwassermenge (m³), am besten gemittelt über mehrere Jahre. Ohne
+        Abrechnung nach §9 HeizkostenV: 2,5 × (Warmwassertemperatur − 10) — bei 60 °C sind das
+        125 (Standardwert), bei 55 °C 112,5.</span></label>
     </div>
     <button type="submit">Speichern</button>
   </form>
@@ -56,6 +62,17 @@
   <label><input type="checkbox" id="sa-never-seen"> nie empfangen</label>
   <span class="sa-filter-count" id="sa-filter-count"></span>
 </div>
+
+{{if .KindCounts}}
+<ul class="sa-kind-counts" aria-label="Zählerplätze je Typ">
+  {{range .KindCounts}}
+  <li{{if lt .WithMeter .Places}} class="sa-kind-open"{{end}}>
+    <span class="sa-kind sa-kind-{{.Kind}}" title="{{.Name}}">{{.Label}}</span>
+    <span>{{.WithMeter}} von {{.Places}} {{if eq .Places 1}}Platz{{else}}Plätzen{{end}} mit Zähler</span>
+  </li>
+  {{end}}
+</ul>
+{{end}}
 
 {{range .Units}}
 <details class="sa-unit"{{if .Empty}} open{{end}}>
@@ -126,7 +143,7 @@
     <div class="sa-dlg-foot">
       <button type="submit" formaction="/operator/masterdata/unit/delete" formnovalidate class="linklike sa-danger sa-delete">Wohnung löschen</button>
       <button type="button" class="btn-secondary btn-sm" data-close>Abbrechen</button>
-      <button type="submit" class="btn btn-sm">Speichern</button>
+      <button type="submit" class="btn btn-sm" data-default>Speichern</button>
     </div>
   </form>
 </dialog>
@@ -160,7 +177,7 @@
     <div class="sa-dlg-foot">
       <button type="submit" formaction="/operator/masterdata/meterpoint/delete" formnovalidate class="linklike sa-danger sa-delete">Zählerplatz löschen</button>
       <button type="button" class="btn-secondary btn-sm" data-close>Abbrechen</button>
-      <button type="submit" class="btn btn-sm">Speichern</button>
+      <button type="submit" class="btn btn-sm" data-default>Speichern</button>
     </div>
   </form>
 </dialog>
@@ -176,6 +193,7 @@
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <input type="hidden" name="original_number" value="">
     <input type="hidden" name="meter_point_id" value="">
+    <input type="hidden" name="next_place" value="">
     <div class="sa-dlg-head">
       <h3>Zähler</h3>
       <p data-place></p>
@@ -191,7 +209,9 @@
       <div class="sa-two">
         <label>Zählernummer <input type="text" name="number" inputmode="numeric" required autocomplete="off">
           <span class="sa-why">Acht Ziffern, wie auf dem Gerät.</span></label>
-        <label>Einbau <input type="text" name="installed_at" placeholder="TT.MM.JJJJ" autocomplete="off">
+        <label><span class="sa-label-row">Einbau
+            <button type="button" class="linklike sa-today" data-today-for="installed_at">heute</button></span>
+          <input type="text" name="installed_at" placeholder="TT.MM.JJJJ" autocomplete="off">
           <span class="sa-why">Leer lassen heißt „war schon immer da“.</span></label>
       </div>
       <label class="sa-move" hidden>Zählerplatz
@@ -201,8 +221,10 @@
       <label>AES-Schlüssel <input type="text" name="aes_key" spellcheck="false" autocomplete="off">
         <span class="sa-why">32 Hex-Zeichen, oder leer bei unverschlüsselten Geräten.</span></label>
       <div class="sa-two">
-        <label>kc-Faktor <input type="text" name="kc_factor" inputmode="decimal" placeholder="1" autocomplete="off"></label>
-        <label>Stichtag-Monat <input type="text" name="freeze_month" inputmode="numeric" placeholder="12" autocomplete="off"></label>
+        <label>Faktor <input type="text" name="factor" inputmode="decimal" placeholder="1" autocomplete="off"></label>
+        <label>Stichtag-Monat <input type="text" name="freeze_month" inputmode="numeric" autocomplete="off">
+          <span class="sa-why">1–12, z. B. 12 für den 31.12. Leer heißt: kein Rücksetzen, der Zähler
+          zählt fortlaufend hoch.</span></label>
       </div>
       <div class="sa-two">
         <label>Anfangsstand <input type="text" name="start_reading" inputmode="decimal" placeholder="0" autocomplete="off">
@@ -218,7 +240,9 @@
     <div class="sa-dlg-foot">
       <button type="submit" formaction="/operator/masterdata/meter/delete" formnovalidate class="linklike sa-danger sa-delete">Zähler entfernen</button>
       <button type="button" class="btn-secondary btn-sm" data-close>Abbrechen</button>
-      <button type="submit" class="btn btn-sm">Speichern</button>
+      <button type="submit" class="btn-secondary btn-sm sa-next" name="then" value="next"
+              title="Speichern und gleich den nächsten Zählerplatz bearbeiten">Nächster Platz</button>
+      <button type="submit" class="btn btn-sm" data-default>Speichern</button>
     </div>
   </form>
 </dialog>
@@ -252,8 +276,8 @@
       </div>
       <label>AES-Schlüssel des neuen Geräts <input type="text" name="aes_key" spellcheck="false" autocomplete="off"></label>
       <div class="sa-two">
-        <label>kc-Faktor <input type="text" name="kc_factor" inputmode="decimal" autocomplete="off">
-          <span class="sa-why sa-filled" data-why="kc"></span></label>
+        <label>Faktor <input type="text" name="factor" inputmode="decimal" autocomplete="off">
+          <span class="sa-why sa-filled" data-why="factor"></span></label>
         <label>Stichtag-Monat <input type="text" name="freeze_month" inputmode="numeric" autocomplete="off">
           <span class="sa-why sa-filled" data-why="freeze"></span></label>
       </div>
@@ -261,7 +285,7 @@
     <div class="sa-dlg-foot">
       <span class="sa-spacer"></span>
       <button type="button" class="btn-secondary btn-sm" data-close>Abbrechen</button>
-      <button type="submit" class="btn btn-sm">Wechsel eintragen</button>
+      <button type="submit" class="btn btn-sm" data-default>Wechsel eintragen</button>
     </div>
   </form>
 </dialog>
@@ -478,9 +502,9 @@
   <p class="hint">Alle Geräte, auch längst ausgebaute — hier werden <em>Werte</em> geändert,
   auch Zählernummer und Zählerplatz. Ein neues Gerät anzulegen oder einen Wechsel einzutragen
   geht im Reiter <a href="/operator/masterdata?tab=uebersicht">Gesamtansicht</a> leichter, weil
-  dort die freien Zählerplätze zu sehen sind. Leerer kc-Faktor bedeutet 1, leerer Stichtag-Monat
-  Dezember, leeres Einbaudatum „war schon immer da“. Anfangsstand und Endstand: bei
-  Wasserzählern m³ mit Komma (z. B. „12,345“), bei HKV eine ganze Zahl ohne Komma und ohne
+  dort die freien Zählerplätze zu sehen sind. Leerer Faktor bedeutet 1, leerer Stichtag-Monat
+  „kein Rücksetzen, der Zähler zählt fortlaufend hoch“, leeres Einbaudatum „war schon immer
+  da“. Anfangsstand und Endstand: bei Wasserzählern m³ mit Komma (z. B. „12,345“), bei HKV eine ganze Zahl ohne Komma und ohne
   Tausenderpunkt.</p>
 
   <form method="post" action="/operator/masterdata" id="meters-form">
@@ -498,7 +522,7 @@
       <thead>
         <tr>
           <th>Zählernummer</th><th>Zählerplatz</th><th>AES-Schlüssel (hex)</th><th>Einbau</th>
-          <th>Anfangsstand</th><th>kc-Faktor</th><th>Stichtag-Monat</th><th>Ausbau</th>
+          <th>Anfangsstand</th><th>Faktor</th><th>Stichtag-Monat</th><th>Ausbau</th>
           <th>Endstand</th><th></th>
         </tr>
       </thead>
@@ -506,6 +530,7 @@
     </table>
   </div>
   <p class="row-actions">
+    <button type="button" id="meters-add-row" class="btn-secondary btn-sm">+ Zähler</button>
     <button type="button" class="btn-secondary btn-sm" data-csv="out" data-for="meters">CSV exportieren</button>
     <button type="button" class="btn-secondary btn-sm" data-csv="in" data-for="meters">CSV importieren</button>
     <button type="submit" form="meters-form" class="btn btn-sm">Zähler speichern</button>
@@ -523,7 +548,7 @@
     <label>CSV einfügen. Die Kopfzeile entscheidet, welche Spalten dabei sind — eine Datei mit
       weniger Spalten ist der Normalfall, nicht die Ausnahme. Was in ihr fehlt, bleibt
       unberührt; gelöscht wird durch das Einlesen nie.
-      <textarea name="csv" rows="6" spellcheck="false" placeholder="Zählernummer;Zählerplatz;AES-Schlüssel;Einbau;Anfangsstand;kc-Faktor;Stichtagsmonat;Ausbau;Endstand"></textarea></label>
+      <textarea name="csv" rows="6" spellcheck="false" placeholder="Zählernummer;Zählerplatz;AES-Schlüssel;Einbau;Anfangsstand;Faktor;Stichtagsmonat;Ausbau;Endstand"></textarea></label>
     <p class="row-actions"><button type="submit" class="btn btn-sm">Vorschau</button></p>
   </form>
 {{with .Import}}
@@ -562,14 +587,14 @@
 (function () {
   "use strict";
   SAGrid.create({
-    gridId: "meters-grid", bodyId: "meters-grid-body",
+    gridId: "meters-grid", bodyId: "meters-grid-body", addRowId: "meters-add-row",
     formId: "meters-form", hiddenInputId: "meters-json",
-    columns: ["number", "meter_point_id", "aes_key", "installed_at", "start_reading", "kc_factor", "freeze_month", "removed_at", "end_reading"],
+    columns: ["number", "meter_point_id", "aes_key", "installed_at", "start_reading", "factor", "freeze_month", "removed_at", "end_reading"],
     // No fill-down and no blank trailing row: this table also holds
     // long-removed devices, and new ones are not made here.
     noFillDown: true,
     noBlankRow: true,
-    placeholders: {kc_factor: "1", freeze_month: "12", installed_at: "TT.MM.JJJJ", removed_at: "in Betrieb"},
+    placeholders: {factor: "1", installed_at: "TT.MM.JJJJ", removed_at: "in Betrieb"},
     initial: {{.MetersJSON}}
   });
 
@@ -622,7 +647,7 @@
   Endstand · neue Nummer · Anfangsstand</code>. Mit Kopfzeile werden die Spalten anhand ihrer
   Bezeichnung erkannt („alt“, „neu“, „Endstand“, „Anfangsstand“, „Platz“). Zählerstände bei
   Wasserzählern als m³ mit Komma (z. B. „12,345“), bei HKV als ganze Zahl ohne Komma. Zwei
-  weitere Spalten sind möglich und brauchen eine Kopfzeile: <code>kc</code> und
+  weitere Spalten sind möglich und brauchen eine Kopfzeile: <code>Faktor</code> und
   <code>Stichtag</code> (Monat 1–12); ohne sie werden beide Werte vom ausgebauten Zähler
   übernommen.</p>
 
@@ -667,7 +692,6 @@
         <td>
           {{if .OK}}
             <span class="badge badge-success"><span class="badge-dot"></span>wird übernommen</span>
-            {{if .Warning}}<div class="warn-line"><span class="badge badge-warning"><span class="badge-dot"></span>Achtung</span> {{.Warning}}</div>{{end}}
             {{if .Note}}<div class="hint">{{.Note}}</div>{{end}}
           {{else}}
             <span class="badge badge-danger"><span class="badge-dot"></span>{{.Problem}}</span>
@@ -695,7 +719,8 @@
 {{if eq .Tab "access"}}
 <section class="card">
   <div class="card-head">
-    <h2>Zugänge</h2>
+    <h2>Mieter</h2>
+    <a class="btn btn-secondary btn-sm" href="/operator/access/letters" target="_blank">Anschreiben drucken</a>
   </div>
   <p class="hint">Der Zugangscode wird erst beim Speichern erzeugt. Wohnung als ID angeben (Reiter
   Wohnungen zeigt sie). Ende leer lassen für einen unbefristeten Zugang.</p>
@@ -783,7 +808,7 @@
     <div class="sa-place-device">Zähler
       <button type="button" class="sa-idlink" data-dialog="meter"
               data-number="{{.Number}}" data-aes="{{.AESKey}}" data-installed="{{.Installed}}"
-              data-start="{{.Start}}" data-kc="{{.KCFactor}}" data-freeze="{{.Freeze}}"
+              data-start="{{.Start}}" data-factor="{{.Factor}}" data-freeze="{{.Freeze}}"
               data-removed="" data-end="" data-place="{{$.ID}}">{{.Number}}</button>
       · {{.Summary}}{{if .NeverSeen}} · <span class="sa-never">nie empfangen</span>{{else if .LastSeen}} · zuletzt {{.LastSeen}}{{end}}</div>
     {{else}}
@@ -793,7 +818,7 @@
     <div class="sa-place-history">vorher
       <button type="button" class="sa-idlink" data-dialog="meter"
               data-number="{{.Number}}" data-aes="{{.AESKey}}" data-installed="{{.Installed}}"
-              data-start="{{.Start}}" data-kc="{{.KCFactor}}" data-freeze="{{.Freeze}}"
+              data-start="{{.Start}}" data-factor="{{.Factor}}" data-freeze="{{.Freeze}}"
               data-removed="{{.Removed}}" data-end="{{.End}}" data-place="{{$.ID}}">{{.Number}}</button>
       · {{.Summary}}</div>
     {{end}}
@@ -802,7 +827,7 @@
     {{if .Active}}
     <button type="button" class="btn btn-sm" data-dialog="swap"
             data-place="{{.ID}}" data-place-label="{{.ID}} · {{.Room}} · {{.KindName}}"
-            data-outgoing="{{.Active.Number}}" data-kc="{{.Active.KCFactor}}" data-freeze="{{.Active.Freeze}}"
+            data-outgoing="{{.Active.Number}}" data-factor="{{.Active.Factor}}" data-freeze="{{.Active.Freeze}}"
             data-kind="{{.Kind}}">Zählerwechsel</button>
     {{else}}
     <button type="button" class="btn btn-sm" data-dialog="meter"

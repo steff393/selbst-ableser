@@ -100,6 +100,7 @@ func TestTemplatesRenderWithMinimalData(t *testing.T) {
 		"uvi_overview.html":           buildingOverviewData{Base: base, Month: "2026-06"},
 		"notify.html":                 notifySettingsPageData{Base: base, Encryption: "starttls"},
 		"security.html":               securitySettingsPageData{Base: base, CurrentHost: "localhost:8226"},
+		"access_letter.html":          accessLettersPageData{Base: base},
 	}
 
 	for name, data := range cases {

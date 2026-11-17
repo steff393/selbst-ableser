@@ -86,6 +86,65 @@ func (s *Store) DeleteRange(from, to telegram.Day) (int64, error) {
 	return res.RowsAffected()
 }
 
+// PurgedMeter is one meter PurgeUnknownMeters removed, with how many
+// entries it had.
+type PurgedMeter struct {
+	ID      string
+	Entries int64
+}
+
+// PurgeUnknownMeters permanently removes every entry with a day in
+// [from, to] inclusive whose meter ID is not in keep, and reports per
+// removed meter how many entries went. Another of DATEN-06's
+// manual-cleanup paths: the collector archives every device it hears
+// (ARCH-01 keeps it from knowing which are ours), so the neighbours'
+// meters pile up here until the operator clears them out. keep is the
+// master data's full meter list, removed devices included — their history
+// is still needed for the months they were installed. An empty keep list
+// is not refused: it makes this a DeleteRange, which is what it says.
+func (s *Store) PurgeUnknownMeters(from, to telegram.Day, keep []string) ([]PurgedMeter, error) {
+	known := make(map[string]bool, len(keep))
+	for _, id := range keep {
+		known[id] = true
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.Query(`SELECT meter_id, COUNT(*) FROM telegrams WHERE day >= ? AND day <= ? GROUP BY meter_id ORDER BY meter_id;`, string(from), string(to))
+	if err != nil {
+		return nil, err
+	}
+	var purged []PurgedMeter
+	for rows.Next() {
+		var m PurgedMeter
+		if err := rows.Scan(&m.ID, &m.Entries); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if !known[m.ID] {
+			purged = append(purged, m)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for _, m := range purged {
+		if _, err := tx.Exec(`DELETE FROM telegrams WHERE meter_id = ? AND day >= ? AND day <= ?;`, m.ID, string(from), string(to)); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return purged, nil
+}
+
 // CompressRange reduces archive storage for every full calendar month in
 // [from, to] (DATEN-06's manual-cleanup path, like DeleteRange — never
 // automatic, always an explicit operator action): for each such month and

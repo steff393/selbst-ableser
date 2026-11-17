@@ -161,7 +161,7 @@ func TestMonthlyReadingsCloseThePeriodOnTheFrozenValue(t *testing.T) {
 		t.Errorf("December's day = %s, want the month end", readings[1].Day)
 	}
 
-	results, err := CalculateSeries(readings, true,
+	results, err := CalculateSeries(readings,
 		func(string, telegram.Day) int { return 12 },
 		func(string, telegram.Day) float64 { return 1 },
 		func(string, string) (SwapCorrection, bool) { return SwapCorrection{}, false })
@@ -204,9 +204,85 @@ func TestMonthlyReadingsCloseAPeriodWithoutAnyTelegramOfItsOwn(t *testing.T) {
 	}
 }
 
-// TestMonthlyReadingsLeaveWaterMetersAlone: a water meter never resets, so
-// nothing here may touch it even if its telegram carried a frozen value.
-func TestMonthlyReadingsLeaveWaterMetersAlone(t *testing.T) {
+// TestSeriesAcrossASwapInTheFirstMonthOfAPeriod runs a replacement in
+// January through master data and archive, the way a report does: the
+// reset is decided by the outgoing device's Stichtag as resolved from
+// master data, whatever the incoming one says.
+func TestSeriesAcrossASwapInTheFirstMonthOfAPeriod(t *testing.T) {
+	key := [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	swapDay := mustDay(t, "2026-01-15")
+
+	cases := []struct {
+		name                 string
+		oldFreeze, newFreeze int
+		oldDecember          []byte // the outgoing device's telegram around the turn of the year
+		oldDecemberDay       string
+		endReading           int64
+		want                 []float64 // December, January, February
+		wantJanuaryReset     bool
+	}{
+		{
+			// The old device froze 313 on 31 December and counted 30 more
+			// until it came out; the new one counts straight through.
+			name: "outgoing resets, incoming has no Stichtag", oldFreeze: 12, newFreeze: 0,
+			oldDecember:      hcaPayloadWithReset(bcd3(20), bcd3(313), dateG20251231),
+			oldDecemberDay:   "2026-01-09",
+			endReading:       30,
+			want:             []float64{80, 50, 35}, // 313-233, 30+(25-5), 60-25
+			wantJanuaryReset: true,
+		},
+		{
+			// The old device counted straight through from 313 to 343; the
+			// new one has a Stichtag of its own that plays no part yet.
+			name: "outgoing has no Stichtag, incoming resets", oldFreeze: 0, newFreeze: 12,
+			oldDecember:    hcaPayload(bcd3(313)),
+			oldDecemberDay: "2025-12-31",
+			endReading:     343,
+			want:           []float64{80, 50, 35}, // 313-233, (343-313)+(25-5), 60-25
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			store := testStore(t)
+			insertEntry(t, store, "90000001", mustDay(t, "2025-11-30"), buildEncryptedTelegramHex(t, key, hcaPayload(bcd3(233))))
+			insertEntry(t, store, "90000001", mustDay(t, c.oldDecemberDay), buildEncryptedTelegramHex(t, key, c.oldDecember))
+			insertEntry(t, store, "90000002", mustDay(t, "2026-01-31"), buildEncryptedTelegramHex(t, key, hcaPayload(bcd3(25))))
+			insertEntry(t, store, "90000002", mustDay(t, "2026-02-28"), buildEncryptedTelegramHex(t, key, hcaPayload(bcd3(60))))
+
+			md := heatingMasterData(t, key, c.oldFreeze)
+			md.Meters[0].RemovedAt = &swapDay
+			md.Meters[0].EndReading = &c.endReading
+			md.Meters = append(md.Meters, masterdata.Meter{
+				Number: "90000002", MeterPointID: "101", AESKey: key,
+				InstalledAt: swapDay, StartReading: 5, FreezeMonth: c.newFreeze,
+			})
+
+			results, err := seriesForMeterPoint(store, md, md.MeterPoints[0], mustDay(t, "2025-11-01"), mustDay(t, "2026-02-28"), 0)
+			if err != nil {
+				t.Fatalf("seriesForMeterPoint: %v", err)
+			}
+			if len(results) != len(c.want) {
+				t.Fatalf("results = %+v, want %d months", results, len(c.want))
+			}
+			for i, want := range c.want {
+				if results[i].RawConsumption != want {
+					t.Errorf("%s = %v, want %v", results[i].Month, results[i].RawConsumption, want)
+				}
+			}
+			if results[1].Swap == nil || results[1].BillingReset != c.wantJanuaryReset {
+				t.Errorf("January = %+v, want a swap with reset=%v", results[1], c.wantJanuaryReset)
+			}
+			if results[0].BillingReset || results[2].BillingReset {
+				t.Errorf("December and February must not be reset months: %+v", results)
+			}
+		})
+	}
+}
+
+// TestMonthlyReadingsLeaveMetersWithoutAStichtagAlone: a meter without a
+// Stichtag month never resets, so nothing here may touch it even if its
+// telegram carried a frozen value.
+func TestMonthlyReadingsLeaveMetersWithoutAStichtagAlone(t *testing.T) {
 	key := [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	store := testStore(t)
 	insertEntry(t, store, "90000002", mustDay(t, "2025-12-26"),

@@ -97,7 +97,7 @@ func TestCalculateMonthRejectsMismatchedSwapMeters(t *testing.T) {
 	}
 }
 
-func TestCalculateMonthAppliesKCFactor(t *testing.T) {
+func TestCalculateMonthAppliesFactor(t *testing.T) {
 	prev := MonthlyValue{Meter: "M", Day: mustDay(t, "2025-01-31"), Value: 100}
 	cur := MonthlyValue{Meter: "M", Day: mustDay(t, "2025-02-28"), Value: 130}
 

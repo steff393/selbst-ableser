@@ -12,22 +12,28 @@ window.SATable = (function () {
     return cell ? cell.textContent.trim() : "";
   }
 
-  function compare(va, vb, numeric) {
-    if (numeric) {
-      va = parseFloat(va) || 0;
-      vb = parseFloat(vb) || 0;
-    }
+  function compare(va, vb) {
     if (va < vb) return -1;
     if (va > vb) return 1;
     return 0;
   }
 
+  // In a numeric column, a cell without a number ("n.a.", "–") goes to
+  // the bottom in either direction rather than sorting as 0 among the
+  // real values.
   function sortTable(table, colIndex, numeric, ascending) {
     var tbody = table.tBodies[0];
     if (!tbody) return;
     var rows = Array.prototype.slice.call(tbody.rows);
     rows.sort(function (a, b) {
-      var c = compare(cellText(a, colIndex), cellText(b, colIndex), numeric);
+      var va = cellText(a, colIndex);
+      var vb = cellText(b, colIndex);
+      if (numeric) {
+        va = parseFloat(va);
+        vb = parseFloat(vb);
+        if (isNaN(va) || isNaN(vb)) return isNaN(va) - isNaN(vb);
+      }
+      var c = compare(va, vb);
       return ascending ? c : -c;
     });
     rows.forEach(function (r) { tbody.appendChild(r); });

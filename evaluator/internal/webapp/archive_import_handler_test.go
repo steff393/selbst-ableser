@@ -159,7 +159,7 @@ func TestArchiveImportRejectsBadFileWithoutCrashing(t *testing.T) {
 		t.Errorf("status = %d, want 200 with an inline error message", resp.StatusCode)
 	}
 	raw, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(raw), "keine gültige Archiv-Datenbank") {
+	if !strings.Contains(string(raw), "weder eine Archiv-Datenbank") {
 		t.Errorf("expected the invalid-file error message, got: %s", string(raw))
 	}
 }

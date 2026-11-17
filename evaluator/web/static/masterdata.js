@@ -112,6 +112,54 @@
     draw();
   }
 
+  // ---- Nächster Platz ---------------------------------------------------
+  //
+  // "Nächster Platz" im Zähler-Dialog speichert und öffnet gleich den
+  // Zähler des folgenden Zählerplatzes — in der Reihenfolge, in der die
+  // Seite sie zeigt, Hauszähler zuletzt. Der Server reicht die ID nur über
+  // ?open= zurück; was dort aufgeht, entscheidet wieder diese Datei.
+
+  function placeRows() {
+    return Array.prototype.slice.call(document.querySelectorAll(".sa-place[data-search]"));
+  }
+
+  function placeIDOf(row) {
+    var idButton = row.querySelector('.sa-place-id [data-id]');
+    return idButton ? idButton.dataset.id : "";
+  }
+
+  function nextPlaceID(placeID) {
+    var rows = placeRows();
+    for (var i = 0; i < rows.length - 1; i++) {
+      if (placeIDOf(rows[i]) === placeID) return placeIDOf(rows[i + 1]);
+    }
+    return "";
+  }
+
+  // The device that hangs there now, or the "Zähler zuordnen" button for
+  // an empty place — the first of the two in document order is the one.
+  function meterTriggerOf(row) {
+    return row.querySelector('.sa-place-device [data-dialog="meter"], .sa-place-actions [data-dialog="meter"]');
+  }
+
+  function openFromURL() {
+    var params = new URLSearchParams(window.location.search);
+    var wanted = params.get("open");
+    if (!wanted) return;
+    // Ein Neuladen soll den Dialog nicht noch einmal öffnen.
+    params.delete("open");
+    var rest = params.toString();
+    history.replaceState(null, "", window.location.pathname + (rest ? "?" + rest : "") + window.location.hash);
+
+    var row = placeRows().filter(function (r) { return placeIDOf(r) === wanted; })[0];
+    var trigger = row && meterTriggerOf(row);
+    if (!trigger) return;
+    var unit = row.closest("details");
+    if (unit) unit.open = true;
+    row.scrollIntoView({block: "center"});
+    openMeter(trigger.dataset);
+  }
+
   // ---- Dialoge füllen ---------------------------------------------------
 
   function openUnit(data) {
@@ -156,7 +204,7 @@
     setField(dlg, "aes_key", data.aes || "");
     setField(dlg, "installed_at", data.installed || "");
     setField(dlg, "start_reading", data.start || "");
-    setField(dlg, "kc_factor", data.kc || "");
+    setField(dlg, "factor", data.factor || "");
     setField(dlg, "freeze_month", data.freeze || "");
     setField(dlg, "removed_at", data.removed || "");
     setField(dlg, "end_reading", data.end || "");
@@ -177,6 +225,9 @@
     } else {
       show(dlg.querySelector(".sa-suggest"), false);
     }
+    var next = nextPlaceID(data.place || "");
+    setField(dlg, "next_place", next);
+    show(dlg.querySelector(".sa-next"), next !== "");
     dlg.showModal();
     field(dlg, "number").focus();
   }
@@ -189,16 +240,16 @@
     setField(dlg, "number", "");
     setField(dlg, "aes_key", "");
     setField(dlg, "start_reading", "0");
-    setField(dlg, "kc_factor", data.kc || "");
+    setField(dlg, "factor", data.factor || "");
     setField(dlg, "freeze_month", data.freeze || "");
 
     var place = dlg.querySelector("[data-place]");
     if (place) {
       place.textContent = (data.placeLabel || "") + " — ausgebaut wird " + (data.outgoing || "") + ".";
     }
-    var kcWhy = dlg.querySelector('[data-why="kc"]');
-    if (kcWhy) {
-      kcWhy.textContent = data.kc
+    var factorWhy = dlg.querySelector('[data-why="factor"]');
+    if (factorWhy) {
+      factorWhy.textContent = data.factor
         ? "Übernommen von " + data.outgoing + " — beim neuen Modell oft ein anderer."
         : "War beim alten Gerät leer.";
     }
@@ -206,7 +257,7 @@
     if (freezeWhy) {
       freezeWhy.textContent = data.freeze
         ? "Übernommen von " + data.outgoing + "."
-        : "War beim alten Gerät leer.";
+        : "War beim alten Gerät leer: kein Rücksetzen zum Stichtag.";
     }
     fillCandidates(dlg, data.kind || "");
     dlg.showModal();
@@ -281,10 +332,37 @@
       }
       return;
     }
+    var todayFor = e.target.closest("[data-today-for]");
+    if (todayFor) {
+      e.preventDefault();
+      var target = field(todayFor.closest("form"), todayFor.dataset.todayFor);
+      if (target) {
+        target.value = today;
+        target.focus();
+      }
+      return;
+    }
     var close = e.target.closest("[data-close]");
     if (close) {
       e.preventDefault();
       close.closest("dialog").close();
     }
   });
+
+  // Enter in a dialog field saves. Left to the browser, it would press
+  // the form's first submit button — and in every dialog that has one,
+  // that is the delete button at the far left of the footer. Enter in a
+  // search field only narrows the list it belongs to.
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || e.isComposing) return;
+    var input = e.target.closest("dialog input");
+    if (!input) return;
+    e.preventDefault();
+    if (input.type === "search") return;
+    var form = input.closest("form");
+    var save = form && form.querySelector("[data-default]");
+    if (save) form.requestSubmit(save);
+  });
+
+  openFromURL();
 })();

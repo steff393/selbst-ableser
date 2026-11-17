@@ -8,6 +8,14 @@ type TransportHeader struct {
 	HasConfigWord    bool
 	ConfigWordOffset int // offset into Frame.Raw; valid only if HasConfigWord
 	DataOffset       int // offset into Frame.Raw where data records begin
+
+	// AccessNumberOffset is where the transport header's access counter
+	// (ACC) sits in Frame.Raw, or -1 for a header that has none. It is
+	// the byte the decryption IV repeats (see internal/crypto), and it
+	// does not sit at a fixed distance from the CI field: a short header
+	// starts with it, a long header carries eight bytes of its own
+	// identification first.
+	AccessNumberOffset int
 }
 
 // IdentifyTransportHeader looks up the transport header layout for a CI
@@ -16,31 +24,25 @@ type TransportHeader struct {
 func IdentifyTransportHeader(ci byte) (h TransportHeader, ok bool) {
 	switch ci {
 	case 0x78: // no transport header
-		return TransportHeader{DataOffset: 11}, true
-	case 0x7A: // short header
-		return TransportHeader{HasConfigWord: true, ConfigWordOffset: 13, DataOffset: 15}, true
-	case 0x72: // long header
-		return TransportHeader{HasConfigWord: true, ConfigWordOffset: 21, DataOffset: 23}, true
+		return TransportHeader{DataOffset: 11, AccessNumberOffset: -1}, true
+	case 0x7A: // short header: ACC STS CW CW
+		return TransportHeader{HasConfigWord: true, ConfigWordOffset: 13, DataOffset: 15, AccessNumberOffset: 11}, true
+	case 0x72: // long header: ID(4) MFCT(2) VER MED ACC STS CW CW
+		return TransportHeader{HasConfigWord: true, ConfigWordOffset: 21, DataOffset: 23, AccessNumberOffset: 19}, true
 	case 0x8C: // extended link layer
-		return TransportHeader{HasConfigWord: true, ConfigWordOffset: 33, DataOffset: 35}, true
+		// Kept at the link layer's own first byte after CI, which is what
+		// this has always used: no telegram of this kind has been seen
+		// here, so there is nothing to verify a different choice against.
+		return TransportHeader{HasConfigWord: true, ConfigWordOffset: 33, DataOffset: 35, AccessNumberOffset: 11}, true
 	default:
 		return TransportHeader{}, false
 	}
 }
 
-// EncryptionStatusLabel reports a telegram's encryption state from its CI
-// byte alone, in German for direct display — no key needed, so it works
-// even for a meter with no configured AES key at all (UI-06).
-func EncryptionStatusLabel(ci byte) string {
-	if ci >= 0xA0 && ci <= 0xB7 {
-		return "unverschlüsselt (herstellerspezifisch)"
-	}
-	h, ok := IdentifyTransportHeader(ci)
-	if !ok {
-		return "unbekannt"
-	}
-	if !h.HasConfigWord {
-		return "unverschlüsselt"
-	}
-	return "verschlüsselt"
+// ManufacturerSpecificCI reports whether ci marks a manufacturer-specific
+// telegram: no standard transport header, no self-describing data
+// records, and — since there is no transport layer to carry a config word
+// — never encrypted at the transport level.
+func ManufacturerSpecificCI(ci byte) bool {
+	return ci >= 0xA0 && ci <= 0xB7
 }

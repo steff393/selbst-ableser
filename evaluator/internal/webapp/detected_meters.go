@@ -63,10 +63,10 @@ func detectedMeters(store *archive.Store, md masterdata.MasterData, today telegr
 		d := detectedMeter{Number: s.ID, LastSeen: formatGridDay(s.LastDay)}
 		if raw, err := hex.DecodeString(s.RawHex); err == nil && len(raw) > 9 {
 			// A meter this page lists is by definition not in the master
-			// data, so there is no key to pass — deviceMedium then falls
-			// back to the link-layer medium for an encrypted telegram,
-			// which is all this page ever had.
-			medium := deviceMedium(raw, [16]byte{})
+			// data, so there is no key to pass — deviceIdentity then
+			// stops at the headers for an encrypted telegram, which is
+			// all this page ever had.
+			_, medium := deviceIdentity(raw, [16]byte{})
 			if dt, ok := telegram.IdentifyDeviceType(medium); ok {
 				d.TypeName = dt.Name
 			}

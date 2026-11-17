@@ -3,19 +3,32 @@ package crypto
 import "testing"
 
 func TestReadConfigWord(t *testing.T) {
-	// Bytes as observed on a real device: standard reading fails (mode
-	// would be 0), the byte-swapped fallback reading succeeds (mode 5,
-	// 2 blocks).
-	blocks, fallback, ok := readConfigWord(0x20, 0x25)
-	if !ok || blocks != 2 || !fallback {
-		t.Errorf("readConfigWord(0x20, 0x25) = (%d, %v, %v), want (2, true, true)", blocks, fallback, ok)
+	// Config words as real devices send them — block count in the high
+	// nibble of the first byte, mode 5 in the second. All four come from
+	// captured telegrams: the first three from Techem radio converters in
+	// front of water meters, the last from wmbusmeters' published test
+	// telegrams.
+	for _, c := range []struct {
+		b0, b1 byte
+		blocks int
+	}{
+		{0x20, 0x25, 2},
+		{0x30, 0x05, 3},
+		{0x40, 0x05, 4},
+		{0x50, 0x05, 5},
+	} {
+		blocks, fallback, ok := readConfigWord(c.b0, c.b1)
+		if !ok || blocks != c.blocks || fallback {
+			t.Errorf("readConfigWord(0x%02X, 0x%02X) = (%d, %v, %v), want (%d, false, true)",
+				c.b0, c.b1, blocks, fallback, ok, c.blocks)
+		}
 	}
 
-	// The same two nibble pairs, standard-compliant byte order: mode in
-	// the low byte, block count in the high byte. Should succeed directly.
-	blocks, fallback, ok = readConfigWord(0x25, 0x20)
-	if !ok || blocks != 2 || fallback {
-		t.Errorf("readConfigWord(0x25, 0x20) = (%d, %v, %v), want (2, false, true)", blocks, fallback, ok)
+	// The same two bytes swapped, as the one device family that gets the
+	// order wrong sends them: still mode 5 with 2 blocks, but flagged.
+	blocks, fallback, ok := readConfigWord(0x25, 0x20)
+	if !ok || blocks != 2 || !fallback {
+		t.Errorf("readConfigWord(0x25, 0x20) = (%d, %v, %v), want (2, true, true)", blocks, fallback, ok)
 	}
 
 	// Neither reading yields mode 5: not evaluable, not an error.

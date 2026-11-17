@@ -326,3 +326,62 @@ func TestMetersSeenSince(t *testing.T) {
 		t.Errorf("seen[1] = %+v, want m2", seen[1])
 	}
 }
+
+func TestPurgeUnknownMetersKeepsEveryKnownOne(t *testing.T) {
+	s := openTestStore(t)
+	for _, e := range []Entry{
+		{MeterID: "m1", Day: mustDay(t, "2025-01-01"), RawHex: "aa"},
+		{MeterID: "old", Day: mustDay(t, "2025-01-01"), RawHex: "ab"}, // a replaced device, still in the master data
+		{MeterID: "x1", Day: mustDay(t, "2025-01-01"), RawHex: "bb"},
+		{MeterID: "x1", Day: mustDay(t, "2025-01-02"), RawHex: "bc"},
+		{MeterID: "x1", Day: mustDay(t, "2025-02-01"), RawHex: "bd"}, // outside the range
+		{MeterID: "x2", Day: mustDay(t, "2025-01-01"), RawHex: "cc"},
+	} {
+		if _, err := s.InsertHistorical(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	purged, err := s.PurgeUnknownMeters(mustDay(t, "2025-01-01"), mustDay(t, "2025-01-31"), []string{"m1", "old", "never-heard"})
+	if err != nil {
+		t.Fatalf("PurgeUnknownMeters: %v", err)
+	}
+	want := []PurgedMeter{{ID: "x1", Entries: 2}, {ID: "x2", Entries: 1}}
+	if len(purged) != len(want) || purged[0] != want[0] || purged[1] != want[1] {
+		t.Errorf("purged = %+v, want %+v", purged, want)
+	}
+
+	remaining, err := s.AllEntries()
+	if err != nil {
+		t.Fatalf("AllEntries: %v", err)
+	}
+	if len(remaining) != 3 {
+		t.Fatalf("remaining = %+v, want m1, old, and x1's February entry", remaining)
+	}
+	for _, e := range remaining {
+		if e.MeterID == "x2" || (e.MeterID == "x1" && e.Day != mustDay(t, "2025-02-01")) {
+			t.Errorf("entry of %s on %s survived the purge", e.MeterID, e.Day)
+		}
+	}
+}
+
+// TestPurgeUnknownMetersWithAnEmptyKeepListClearsTheRange: before the
+// first meter is entered, every meter is unknown — the purge is then a
+// DeleteRange, and still only within its range.
+func TestPurgeUnknownMetersWithAnEmptyKeepListClearsTheRange(t *testing.T) {
+	s := openTestStore(t)
+	for _, e := range []Entry{
+		{MeterID: "m1", Day: mustDay(t, "2025-01-01"), RawHex: "aa"},
+		{MeterID: "m1", Day: mustDay(t, "2025-02-01"), RawHex: "ab"},
+	} {
+		if _, err := s.InsertHistorical(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.PurgeUnknownMeters(mustDay(t, "2025-01-01"), mustDay(t, "2025-01-31"), nil); err != nil {
+		t.Fatalf("PurgeUnknownMeters: %v", err)
+	}
+	if all, _ := s.AllEntries(); len(all) != 1 || all[0].Day != mustDay(t, "2025-02-01") {
+		t.Errorf("remaining = %+v, want only the February entry", all)
+	}
+}

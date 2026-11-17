@@ -53,7 +53,7 @@ func seedStructure(t *testing.T, app *App) {
 		{ID: "H01", Room: "Heizraum", Kind: masterdata.KindHeatMeter},
 	}
 	md.Meters = []masterdata.Meter{
-		{Number: "10004711", MeterPointID: "101", KCFactor: 1.2, FreezeMonth: 7},
+		{Number: "10004711", MeterPointID: "101", Factor: 1.2, FreezeMonth: 7},
 		{Number: "10004690", MeterPointID: "201", RemovedAt: &removed, EndReading: &end},
 		{Number: "10004718", MeterPointID: "201", InstalledAt: removed},
 		{Number: "20001100", MeterPointID: "H01"},
@@ -239,7 +239,7 @@ func TestSwapClosesTheOldDeviceAndInstallsTheNew(t *testing.T) {
 		"outgoing_end_reading": {"510"},
 		"number":               {"10004733"},
 		"start_reading":        {"0"},
-		"kc_factor":            {"1,2"},
+		"factor":               {"1,2"},
 		"freeze_month":         {"7"},
 	})
 
@@ -448,5 +448,64 @@ func TestRenamingAUnitEndsItsTenantSessions(t *testing.T) {
 	}
 	if _, ok := app.Sessions.Lookup(other.ID); !ok {
 		t.Error("an unrelated tenant's session must not be ended")
+	}
+}
+
+// TestNextPlaceSavesAndComesBackForTheNextOne: "Nächster Platz" is an
+// ordinary save that lands on the Gesamtansicht with the next place to
+// open; a plain save lands there with nothing to open.
+func TestNextPlaceSavesAndComesBackForTheNextOne(t *testing.T) {
+	app, client, srvURL, csrf := unlockedOperatorClient(t)
+	seedStructure(t, app)
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+
+	for _, c := range []struct {
+		then, number, want string
+	}{
+		{"next", "10004799", "/operator/masterdata?open=201"},
+		{"", "10004798", "/operator/masterdata"},
+	} {
+		form := url.Values{
+			"csrf_token":     {csrf},
+			"meter_point_id": {"102"},
+			"number":         {c.number},
+			"start_reading":  {"0"},
+			"next_place":     {"201"},
+			"then":           {c.then},
+		}
+		resp, err := client.PostForm(srvURL+"/operator/masterdata/meter", form)
+		if err != nil {
+			t.Fatalf("POST: %v", err)
+		}
+		resp.Body.Close()
+		if got := resp.Header.Get("Location"); got != c.want {
+			t.Errorf("then=%q: redirected to %q, want %q", c.then, got, c.want)
+		}
+		// Free the place again for the next round.
+		post(t, client, srvURL+"/operator/masterdata/meter/delete", url.Values{"csrf_token": {csrf}, "number": {c.number}})
+	}
+}
+
+// TestGesamtansichtCountsPlacesPerKind: the tally says per kind how many
+// places carry a device, house meters included, and leaves out kinds the
+// building does not have.
+func TestGesamtansichtCountsPlacesPerKind(t *testing.T) {
+	app, _, _, _ := unlockedOperatorClient(t)
+	seedStructure(t, app)
+	md, _ := app.Vault.Get()
+
+	units, house := structureView(md, nil)
+	got := kindCounts(units, house)
+	want := []kindCountView{
+		{Kind: "heating", Label: kindShortLabel(masterdata.KindHeatCostAllocator), Name: "Heizkostenverteiler", Places: 3, WithMeter: 2},
+		{Kind: "heat_meter", Label: kindShortLabel(masterdata.KindHeatMeter), Name: "Wärmemengenzähler", Places: 1, WithMeter: 1},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("kindCounts = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("kindCounts[%d] = %+v, want %+v", i, got[i], want[i])
+		}
 	}
 }

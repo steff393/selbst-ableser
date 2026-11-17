@@ -95,20 +95,20 @@ type swapColumns struct {
 	NewNumber    int
 	StartReading int
 
-	// KCFactor and FreezeMonth are optional. Both belong to the *device*,
+	// Factor and FreezeMonth are optional. Both belong to the *device*,
 	// not to the place it sits at (see docs/04-fachlogik.md: the billing
 	// code resolves them per meter and per day precisely so a replacement
 	// can bring its own), so a swap to a different model may change them.
 	// Left out, they are inherited from the outgoing meter, which is what
 	// a protocol that does not mention them means.
-	KCFactor    int
+	Factor      int
 	FreezeMonth int
 }
 
 // defaultSwapColumns is the order a protocol without a header is read in.
 // It is the order the fitter's list normally has, and it is printed above
 // the paste box so nobody has to guess. The two optional columns have no
-// place in it: without a header there is no way to tell a kc factor from
+// place in it: without a header there is no way to tell a factor from
 // a reading.
 var defaultSwapColumns = swapColumns{OldNumber: 1, EndReading: 2, NewNumber: 3, StartReading: 4}
 
@@ -128,7 +128,7 @@ func detectSwapColumns(header []string) swapColumns {
 		// no keyword of the others, but "Stichtag" would otherwise never be
 		// reached if a later case matched it by accident.
 		case strings.Contains(lower, "kc"), strings.Contains(lower, "faktor"), strings.Contains(lower, "bewertung"):
-			cols.KCFactor = i + 1
+			cols.Factor = i + 1
 		case strings.Contains(lower, "stichtag"), strings.Contains(lower, "reset"):
 			cols.FreezeMonth = i + 1
 		case strings.Contains(lower, "platz"):
@@ -158,8 +158,7 @@ func cell(row []string, idx int) string {
 // ---------- Zählerwechsel ----------
 
 // swapPlan is what one pasted line would do. A plan with a Problem is
-// shown but not applied; a Note or a Warning is worth reading and applied
-// anyway — the difference between them is how loudly the page says so.
+// shown but not applied; a Note is worth reading and applied anyway.
 type swapPlan struct {
 	Line int
 
@@ -173,32 +172,32 @@ type swapPlan struct {
 	NewNumber    string
 	StartReading int64
 
-	// KCFactor and FreezeMonth as the incoming device will get them, either
+	// Factor and FreezeMonth as the incoming device will get them, either
 	// from the pasted line or inherited from the outgoing one — Inherited
 	// says which, because a silently carried-over evaluation factor is
 	// exactly the kind of thing that must not go unnoticed on a swap to a
 	// different model.
-	KCFactor    float64
+	Factor      float64
 	FreezeMonth int
 	Inherited   bool
 
 	Problem string
 	Note    string
-	Warning string
 }
 
 func (p swapPlan) OK() bool { return p.Problem == "" }
 
 // DeviceValuesText renders the two device properties for the preview.
-// Heating meters show both; a water meter has neither (it is never scaled
-// and never resets), so it shows nothing rather than a meaningless 1.
+// Only what is set is shown: a water meter usually has neither (it is
+// never scaled and counts continuously), so it shows nothing rather than
+// a meaningless 1.
 func (p swapPlan) DeviceValuesText() string {
-	if p.KCFactor == 0 && p.FreezeMonth == 0 {
+	if p.Factor == 0 && p.FreezeMonth == 0 {
 		return "—"
 	}
 	parts := make([]string, 0, 2)
-	if p.KCFactor != 0 {
-		parts = append(parts, "kc "+strconv.FormatFloat(p.KCFactor, 'g', -1, 64))
+	if p.Factor != 0 {
+		parts = append(parts, "Faktor "+strconv.FormatFloat(p.Factor, 'g', -1, 64))
 	}
 	if p.FreezeMonth != 0 {
 		parts = append(parts, "Stichtag "+strconv.Itoa(p.FreezeMonth))
@@ -387,17 +386,17 @@ func planSwaps(md masterdata.MasterData, table [][]string, cols swapColumns, day
 		plan.Inherited = true
 		if plan.OldNumber != "" {
 			outgoing := activeByNumber[plan.OldNumber]
-			plan.KCFactor = outgoing.KCFactor
+			plan.Factor = outgoing.Factor
 			plan.FreezeMonth = outgoing.FreezeMonth
 		}
-		if s := strings.TrimSpace(cell(row, cols.KCFactor)); s != "" {
-			kc, err := parseKCFactor(s)
+		if s := strings.TrimSpace(cell(row, cols.Factor)); s != "" {
+			factor, err := parseFactor(s)
 			if err != nil {
-				plan.Problem = "kc-Faktor: " + err.Error()
+				plan.Problem = "Faktor: " + err.Error()
 				plans = append(plans, plan)
 				continue
 			}
-			plan.KCFactor = kc
+			plan.Factor = factor
 			plan.Inherited = false
 		}
 		if s := strings.TrimSpace(cell(row, cols.FreezeMonth)); s != "" {
@@ -410,31 +409,8 @@ func planSwaps(md masterdata.MasterData, table [][]string, cols swapColumns, day
 			plan.FreezeMonth = month
 			plan.Inherited = false
 		}
-		if mp.Kind == masterdata.KindHeatCostAllocator && plan.KCFactor == 0 && plan.OldNumber == "" && plan.Note == "" {
-			plan.Note = "Kein kc-Faktor angegeben — gerechnet wird mit 1"
-		}
-
-		// A swap in the first month of a billing period is computable since
-		// the period's closing value comes from the device itself (see
-		// billing/billing_reset.go) — but only while both devices share
-		// that period. Differing Stichtag months are still refused by the
-		// billing code, and this is the only place the operator can be told
-		// before a month-end fails.
-		//
-		// The month a new period *begins* in is the one after the Stichtag
-		// month, which is what the billing compares against (see
-		// CalculateSeries).
-		incoming := effectiveFreezeMonth(plan.FreezeMonth)
-		if mp.Kind == masterdata.KindHeatCostAllocator && int(day.Month()) == monthAfterFreeze(incoming) {
-			outgoing := incoming
-			if plan.OldNumber != "" {
-				outgoing = effectiveFreezeMonth(activeByNumber[plan.OldNumber].FreezeMonth)
-			}
-			if outgoing != incoming {
-				plan.Warning = fmt.Sprintf(
-					"Wechsel im ersten Monat der neuen Abrechnungsperiode, aber alter und neuer Zähler haben verschiedene Stichtage (Monat %d bzw. %d): Für diesen Monat lässt sich der Verbrauch nicht berechnen. Wenn möglich einen Wechseltag in einem anderen Monat eintragen.",
-					outgoing, incoming)
-			}
+		if mp.Kind == masterdata.KindHeatCostAllocator && plan.Factor == 0 && plan.OldNumber == "" && plan.Note == "" {
+			plan.Note = "Kein Faktor angegeben — gerechnet wird mit 1"
 		}
 
 		if plan.OldNumber != "" {
@@ -446,30 +422,11 @@ func planSwaps(md masterdata.MasterData, table [][]string, cols swapColumns, day
 	return plans
 }
 
-// effectiveFreezeMonth mirrors masterdata.Meter.EffectiveFreezeMonth for a
-// value that is not on a Meter yet: 0 means unset, and unset means December
-// — the 31 December Stichtag (FACH-03).
-func effectiveFreezeMonth(m int) int {
-	if m == 0 {
-		return 12
-	}
-	return m
-}
-
-// monthAfterFreeze is the month a new billing period begins in: the one
-// after the Stichtag month, wrapping December to January.
-func monthAfterFreeze(freezeMonth int) int {
-	if freezeMonth == 12 {
-		return 1
-	}
-	return freezeMonth + 1
-}
-
-// parseKCFactor reads an evaluation factor. Unlike a meter reading this one
+// parseFactor reads an evaluation factor. Unlike a meter reading this one
 // is genuinely decimal (1.4, 0.85), and a German protocol writes it with a
-// comma — which is unambiguous here, because a kc factor has no thousands
+// comma — which is unambiguous here, because a factor has no thousands
 // to confuse it with.
-func parseKCFactor(s string) (float64, error) {
+func parseFactor(s string) (float64, error) {
 	v, err := strconv.ParseFloat(strings.ReplaceAll(s, ",", "."), 64)
 	if err != nil {
 		return 0, fmt.Errorf("%q ist keine Zahl", s)
@@ -496,7 +453,7 @@ func parseFreezeMonth(s string) (int, error) {
 // every outgoing meter is closed off on day, and its replacement starts
 // the same day at the same point.
 //
-// The incoming meter's KCFactor and FreezeMonth come from the plan, which
+// The incoming meter's Factor and FreezeMonth come from the plan, which
 // took them from the pasted line if it named them and from the outgoing
 // device otherwise. Inheriting is the right default and not more than
 // that: both are properties of the device (docs/04-fachlogik.md resolves
@@ -523,7 +480,7 @@ func applySwaps(md masterdata.MasterData, plans []swapPlan, day telegram.Day) (m
 			MeterPointID: plan.PointID,
 			InstalledAt:  day,
 			StartReading: plan.StartReading,
-			KCFactor:     plan.KCFactor,
+			Factor:       plan.Factor,
 			FreezeMonth:  plan.FreezeMonth,
 		}
 		if plan.OldNumber != "" {

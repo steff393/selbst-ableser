@@ -1,7 +1,6 @@
 package webapp
 
 import (
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"selbst-ableser/internal/archive"
 	"selbst-ableser/internal/billing"
 	"selbst-ableser/internal/config"
+	"selbst-ableser/internal/crypto"
 	"selbst-ableser/internal/livepush"
 	"selbst-ableser/internal/masterdata"
 	"selbst-ableser/internal/telegram"
@@ -162,10 +162,6 @@ func (a *App) buildLiveRow(e livepush.Telegram, raw []byte, md masterdata.Master
 		return row
 	}
 
-	row.Manufacturer = telegram.Manufacturer(binary.LittleEndian.Uint16(raw[2:4]))
-	row.ManufacturerName, _ = telegram.ManufacturerName(row.Manufacturer)
-	row.AESIcon, row.AESTitle = aesLockIcon(raw[10])
-
 	var key [16]byte
 	if unlocked {
 		if meter, found := md.MeterByNumber(e.MeterID, telegram.DayOf(e.ReceivedAt)); found {
@@ -175,10 +171,14 @@ func (a *App) buildLiveRow(e livepush.Telegram, raw []byte, md masterdata.Master
 	}
 	row.DecodeURL = wmbusmetersURL(e.RawHex, key)
 
-	// Classified after the key is resolved, not before: deviceMedium can
+	// Identified after the key is resolved, not before: deviceIdentity can
 	// read a device's real medium out of the application layer, which for
 	// an encrypted telegram needs that key.
-	if dt, ok := telegram.IdentifyDeviceType(deviceMedium(raw, key)); ok {
+	row.AESIcon, row.AESTitle = aesLockIcon(raw, key)
+	manufacturer, medium := deviceIdentity(raw, key)
+	row.Manufacturer = manufacturer
+	row.ManufacturerName, _ = telegram.ManufacturerName(row.Manufacturer)
+	if dt, ok := telegram.IdentifyDeviceType(medium); ok {
 		row.DeviceType = dt.Abbr
 		row.DeviceTypeName = dt.Name
 	}
@@ -191,17 +191,39 @@ func (a *App) buildLiveRow(e livepush.Telegram, raw []byte, md masterdata.Master
 }
 
 // aesLockIcon summarizes a telegram's transport-level encryption state as a
-// compact padlock, from the CI byte alone — no key needed, so it shows
-// correctly even for a meter with no configured AES key (UI-06).
-func aesLockIcon(ci byte) (icon, title string) {
-	label := telegram.EncryptionStatusLabel(ci)
-	switch {
-	case label == "verschlüsselt":
-		return "🔒", label
-	case label == "unbekannt":
-		return "?", label
-	default: // "unverschlüsselt" or "unverschlüsselt (herstellerspezifisch)"
-		return "🔓", label
+// compact padlock (UI-06). key may be the zero key: a telegram that was
+// never encrypted is recognized without one, which is the point — during
+// commissioning the operator needs to tell "this meter sends encrypted"
+// from "I do not have its key" before any key exists.
+//
+// The state comes from actually trying to decrypt, not from the CI byte.
+// The CI only says whether a header type *can* carry encryption; whether
+// it does is in the config word, and a telegram that announces mode 0
+// there is in the clear. Until 2026-09 this read the CI alone and showed
+// a closed padlock for every short or long header — a Qundis water meter
+// sending mode 0 looked exactly like a genuinely encrypted one.
+func aesLockIcon(raw []byte, key [16]byte) (icon, title string) {
+	frame, err := telegram.ParseWMBus(raw)
+	if err != nil {
+		return "?", "unbekannt"
+	}
+	switch crypto.Decrypt(frame, key).Outcome {
+	case crypto.OutcomeCleartext:
+		if telegram.ManufacturerSpecificCI(frame.CI) {
+			return "🔓", "unverschlüsselt (herstellerspezifisch)"
+		}
+		return "🔓", "unverschlüsselt"
+	case crypto.OutcomeDecrypted:
+		return "🔒", "verschlüsselt, Schlüssel vorhanden"
+	case crypto.OutcomeWrongKeyOrCorrupt:
+		if key == ([16]byte{}) {
+			return "🔒", "verschlüsselt, kein Schlüssel hinterlegt"
+		}
+		return "🔒", "verschlüsselt, hinterlegter Schlüssel passt nicht"
+	case crypto.OutcomeUnsupportedMode:
+		return "🔒", "verschlüsselt, Verfahren wird nicht unterstützt"
+	default: // unknown transport header, or shorter than its own header
+		return "?", "unbekannt"
 	}
 }
 

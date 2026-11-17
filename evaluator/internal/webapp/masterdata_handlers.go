@@ -59,6 +59,7 @@ type masterDataPageData struct {
 	Units       []unitView
 	HousePlaces []placeView
 	Detected    []detectedView
+	KindCounts  []kindCountView
 	Kinds       []kindOption
 
 	// The Tabellen tab: the same data as grid rows, one grid per thing,
@@ -70,7 +71,7 @@ type masterDataPageData struct {
 	CSVMeterPoints  string
 	CSVMeters       string
 
-	// The Zugänge tab: tenant access grants plus the operator's own
+	// The Mieter tab: tenant access grants plus the operator's own
 	// vault password, next to each other because both are credentials of
 	// the installation.
 	AccessGridJSON template.JS
@@ -158,7 +159,7 @@ func (a *App) renderMasterData(w http.ResponseWriter, sess *access.Session, md m
 // gave the settings a name of their own without losing the one operators
 // actually work in day to day.
 //
-// tabAccess ("Zugänge") used to be its own page at /operator/access; it
+// tabAccess ("Mieter", once "Zugänge") used to be its own page at /operator/access; it
 // moved in here so every credential and every editable table of the
 // installation lives behind the same set of tabs. GET /operator/access
 // now only redirects, and its three POST routes are unchanged — they
@@ -195,11 +196,11 @@ func (a *App) renderMasterDataSwap(w http.ResponseWriter, sess *access.Session, 
 	a.renderMasterDataPage(w, sess, md, gridsOf(md), tabSwap, nil, preview, errMsg, "")
 }
 
-// renderAccessTab redraws the Zugänge tab with the given rows — either the
+// renderAccessTab redraws the Mieter tab with the given rows — either the
 // stored grants, or (after a rejected save) exactly what the operator
 // typed or pasted, so one bad row doesn't discard the rest of the edit.
 // The other two grids and the structure view always come fresh from md,
-// since a Zugänge action never touches them.
+// since a Mieter-tab action never touches them.
 func (a *App) renderAccessTab(w http.ResponseWriter, sess *access.Session, md masterdata.MasterData, rows []accessGridRow, errMsg, flash string) {
 	grids := gridsOf(md)
 	grids.Accesses = rows
@@ -251,6 +252,7 @@ func (a *App) renderMasterDataPage(w http.ResponseWriter, sess *access.Session, 
 		Units:           units,
 		HousePlaces:     housePlaces,
 		Detected:        detected,
+		KindCounts:      kindCounts(units, housePlaces),
 		Kinds:           kindOptions(),
 		UnitsJSON:       template.JS(unitsJSON),
 		MeterPointsJSON: template.JS(pointsJSON),
@@ -409,7 +411,7 @@ type meterRow struct {
 	StartReading string `json:"start_reading"`
 	RemovedAt    string `json:"removed_at"`
 	EndReading   string `json:"end_reading"`
-	KCFactor     string `json:"kc_factor"`
+	Factor       string `json:"factor"`
 	FreezeMonth  string `json:"freeze_month"`
 }
 
@@ -434,8 +436,8 @@ func meterRowFromMeter(m masterdata.Meter, kind masterdata.Kind) meterRow {
 	if m.EndReading != nil {
 		row.EndReading = formatReadingValue(kind, *m.EndReading)
 	}
-	if m.KCFactor != 0 {
-		row.KCFactor = strconv.FormatFloat(m.KCFactor, 'f', -1, 64)
+	if m.Factor != 0 {
+		row.Factor = strconv.FormatFloat(m.Factor, 'f', -1, 64)
 	}
 	if m.FreezeMonth != 0 {
 		row.FreezeMonth = strconv.Itoa(m.FreezeMonth)

@@ -31,10 +31,11 @@ func ManufacturerSpecific(manufacturer string, raw []byte) (Reading, bool, error
 // because the telegram's CI is regular and only one record in it is not.
 //
 // It returns the reading together with field: the exact bytes holding the
-// value, aliasing the payload records were walked from, so a correction
-// can overwrite them in place (see EncodeCurrentValue). found is false for
-// a record this decoder does not recognize; that is not an error.
-type ManufacturerRecordDecoder func(records []Record) (reading Reading, field []byte, found bool, err error)
+// value, aliasing the payload records were walked from, and their
+// encoding, so a correction can overwrite them in place (see
+// Field.Overwrite). found is false for a record this decoder does not
+// recognize; that is not an error.
+type ManufacturerRecordDecoder func(records []Record) (reading Reading, field Field, found bool, err error)
 
 var manufacturerRecordDecoders = map[string]ManufacturerRecordDecoder{}
 
@@ -47,10 +48,10 @@ func RegisterManufacturerRecordDecoder(manufacturer string, fn ManufacturerRecor
 // ManufacturerRecordValue dispatches to a registered record decoder for
 // the given manufacturer code. found is false if none is registered or it
 // does not recognize any of records.
-func ManufacturerRecordValue(manufacturer string, records []Record) (reading Reading, field []byte, found bool, err error) {
+func ManufacturerRecordValue(manufacturer string, records []Record) (reading Reading, field Field, found bool, err error) {
 	fn, ok := manufacturerRecordDecoders[manufacturer]
 	if !ok {
-		return Reading{}, nil, false, nil
+		return Reading{}, Field{}, false, nil
 	}
 	return fn(records)
 }

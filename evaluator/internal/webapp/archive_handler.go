@@ -1,7 +1,6 @@
 package webapp
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -87,10 +86,11 @@ func (a *App) archivePageData(sess *access.Session, errMsg string) (archivePageD
 	return data, nil
 }
 
-// handleArchiveImport merges a previously exported archive-schema SQLite
-// file (a saCollector backup.db, or another installation's archive.db — the
-// schema is identical either way) into this installation's
-// live archive. Uploaded content is only ever read from a throwaway copy;
+// handleArchiveImport merges a previously exported archive into this
+// installation's live archive: an archive-schema SQLite file (a
+// saCollector backup.db, another installation's archive.db, or this page's
+// own .db download — the schema is identical either way), or this page's
+// JSON download; archive.ImportFile tells them apart by content. Uploaded content is only ever read from a throwaway copy;
 // the operator's own original file is never touched by this. Conflicting
 // entries (DATEN-03: an existing entry for a closed day that differs from
 // the one being imported) are reported, never silently overwritten — see
@@ -140,7 +140,7 @@ func (a *App) handleArchiveImport(w http.ResponseWriter, r *http.Request) {
 
 	report, err := archive.ImportFile(a.Store, tmpPath)
 	if err != nil {
-		a.renderArchivePageWithError(w, sess, "Import fehlgeschlagen: die Datei ist keine gültige Archiv-Datenbank.")
+		a.renderArchivePageWithError(w, sess, "Import fehlgeschlagen: die Datei ist weder eine Archiv-Datenbank (.db) noch ein Archiv-Download als .json.")
 		return
 	}
 
@@ -203,6 +203,64 @@ func (a *App) handleArchiveCompress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data.Flash = fmt.Sprintf("%d Einträge komprimiert (nur vollständige Monate zwischen %s und %s berücksichtigt).", deleted, formatDay(from), formatDay(to))
+	a.render(w, "archive.html", data)
+}
+
+// handleArchivePurge removes, within the chosen range, every entry of a
+// meter the master data does not know at all (DATEN-06's manual cleanup,
+// like Delete and Compress): the neighbours' devices the collector hears
+// and, by design, cannot tell apart from ours. A replaced device stays,
+// since it is still in the master data with its removal date — only
+// numbers that appear nowhere there go. Needs the vault unlocked for
+// exactly that list; nothing is decrypted.
+func (a *App) handleArchivePurge(w http.ResponseWriter, r *http.Request) {
+	sess := a.session(r)
+	if err := access.RequireOperator(sess); err != nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	md, ok := a.Vault.Get()
+	if !ok {
+		a.renderLocked(w, sess)
+		return
+	}
+	if !requireCSRF(sess, r) {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	from, err1 := telegram.ParseDay(r.PostFormValue("from"))
+	to, err2 := telegram.ParseDay(r.PostFormValue("to"))
+	if err1 != nil || err2 != nil {
+		a.renderArchivePageWithError(w, sess, "Ungültiger Zeitraum.")
+		return
+	}
+
+	keep := make([]string, 0, len(md.Meters))
+	for _, m := range md.Meters {
+		keep = append(keep, m.Number)
+	}
+	purged, err := a.Store.PurgeUnknownMeters(from, to, keep)
+	if err != nil {
+		a.renderTechnicalError(w, sess, err)
+		return
+	}
+	var entries int64
+	for _, m := range purged {
+		entries += m.Entries
+	}
+	a.audit(access.EventArchivePurged, sess.AuditActor(), fmt.Sprintf("%d entries of %d meters not in the master data, %s to %s", entries, len(purged), from, to))
+
+	data, dataErr := a.archivePageData(sess, "")
+	if dataErr != nil {
+		a.renderTechnicalError(w, sess, dataErr)
+		return
+	}
+	if len(purged) == 0 {
+		data.Flash = fmt.Sprintf("Nichts zu bereinigen: Alle Einträge von %s bis %s gehören zu Zählern aus den Stammdaten.", formatDay(from), formatDay(to))
+	} else {
+		data.Flash = fmt.Sprintf("%d Einträge von %d Zählern entfernt, die nicht in den Stammdaten stehen (%s bis %s).", entries, len(purged), formatDay(from), formatDay(to))
+	}
 	a.render(w, "archive.html", data)
 }
 
@@ -327,9 +385,12 @@ func (a *App) renderArchivePageWithError(w http.ResponseWriter, sess *access.Ses
 	a.render(w, "archive.html", data)
 }
 
-// handleArchiveDownload streams a day-range excerpt of the archive as
-// JSON — still fully encrypted (A.3), so this is safe to hand over for
-// backup or for a third party's review without decrypting anything.
+// handleArchiveDownload streams a day-range excerpt of the archive —
+// still fully encrypted (A.3), so this is safe to hand over for backup or
+// for a third party's review without decrypting anything. Two formats,
+// both of which the import takes back: format=db, an archive-schema SQLite
+// file like the archive itself and a collector's backup.db; anything else,
+// JSON, readable as plain text without any tool.
 func (a *App) handleArchiveDownload(w http.ResponseWriter, r *http.Request) {
 	sess := a.session(r)
 	if err := access.RequireOperator(sess); err != nil {
@@ -344,15 +405,49 @@ func (a *App) handleArchiveDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	name := fmt.Sprintf("archive-%s-bis-%s", from, to)
+	if r.URL.Query().Get("format") == "db" {
+		a.downloadArchiveDB(w, sess, from, to, name+".db")
+		return
+	}
+
 	entries, err := a.Store.Range(from, to)
 	if err != nil {
 		a.renderTechnicalError(w, sess, err)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=archive-%s-bis-%s.json", from, to))
-	if err := json.NewEncoder(w).Encode(entries); err != nil {
+	w.Header().Set("Content-Disposition", "attachment; filename="+name+".json")
+	if err := archive.WriteJSON(w, entries); err != nil {
+		a.logger().Error("streaming archive download", "err", err)
+	}
+}
+
+// downloadArchiveDB writes the excerpt to a throwaway file first: a SQLite
+// database cannot be produced as a stream, only as a file on disk.
+func (a *App) downloadArchiveDB(w http.ResponseWriter, sess *access.Session, from, to telegram.Day, name string) {
+	tmpDir, err := os.MkdirTemp("", "sa-archive-export-*")
+	if err != nil {
+		a.renderTechnicalError(w, sess, err)
+		return
+	}
+	defer os.RemoveAll(tmpDir)
+
+	path := filepath.Join(tmpDir, name)
+	if _, err := a.Store.ExportRange(from, to, path); err != nil {
+		a.renderTechnicalError(w, sess, err)
+		return
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		a.renderTechnicalError(w, sess, err)
+		return
+	}
+	defer f.Close()
+
+	w.Header().Set("Content-Type", "application/vnd.sqlite3")
+	w.Header().Set("Content-Disposition", "attachment; filename="+name)
+	if _, err := io.Copy(w, f); err != nil {
 		a.logger().Error("streaming archive download", "err", err)
 	}
 }

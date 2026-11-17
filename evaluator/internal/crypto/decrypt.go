@@ -54,18 +54,10 @@ type Result struct {
 	UsedFallbackConfigWordReading bool
 }
 
-// isManufacturerSpecific reports whether ci marks a manufacturer-specific
-// telegram (no standard transport header, no self-describing data
-// records). Such telegrams are never encrypted at the transport level
-// handled here.
-func isManufacturerSpecific(ci byte) bool {
-	return ci >= 0xA0 && ci <= 0xB7
-}
-
 // Decrypt makes a telegram's payload available in cleartext, using key for
 // OMS Security Profile A, mode 5 (AES-128-CBC).
 func Decrypt(f *telegram.Frame, key [16]byte) Result {
-	if isManufacturerSpecific(f.CI) {
+	if telegram.ManufacturerSpecificCI(f.CI) {
 		return Result{Outcome: OutcomeCleartext, Payload: f.Raw}
 	}
 	h, known := telegram.IdentifyTransportHeader(f.CI)
@@ -81,7 +73,7 @@ func Decrypt(f *telegram.Frame, key [16]byte) Result {
 	}
 	blocks, fallback, ok := readConfigWord(f.Raw[h.ConfigWordOffset], f.Raw[h.ConfigWordOffset+1])
 	if !ok {
-		if configWordIsCleartext(f.Raw[h.ConfigWordOffset]) {
+		if configWordIsCleartext(f.Raw[h.ConfigWordOffset+1]) {
 			return Result{Outcome: OutcomeCleartext, Payload: f.Raw}
 		}
 		return Result{Outcome: OutcomeUnsupportedMode}
@@ -93,18 +85,18 @@ func Decrypt(f *telegram.Frame, key [16]byte) Result {
 		return Result{Outcome: OutcomeTruncated}
 	}
 
-	// buildIV reads f.Rest[0] (the access counter, ACC). The check above
+	// buildIV reads the access counter out of f.Raw. The check above
 	// already implies len(f.Raw) is large enough for every known header
 	// type to make that safe — but only as long as that check stays
 	// exactly where it is. Checking it here too, right next to the read
-	// it protects, means Rest[0] can never panic even if a future change
-	// reorders or removes the check above: a telegram this short is
-	// exactly what OutcomeTruncated already exists to report.
-	if len(f.Rest) == 0 {
+	// it protects, means the access counter can never panic even if a
+	// future change reorders or removes the check above: a telegram this
+	// short is exactly what OutcomeTruncated already exists to report.
+	if h.AccessNumberOffset < 0 || h.AccessNumberOffset >= len(f.Raw) {
 		return Result{Outcome: OutcomeTruncated}
 	}
 
-	iv := buildIV(f)
+	iv := buildIV(f, h.AccessNumberOffset)
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		// key is always 16 bytes here, so this cannot fail in practice.
@@ -151,11 +143,11 @@ func Encrypt(f *telegram.Frame, payload []byte, key [16]byte) ([]byte, error) {
 	if cipherStart+cipherLen > len(payload) {
 		return nil, fmt.Errorf("crypto: telegram shorter than its config word claims")
 	}
-	if len(f.Rest) == 0 {
+	if h.AccessNumberOffset < 0 || h.AccessNumberOffset >= len(payload) {
 		return nil, fmt.Errorf("crypto: telegram too short for an access counter")
 	}
 
-	iv := buildIV(f)
+	iv := buildIV(f, h.AccessNumberOffset)
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		// key is always 16 bytes here, so this cannot fail in practice.
@@ -169,14 +161,25 @@ func Encrypt(f *telegram.Frame, payload []byte, key [16]byte) ([]byte, error) {
 }
 
 // buildIV constructs the 16-byte initialization vector for OMS Security
-// Profile A: manufacturer field and address field as transmitted, followed
-// by version, medium, and the access counter repeated to fill the block.
-func buildIV(f *telegram.Frame) []byte {
+// Profile A: manufacturer field, address field, version and medium of the
+// device the data belongs to, then its access counter repeated to fill the
+// block.
+//
+// Both halves come from the transport header where the telegram has one
+// (CI 0x72): the identification through Frame.Identity, and the access
+// counter from accOffset, which the header layout table supplies because
+// it is not at a fixed distance from the CI field. A radio converter's
+// telegram would otherwise be decrypted with the converter's own address
+// and with the first byte of the meter number in place of the counter —
+// neither is what the meter encrypted with, so the result would be
+// rejected as a wrong key.
+func buildIV(f *telegram.Frame, accOffset int) []byte {
+	id := f.Identity()
 	iv := make([]byte, 0, aes.BlockSize)
-	iv = append(iv, byte(f.M), byte(f.M>>8))
-	iv = append(iv, f.A[:]...)
-	iv = append(iv, f.Ver, f.Med)
-	acc := f.Rest[0] // ACC is the first byte after CI
+	iv = append(iv, byte(id.M), byte(id.M>>8))
+	iv = append(iv, id.A[:]...)
+	iv = append(iv, id.Ver, id.Med)
+	acc := f.Raw[accOffset]
 	for i := 0; i < 8; i++ {
 		iv = append(iv, acc)
 	}

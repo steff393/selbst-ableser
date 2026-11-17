@@ -17,7 +17,7 @@ const qundisHeatTelegramHex = "" +
 	"00005f380000000000800080008000800080008000800080" +
 	"00800080008000002f02fd170000046d0908493964"
 
-func TestDeviceMediumPrefersTheMeterOverTheRadio(t *testing.T) {
+func TestDeviceIdentityPrefersTheMeterOverTheRadio(t *testing.T) {
 	raw, err := hex.DecodeString(qundisHeatTelegramHex)
 	if err != nil {
 		t.Fatal(err)
@@ -26,9 +26,9 @@ func TestDeviceMediumPrefersTheMeterOverTheRadio(t *testing.T) {
 		t.Fatalf("fixture changed: link-layer medium 0x%02X, expected 0x37", raw[9])
 	}
 
-	got := deviceMedium(raw, [16]byte{})
+	_, got := deviceIdentity(raw, [16]byte{})
 	if got != 0x04 {
-		t.Fatalf("deviceMedium = 0x%02X, want 0x04 (heat)", got)
+		t.Fatalf("deviceIdentity medium = 0x%02X, want 0x04 (heat)", got)
 	}
 
 	// The whole point of the exercise: the operator-facing label, and the
@@ -45,33 +45,52 @@ func TestDeviceMediumPrefersTheMeterOverTheRadio(t *testing.T) {
 // Without an enhanced identification record there is nothing to prefer,
 // and the link-layer medium has to come through unchanged — every meter
 // this system billed before this function existed depends on it.
-func TestDeviceMediumFallsBackToTheHeader(t *testing.T) {
+func TestDeviceIdentityFallsBackToTheHeader(t *testing.T) {
 	// A minimal CI 0x78 telegram: header, then one volume record.
 	raw, err := hex.DecodeString("0b44934401020304010778041301020304")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := deviceMedium(raw, [16]byte{}); got != 0x07 {
-		t.Errorf("deviceMedium = 0x%02X, want the link-layer 0x07", got)
+	if _, got := deviceIdentity(raw, [16]byte{}); got != 0x07 {
+		t.Errorf("deviceIdentity medium = 0x%02X, want the link-layer 0x07", got)
 	}
 }
 
 // An encrypted telegram whose key is not at hand has no readable
 // application layer, so the header stays the answer rather than a guess
 // off ciphertext.
-func TestDeviceMediumKeepsTheHeaderForUnreadableCiphertext(t *testing.T) {
+func TestDeviceIdentityKeepsTheHeaderForUnreadableCiphertext(t *testing.T) {
 	// CI 0x7A (short header) with config word announcing mode 5.
 	raw, err := hex.DecodeString("1e449344010203040107" + "7a" + "01000025" + "8877665544332211008877665544332211")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := deviceMedium(raw, [16]byte{}); got != 0x07 {
-		t.Errorf("deviceMedium = 0x%02X, want the link-layer 0x07", got)
+	if _, got := deviceIdentity(raw, [16]byte{}); got != 0x07 {
+		t.Errorf("deviceIdentity medium = 0x%02X, want the link-layer 0x07", got)
 	}
 }
 
-func TestDeviceMediumTooShort(t *testing.T) {
-	if got := deviceMedium([]byte{0x01, 0x02}, [16]byte{}); got != 0x00 {
-		t.Errorf("deviceMedium on a stub = 0x%02X, want 0x00", got)
+func TestDeviceIdentityTooShort(t *testing.T) {
+	if _, got := deviceIdentity([]byte{0x01, 0x02}, [16]byte{}); got != 0x00 {
+		t.Errorf("deviceIdentity on a stub = 0x%02X, want 0x00", got)
+	}
+}
+
+// A Techem radio converter transmitting for a Wehrle water meter, captured
+// 2026-09-14. The link layer says Techem and "radio converter"; the long
+// transport header names the meter itself. The operator has to see the
+// meter, since that is what the number shown beside it now refers to.
+func TestDeviceIdentityPrefersTheLongHeader(t *testing.T) {
+	raw, err := hex.DecodeString("4b4468502643660295377216395403a85cfe07b0003005155ed42729bf7f5a37d10b621e0f72adeba4110e779226de018d7453823ebfe86d613ba2d7c223c4926f52463a598d330fc43078b5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manufacturer, medium := deviceIdentity(raw, [16]byte{})
+	if manufacturer != "WEH" {
+		t.Errorf("manufacturer = %q, want WEH (the meter, not the TCH converter)", manufacturer)
+	}
+	dt, ok := telegram.IdentifyDeviceType(medium)
+	if !ok || dt.Abbr != "KWZ" {
+		t.Errorf("device type = %+v (ok=%v), want KWZ, not the converter's RCM", dt, ok)
 	}
 }

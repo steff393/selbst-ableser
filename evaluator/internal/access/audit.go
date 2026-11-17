@@ -28,6 +28,7 @@ const (
 	EventArchiveDeleted    EventType = "archive_deleted"
 	EventArchiveCorrected  EventType = "archive_corrected"
 	EventArchiveCompressed EventType = "archive_compressed"
+	EventArchivePurged     EventType = "archive_purged"
 	EventNotificationSent  EventType = "notification_sent"
 	EventServiceRestart    EventType = "service_restart"
 )

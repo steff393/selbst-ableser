@@ -74,7 +74,7 @@ func ReadBillingReset(entry archive.Entry, key [16]byte) (BillingResetValue, boo
 
 	records, ok, walkErr := decode.Standard(frame.CI, result.Payload)
 	if !ok {
-		reset, ok, err := decode.ManufacturerBillingReset(telegram.Manufacturer(frame.M), raw)
+		reset, ok, err := decode.ManufacturerBillingReset(telegram.Manufacturer(frame.Identity().M), raw)
 		if err != nil || !ok {
 			return BillingResetValue{}, false, err
 		}
